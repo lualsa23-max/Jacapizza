@@ -8,7 +8,6 @@ app.secret_key = os.environ.get('SECRET_KEY', 'jacapizza-secret-2024-xK9!')
 
 DB_PATH = os.environ.get('DB_PATH', '/data/pizza_data.db')
 
-# ====================== DATOS EN MEMORIA ======================
 USUARIOS = {
     "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
@@ -38,22 +37,16 @@ FRANJAS_HORA = [
     "8:00 PM","8:15 PM","8:30 PM","8:45 PM","9:00 PM",
 ]
 
-# ====================== TEMPLATE FILTER ======================
 @app.template_filter('fromjson')
 def fromjson_filter(value):
-    try:
-        return json.loads(value)
-    except Exception:
-        return {}
+    try: return json.loads(value)
+    except: return {}
 
 @app.template_filter('cop')
 def fmt_cop(valor):
-    try:
-        return f"${float(valor):,.0f}".replace(",", ".")
-    except:
-        return "$0"
+    try: return f"${float(valor):,.0f}".replace(",", ".")
+    except: return "$0"
 
-# ====================== DATABASE ======================
 def _conn():
     c = sqlite3.connect(DB_PATH, timeout=5)
     c.row_factory = sqlite3.Row
@@ -120,8 +113,7 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
     with _conn() as c:
         cur = c.execute(
             "INSERT INTO pedidos (codigo,mesero,estado,total,hora,fecha,notas,franja_hora) VALUES (?,?,?,?,?,?,?,?)",
-            (mesa,"Pendiente" if mesero else mesero, "Pendiente", total, hora, fecha, notas, franja_hora))
-        # fix: use mesero param
+            (mesa, "Pendiente", total, hora, fecha, notas, franja_hora))
         pid = cur.lastrowid
         c.execute("UPDATE pedidos SET mesero=? WHERE id=?", (mesero, pid))
         for i in items:
@@ -260,7 +252,8 @@ def rol_required(*roles):
         def decorated(*args, **kwargs):
             if 'usuario' not in session:
                 return redirect(url_for('login'))
-            if session['rol'] not in roles:
+            # Administrador tiene acceso a todo
+            if session['rol'] not in roles and session['rol'] != 'Administrador':
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
         return decorated
@@ -301,7 +294,6 @@ def dashboard():
     elif rol == 'Cocina':        return redirect(url_for('cocina_pedidos'))
     return redirect(url_for('login'))
 
-# ---- ADMIN ----
 @app.route('/admin/resumen')
 @rol_required('Administrador')
 def admin_resumen():
@@ -433,7 +425,6 @@ def _handle_menu(form, menu_dict):
         name = form.get('name', '').strip(); precio = int(form.get('precio', 0) or 0)
         if name: menu_dict[name] = precio
 
-# ---- MESERO ----
 @app.route('/mesero/nuevo', methods=['GET', 'POST'])
 @rol_required('Mesero')
 def mesero_nuevo():
@@ -489,7 +480,6 @@ def mesero_editar(pid):
         sabores=SABORES_PIZZA, bebidas=BEBIDAS, franjas=FRANJAS_HORA,
         pulpas_json=json.dumps(pulpas))
 
-# ---- CAJERO ----
 @app.route('/cajero/cobrar')
 @rol_required('Cajero')
 def cajero_cobrar():
@@ -516,7 +506,6 @@ def cajero_caja():
         metodos[m] = metodos.get(m, 0) + p["total"]
     return render_template('cajero_caja.html', pedidos=pag, total=total, metodos=metodos, hoy=hoy)
 
-# ---- COCINA ----
 @app.route('/cocina/pedidos')
 @rol_required('Cocina')
 def cocina_pedidos():
@@ -546,7 +535,6 @@ def api_pedidos_count():
     activos = sum(1 for p in get_pedidos() if p["estado"] == "Pendiente")
     return jsonify({"count": activos})
 
-# ====================== RUN ======================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
