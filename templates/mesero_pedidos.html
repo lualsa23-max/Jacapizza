@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}— Mis Pedidos{% endblock %}
+{% block content %}
+<h2 class="sec-title">📋 Mis Pedidos</h2>
+{% if pedidos %}
+  {% for p in pedidos %}
+  <div class="p-card">
+    <div class="p-head">
+      <div>
+        <div class="p-id">#{{ p.id }}</div>
+        <div class="p-mesa">{{ p.mesa }}</div>
+        <div class="p-meta">{{ p.mesero }} · {{ p.hora }} · {{ p.fecha }}</div>
+      </div>
+      <span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span>
+    </div>
+    {% if p.franja_hora %}
+    <div class="p-franja">⏰ Entrega: {{ p.franja_hora }}</div>
+    {% endif %}
+    <div class="p-items">
+      {% for it in p.items %}
+      <div class="p-item">
+        <span class="p-item-qty">{{ it.cantidad }}×</span>
+        <span class="p-item-name">{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+        <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if p.notas %}
+    <div class="p-notas"><strong>📝 Notas</strong>{{ p.notas }}</div>
+    {% endif %}
+    <div class="p-foot">
+      <span class="p-total">{{ p.total | cop }}</span>
+      {% if p.estado == 'Pendiente' %}
+      <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm">✏ Editar</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty"><span class="e-ico">📭</span>No has registrado pedidos aún</div>
+{% endif %}
+{% endblock %}

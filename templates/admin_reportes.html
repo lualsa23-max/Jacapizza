@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}— Reportes{% endblock %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<h2 class="sec-title">📈 Reportes de Ventas</h2>
+
+<div class="periodo-tabs">
+  <a href="{{ url_for('admin_reportes', periodo='hoy') }}"    class="periodo-tab {% if periodo=='hoy' %}active{% endif %}">Hoy</a>
+  <a href="{{ url_for('admin_reportes', periodo='semana') }}" class="periodo-tab {% if periodo=='semana' %}active{% endif %}">Esta semana</a>
+  <a href="{{ url_for('admin_reportes', periodo='mes') }}"    class="periodo-tab {% if periodo=='mes' %}active{% endif %}">Este mes</a>
+</div>
+
+<form class="card mb-12" style="padding:12px" method="get">
+  <input type="hidden" name="periodo" value="personalizado">
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <div style="flex:1;min-width:120px">
+      <label class="form-label">Desde (dd/mm/aaaa)</label>
+      <input class="form-input" type="text" name="fi" value="{{ fi }}" placeholder="01/01/2025" style="min-height:40px">
+    </div>
+    <div style="flex:1;min-width:120px">
+      <label class="form-label">Hasta (dd/mm/aaaa)</label>
+      <input class="form-input" type="text" name="ff" value="{{ ff }}" placeholder="31/12/2025" style="min-height:40px">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">Consultar</button>
+  </div>
+</form>
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-ico">💰</div>
+    <div class="metric-val c-accent">{{ data.total_ventas | cop }}</div>
+    <div class="metric-lbl">Total ventas</div>
+  </div>
+  <div class="metric">
+    <div class="metric-ico">🧾</div>
+    <div class="metric-val c-white">{{ data.n_pedidos }}</div>
+    <div class="metric-lbl">Pedidos</div>
+  </div>
+  <div class="metric">
+    <div class="metric-ico">📊</div>
+    <div class="metric-val c-green">{{ data.ticket_prom | cop }}</div>
+    <div class="metric-lbl">Ticket promedio</div>
+  </div>
+</div>
+
+{% if data.por_metodo %}
+<div class="card mt-12">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Métodos de pago</h3>
+  {% for m, v in data.por_metodo.items() %}
+  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.88rem">
+    <span>{{ m }}</span>
+    <span class="c-green font-bold">{{ v | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if data.por_dia %}
+<div class="card mt-12">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Ventas por día</h3>
+  <div class="chart-wrap"><canvas id="chartDia"></canvas></div>
+</div>
+{% endif %}
+
+{% if data.top_items %}
+<div class="card mt-12">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Productos más vendidos</h3>
+  {% for it in data.top_items[:8] %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.85rem">
+    <span>{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+    <span class="c-accent font-bold" style="margin-left:8px;white-space:nowrap">{{ it.cantidad }}× — {{ it.valor | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="mt-16">
+  <a href="{{ url_for('admin_csv', fi=fi, ff=ff) }}" class="btn btn-ghost">⬇ Exportar CSV</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if data.por_dia %}
+const diasData = {{ data.por_dia | tojson }};
+const labels = Object.keys(diasData);
+const valores = Object.values(diasData);
+const ctx = document.getElementById('chartDia').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{
+      data: valores,
+      backgroundColor: 'rgba(199,24,126,.7)',
+      borderColor: '#c7187e',
+      borderWidth: 1.5,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#9e9a97', font:{size:10} }, grid:{color:'rgba(255,255,255,.05)'} },
+      y: { ticks: { color: '#9e9a97', font:{size:10},
+                    callback: v => '$'+Math.round(v/1000)+'k' },
+           grid:{color:'rgba(255,255,255,.05)'} }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

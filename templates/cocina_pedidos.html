@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}— Cocina{% endblock %}
+{% block content %}
+<div class="refresh-bar">
+  <div class="refresh-indicator">
+    <div class="refresh-dot"></div>
+    <span>Auto-actualización activa</span>
+  </div>
+  <span id="countdown" class="text-sm c-gray">Actualiza en <strong>30</strong>s</span>
+</div>
+
+{% if not activos %}
+<div class="empty" style="padding:60px 20px">
+  <span class="e-ico" style="font-size:3.5rem">✅</span>
+  <div style="font-size:1.2rem;font-weight:700;margin-bottom:4px">¡Todo listo!</div>
+  <div class="c-gray">Sin pedidos pendientes por ahora</div>
+</div>
+
+{% else %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <span style="font-family:var(--fh);font-size:1.1rem;color:var(--orange)">
+    {{ activos | length }} pedido{{ 's' if activos|length!=1 else '' }} en espera
+  </span>
+</div>
+
+<div class="k-groups">
+{% for franja in franjas_ord %}
+{% set pedidos_grupo = grupos[franja] %}
+{% set gi = loop.index0 %}
+{% if franja == 'Sin hora' %}
+  {% set hcls = 'k-gh-gray' %}
+{% elif gi == 0 %}
+  {% set hcls = 'k-gh-red' %}
+{% elif gi == 1 %}
+  {% set hcls = 'k-gh-orange' %}
+{% elif gi == 2 %}
+  {% set hcls = 'k-gh-accent' %}
+{% else %}
+  {% set hcls = 'k-gh-panel' %}
+{% endif %}
+
+<div>
+  <div class="k-group-header {{ hcls }}">
+    <span>{{ '🔴' if gi==0 and franja!='Sin hora' else '⏰' }} {{ franja }}</span>
+    <span style="font-size:.85rem;font-weight:500">{{ pedidos_grupo|length }} pedido{{ 's' if pedidos_grupo|length!=1 else '' }}</span>
+  </div>
+  <div class="k-grid">
+    {% for p in pedidos_grupo %}
+    <div class="k-card">
+      <div class="k-card-head">
+        <div>
+          <div class="k-card-id">#{{ p.id }}</div>
+          <div class="k-card-code">{{ p.mesa }}</div>
+          <div class="text-xs c-gray mt-4">{{ p.mesero }} · {{ p.hora }}</div>
+        </div>
+        <span class="k-franja-tag">{{ p.franja_hora or 'Sin hora' }}</span>
+      </div>
+
+      {% set pizzas  = p.items | selectattr('tipo','equalto','Pizza')  | list %}
+      {% set bebidas = p.items | selectattr('tipo','equalto','Bebida') | list %}
+
+      {% if pizzas %}
+      <div class="k-sec-lbl">🍕 Pizzas</div>
+      {% for it in pizzas %}
+      <div class="k-item">
+        <span class="k-item-qty">{{ it.cantidad }}×</span>
+        <span class="k-item-name">{{ it.nombre }}</span>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if bebidas %}
+      <div class="k-sec-lbl">🥤 Bebidas</div>
+      {% for it in bebidas %}
+      <div class="k-item">
+        <span class="k-item-qty k-item-bqty">{{ it.cantidad }}×</span>
+        <span class="k-item-name">{{ it.nombre }}</span>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if p.notas %}
+      <div class="k-notas">
+        <div class="k-notas-lbl">📝 Notas</div>
+        <div class="k-notas-txt">{{ p.notas }}</div>
+      </div>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('cocina_listo', pid=p.id) }}"
+            onsubmit="return confirm('¿Marcar pedido #{{ p.id }} como LISTO?')">
+        <button type="submit" class="btn btn-green btn-full btn-lg mt-12">
+          ✅ LISTO — Pasar a cobro
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh con countdown
+let seconds = 30;
+const cntEl = document.querySelector('#countdown strong');
+let notifShown = false;
+
+async function checkNotifs(){
+  try{
+    const r = await fetch('/cocina/notificaciones');
+    const data = await r.json();
+    if(data.length && !notifShown){
+      notifShown = true;
+      data.forEach(n=>{
+        showToast(`⚠️ Pedido #${n.pid} fue modificado: ${n.detalle}`, 6000);
+      });
+    }
+  } catch(e){}
+}
+
+const timer = setInterval(()=>{
+  seconds--;
+  if(cntEl) cntEl.textContent = seconds;
+  if(seconds <= 0){ clearInterval(timer); window.location.reload(); }
+}, 1000);
+
+checkNotifs();
+setInterval(checkNotifs, 8000);
+</script>
+{% endblock %}

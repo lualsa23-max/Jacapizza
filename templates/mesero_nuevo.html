@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block title %}— Nuevo Pedido{% endblock %}
+{% block content %}
+
+<!-- Código de pedido -->
+<div class="card mb-12">
+  <label class="form-label">Código del pedido</label>
+  <div style="display:flex;gap:8px">
+    <input id="cod-input" class="form-input" type="text" placeholder="Ej: Mesa 3 / Juan"
+           style="flex:1" autocapitalize="words">
+    <button class="btn btn-primary" onclick="confirmarCodigo()" id="btn-cod">Confirmar</button>
+  </div>
+  <div id="cod-status" class="text-sm c-orange mt-8">⚠ Confirma el código antes de enviar</div>
+</div>
+
+<!-- Cantidad -->
+<div class="qty-bar">
+  <label>Cantidad:</label>
+  <div class="qty-ctrl">
+    <button class="qty-btn" onclick="cambiarQty(-1)">−</button>
+    <span class="qty-num" id="qty-num">1</span>
+    <button class="qty-btn" onclick="cambiarQty(+1)">+</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="order-tabs">
+  <button class="order-tab active" onclick="switchTab('pizzas', this)">🍕 Pizzas</button>
+  <button class="order-tab" onclick="switchTab('bebidas', this)">🥤 Bebidas</button>
+  <button class="order-tab" onclick="switchTab('carrito', this)">
+    🛒 Pedido
+    <span class="cart-badge" id="cart-badge">0</span>
+  </button>
+</div>
+
+<!-- PANEL PIZZAS -->
+<div class="order-panel active" id="panel-pizzas">
+  <div class="card">
+    {% set masas = namespace(val=None) %}
+    {% for nombre, val in (stock_json | fromjson).items() if nombre == 'Pizza (masa)' %}{% set masas.val = val %}{% endfor %}
+    {% if masas.val is not none %}
+      {% if masas.val == 0 %}
+        <div class="text-sm c-red mb-8 font-bold">⛔ Sin masas disponibles hoy</div>
+      {% elif masas.val <= 3 %}
+        <div class="text-sm c-orange mb-8 font-bold">⚠ Quedan {{ masas.val }} masa(s)</div>
+      {% else %}
+        <div class="text-sm c-green mb-8">✅ Masas disponibles: {{ masas.val }}</div>
+      {% endif %}
+    {% endif %}
+
+    <p class="text-sm c-gray mb-8">Selecciona 1 o 2 sabores</p>
+    <div class="pizza-grid" id="pizza-grid">
+      {% for sabor in sabores %}
+      <button class="pizza-opt" data-sabor="{{ sabor }}" onclick="toggleSabor(this)">{{ sabor }}</button>
+      {% endfor %}
+    </div>
+    <div class="sel-display" id="sel-display">Sin sabor seleccionado</div>
+    <button class="btn btn-primary btn-full mt-8" onclick="agregarPizza()">➕ Agregar pizza al pedido</button>
+  </div>
+</div>
+
+<!-- PANEL BEBIDAS -->
+<div class="order-panel" id="panel-bebidas">
+  <div class="card">
+    {% set stock = stock_json | fromjson %}
+    {% set pulpas = pulpas_json | fromjson %}
+    {% for nombre, precio in bebidas.items() %}
+    {% set agotado = namespace(val=false) %}
+    {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita'] %}
+      {% if stock.get(nombre, -1) == 0 %}{% set agotado.val = true %}{% endif %}
+    {% elif nombre == 'Jugo Natural (agua)' %}
+      {% if pulpas | length == 0 %}{% set agotado.val = true %}{% endif %}
+    {% endif %}
+    <div class="beb-row">
+      <div style="flex:1">
+        <span class="beb-name {% if agotado.val %}c-gray{% endif %}">{{ nombre }}</span>
+        {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita'] %}
+          {% set s = stock.get(nombre) %}
+          {% if s is not none %}
+            {% if s == 0 %}<span class="stock-chip stock-out">Agotado</span>
+            {% elif s <= 5 %}<span class="stock-chip stock-low">⚠ {{ s }}</span>
+            {% else %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+          {% endif %}
+        {% elif nombre == 'Jugo Natural (agua)' %}
+          {% if pulpas | length == 0 %}
+            <span class="stock-chip stock-out">Sin pulpas</span>
+          {% else %}
+            <span class="stock-chip stock-ok">{{ pulpas | length }} pulpa(s)</span>
+          {% endif %}
+        {% endif %}
+      </div>
+      <span class="beb-price">{{ precio | cop }}</span>
+      {% if not agotado.val %}
+        {% if nombre == 'Gaseosa' %}
+          <button class="btn btn-primary btn-sm" onclick="modalTexto('{{ nombre }}', {{ precio }}, 'Sabor de gaseosa')">+</button>
+        {% elif nombre == 'Jugo Natural (agua)' %}
+          <button class="btn btn-primary btn-sm" onclick="modalPulpas()">+</button>
+        {% elif nombre == 'Soda Italiana' %}
+          <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['Frutos Rojos','Frutos Amarillos'])">+</button>
+        {% elif nombre == 'Cerezada' %}
+          <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['en agua','en leche'])">+</button>
+        {% else %}
+          <button class="btn btn-primary btn-sm" onclick="addBebida('{{ nombre }}', {{ precio }})">+</button>
+        {% endif %}
+      {% else %}
+        <button class="btn btn-ghost btn-sm" disabled style="opacity:.5">Agotado</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- PANEL CARRITO -->
+<div class="order-panel" id="panel-carrito">
+  <div class="cart-total" id="cart-total">$0</div>
+  <div class="cart-total-lbl">TOTAL DEL PEDIDO</div>
+
+  <div id="cart-items"></div>
+
+  <div class="card mt-12">
+    <label class="form-label">⏰ Hora de entrega</label>
+    <select class="form-select mb-12" id="franja-sel">
+      {% for f in franjas %}<option>{{ f }}</option>{% endfor %}
+    </select>
+    <label class="form-label">📝 Notas / observaciones</label>
+    <textarea class="form-textarea" id="notas-txt" placeholder="Sin azúcar, en leche, sin topping..."></textarea>
+  </div>
+
+  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarPedido()">
+    ✅ CONFIRMAR PEDIDO
+  </button>
+  <button class="btn btn-ghost btn-full mt-8" onclick="limpiarCarrito()">🗑 Limpiar pedido</button>
+</div>
+
+<!-- MODAL TEXTO (Gaseosa) -->
+<div class="overlay" id="modal-texto">
+  <div class="sheet">
+    <h3 class="sheet-title" id="modal-texto-titulo">¿Qué sabor?</h3>
+    <input class="form-input mb-12" type="text" id="modal-texto-input" placeholder="Ej: Cola, Naranja...">
+    <button class="btn btn-primary btn-full" onclick="confirmTexto()">Agregar</button>
+    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-texto')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL PULPAS -->
+<div class="overlay" id="modal-pulpas">
+  <div class="sheet">
+    <h3 class="sheet-title">🍹 Elige la pulpa</h3>
+    <div id="pulpas-list"></div>
+    <button class="btn btn-primary btn-full mt-12" onclick="confirmPulpa()">Agregar</button>
+    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-pulpas')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL OPCIONES -->
+<div class="overlay" id="modal-opciones">
+  <div class="sheet">
+    <h3 class="sheet-title" id="modal-opc-titulo">Selecciona</h3>
+    <div id="modal-opc-list"></div>
+    <button class="btn btn-primary btn-full mt-12" onclick="confirmOpciones()">Agregar</button>
+    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-opciones')">Cancelar</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PULPAS = {{ pulpas_json | safe }};
+const JUG_PRECIO = {{ bebidas.get('Jugo Natural (agua)', 7000) }};
+
+let qty = 1;
+let saboresSel = [];
+let carrito = [];
+let codConfirmado = false;
+let modalTextoCb = null;
+let modalNombreBase = '', modalPrecioBase = 0;
+
+// QTY
+function cambiarQty(d){ qty = Math.max(1, qty + d); document.getElementById('qty-num').textContent = qty; }
+
+// CODIGO
+function confirmarCodigo(){
+  const cod = document.getElementById('cod-input').value.trim();
+  if(!cod){ alert('Escribe un código primero'); return; }
+  if(confirm(`¿El código del pedido es: "${cod}"?`)){
+    codConfirmado = true;
+    document.getElementById('cod-status').textContent = `✅ Código confirmado: ${cod}`;
+    document.getElementById('cod-status').className = 'text-sm c-green mt-8';
+    document.getElementById('cod-input').disabled = true;
+    document.getElementById('btn-cod').textContent = '✏ Editar';
+    document.getElementById('btn-cod').onclick = editarCodigo;
+  }
+}
+function editarCodigo(){
+  codConfirmado = false;
+  document.getElementById('cod-input').disabled = false;
+  document.getElementById('cod-status').textContent = '⚠ Confirma el código antes de enviar';
+  document.getElementById('cod-status').className = 'text-sm c-orange mt-8';
+  document.getElementById('btn-cod').textContent = 'Confirmar';
+  document.getElementById('btn-cod').onclick = confirmarCodigo;
+  document.getElementById('cod-input').focus();
+}
+
+// TABS
+function switchTab(name, btn){
+  document.querySelectorAll('.order-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.order-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// PIZZA
+function toggleSabor(btn){
+  const s = btn.dataset.sabor;
+  if(saboresSel.includes(s)){
+    saboresSel = saboresSel.filter(x=>x!==s);
+    btn.classList.remove('sel');
+  } else if(saboresSel.length < 2){
+    saboresSel.push(s);
+    btn.classList.add('sel');
+  } else {
+    alert('Máximo 2 sabores. Quita uno primero.');
+    return;
+  }
+  updateSelDisplay();
+}
+function updateSelDisplay(){
+  const d = document.getElementById('sel-display');
+  if(!saboresSel.length){ d.textContent='Sin sabor seleccionado'; d.classList.remove('has-val'); }
+  else if(saboresSel.length===1){ d.textContent=`${saboresSel[0]}`; d.classList.add('has-val'); }
+  else{ d.textContent=`${saboresSel[0]}  +  ${saboresSel[1]}`; d.classList.add('has-val'); }
+}
+function agregarPizza(){
+  if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
+  const nombre = saboresSel.join(' / ');
+  const precio = 20000;
+  addToCart(nombre, 'Pizza', precio);
+  saboresSel=[];
+  document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
+  updateSelDisplay();
+  switchTab('carrito', document.querySelectorAll('.order-tab')[2]);
+}
+
+// BEBIDAS
+function addBebida(nombre, precio){ addToCart(nombre, 'Bebida', precio); showToast(`${nombre} agregado ✅`); }
+
+function modalTexto(nombre, precio, placeholder){
+  modalNombreBase=nombre; modalPrecioBase=precio;
+  document.getElementById('modal-texto-titulo').textContent = `¿Qué ${nombre.toLowerCase()} deseas?`;
+  document.getElementById('modal-texto-input').placeholder = placeholder;
+  document.getElementById('modal-texto-input').value = '';
+  openModal('modal-texto');
+  setTimeout(()=>document.getElementById('modal-texto-input').focus(), 300);
+}
+function confirmTexto(){
+  const det = document.getElementById('modal-texto-input').value.trim();
+  const nombre = det ? `${modalNombreBase} — ${det}` : modalNombreBase;
+  addBebida(nombre, modalPrecioBase);
+  closeModal('modal-texto');
+}
+
+function modalPulpas(){
+  const list = document.getElementById('pulpas-list');
+  list.innerHTML = '';
+  const disp = PULPAS.filter(p=>p.stock>0);
+  if(!disp.length){ alert('No hay pulpas disponibles hoy'); return; }
+  disp.forEach((p,i)=>{
+    const stock_info = p.stock <= p.alerta_min ? ` ⚠ quedan ${p.stock}` : ` (${p.stock} disp.)`;
+    list.innerHTML += `<div class="sheet-opt ${i===0?'sel':''}" onclick="selectOpt(this,'pulpa-opts')">
+      <input type="radio" name="pulpa-opts" value="${p.nombre}" ${i===0?'checked':''}>
+      <label>${p.nombre}${stock_info}</label></div>`;
+  });
+  openModal('modal-pulpas');
+}
+function confirmPulpa(){
+  const sel = document.querySelector('[name="pulpa-opts"]:checked');
+  if(sel){ addBebida(`Jugo Natural — ${sel.value}`, JUG_PRECIO); }
+  closeModal('modal-pulpas');
+}
+
+let modalOpcNombre='', modalOpcPrecio=0;
+function modalOpciones(nombre, precio, opciones){
+  modalOpcNombre=nombre; modalOpcPrecio=precio;
+  document.getElementById('modal-opc-titulo').textContent = nombre;
+  const list = document.getElementById('modal-opc-list');
+  list.innerHTML = '';
+  opciones.forEach((o,i)=>{
+    list.innerHTML += `<div class="sheet-opt ${i===0?'sel':''}" onclick="selectOpt(this,'opc-opts')">
+      <input type="radio" name="opc-opts" value="${o}" ${i===0?'checked':''}>
+      <label>${o}</label></div>`;
+  });
+  openModal('modal-opciones');
+}
+function confirmOpciones(){
+  const sel = document.querySelector('[name="opc-opts"]:checked');
+  if(sel){ addBebida(`${modalOpcNombre} — ${sel.value}`, modalOpcPrecio); }
+  closeModal('modal-opciones');
+}
+
+function selectOpt(el, name){
+  el.closest('.sheet').querySelectorAll('.sheet-opt').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+  el.querySelector(`input[name="${name}"]`).checked = true;
+}
+
+// MODAL HELPERS
+function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',function(e){ if(e.target===this) closeModal(this.id); }));
+
+// CART
+function addToCart(nombre, tipo, precio){
+  const ex = carrito.find(i=>i.nombre===nombre);
+  if(ex){ ex.cantidad += qty; }
+  else{ carrito.push({nombre, tipo, cantidad: qty, precio_unit: precio}); }
+  renderCart();
+}
+function removeFromCart(nombre){ carrito = carrito.filter(i=>i.nombre!==nombre); renderCart(); }
+function limpiarCarrito(){ carrito=[]; document.getElementById('notas-txt').value=''; renderCart(); }
+
+function renderCart(){
+  const total = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit, 0);
+  document.getElementById('cart-total').textContent = '$'+total.toLocaleString('es-CO').replace(/,/g,'.');
+  const badge = document.getElementById('cart-badge');
+  const count = carrito.reduce((s,i)=>s+i.cantidad,0);
+  badge.textContent = count;
+  badge.classList.toggle('show', count>0);
+  const el = document.getElementById('cart-items');
+  el.innerHTML = '';
+  if(!carrito.length){
+    el.innerHTML = '<div class="empty" style="padding:20px 0"><span class="e-ico">🛒</span>Agrega pizzas o bebidas</div>';
+    return;
+  }
+  carrito.forEach(item=>{
+    const sub = item.cantidad * item.precio_unit;
+    const d = document.createElement('div');
+    d.className='cart-item';
+    d.innerHTML=`<span class="cart-item-qty">${item.cantidad}×</span>
+      <div class="cart-item-info">
+        <div class="cart-item-name">${item.nombre}</div>
+        <div class="cart-item-sub">$${sub.toLocaleString('es-CO').replace(/,/g,'.')}</div>
+      </div>
+      <span class="cart-remove" onclick="removeFromCart('${item.nombre.replace(/'/g,"\\'")}')">✕</span>`;
+    el.appendChild(d);
+  });
+}
+
+async function confirmarPedido(){
+  if(!codConfirmado){ alert('Confirma el código del pedido primero'); return; }
+  if(!carrito.length){ alert('Agrega al menos un ítem al pedido'); return; }
+  const codigo = document.getElementById('cod-input').value.trim();
+  const franja = document.getElementById('franja-sel').value;
+  const notas  = document.getElementById('notas-txt').value.trim();
+  const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
+  const items_txt = carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ');
+  if(!confirm(`Pedido: ${codigo}\n\n${items_txt}\n\nTotal: $${total.toLocaleString('es-CO').replace(/,/g,'.')}\nEntrega: ${franja}\n\n¿Enviar a cocina?`)) return;
+  try{
+    const r = await fetch('/mesero/nuevo',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({codigo, items: carrito, notas, franja})
+    });
+    const d = await r.json();
+    if(d.ok){
+      alert(`✅ Pedido #${d.id} enviado a cocina!\nCódigo: ${codigo}\nHora: ${franja}`);
+      editarCodigo();
+      limpiarCarrito();
+      switchTab('pizzas', document.querySelectorAll('.order-tab')[0]);
+    } else {
+      alert('Error: '+d.error);
+    }
+  } catch(e){ alert('Error de conexión. Intenta de nuevo.'); }
+}
+
+renderCart();
+</script>
+{% endblock %}

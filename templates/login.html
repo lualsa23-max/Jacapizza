@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#292723">
+  <title>JACAPIZZA — Ingresar</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="pizza">🍕</span>
+      <h1>JACAPIZZA</h1>
+      <p>Sistema de Gestión</p>
+    </div>
+    <div class="login-card">
+      {% if error %}
+      <div class="login-err">⚠️ {{ error }}</div>
+      {% endif %}
+      <form method="post">
+        <div class="form-group">
+          <label class="form-label">Usuario</label>
+          <input class="form-input" type="text" name="usuario"
+                 autocomplete="username" autocapitalize="none"
+                 autofocus placeholder="ej: mesero1">
+        </div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Contraseña</label>
+          <input class="form-input" type="password" name="password"
+                 autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full btn-lg">
+          Ingresar →
+        </button>
+      </form>
+    </div>
+    <p class="login-hint">
+      Usuarios demo:<br>
+      <strong>admin</strong> / admin123 &nbsp;·&nbsp;
+      <strong>mesero1</strong> / mesero123<br>
+      <strong>cajero1</strong> / cajero123 &nbsp;·&nbsp;
+      <strong>cocina1</strong> / cocina123
+    </p>
+  </div>
+</div>
+</body>
+</html>

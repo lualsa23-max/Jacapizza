@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}— Inventario{% endblock %}
+{% block content %}
+<h2 class="sec-title">📦 Inventario del día</h2>
+
+<div id="status" class="flash flash-success mb-12" style="display:none">✅ Inventario guardado correctamente</div>
+
+<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Ítems estándar</h3>
+<div id="inv-estandar">
+{% for nombre, (tipo, alerta_def) in inv_estandar.items() %}
+{% set ex = inv_dict.get(nombre) %}
+{% set cur_stock  = ex.stock       if ex else 0 %}
+{% set cur_alerta = ex.alerta_min  if ex else alerta_def %}
+<div class="inv-row">
+  <span class="inv-name">
+    {{ '🍕' if tipo=='pizza' else '🥤' }}  {{ nombre }}
+  </span>
+  <div class="inv-spin">
+    <span>Unid.</span>
+    <input class="inv-input" type="number" min="0" max="500"
+           name="stock_{{ nombre }}" value="{{ cur_stock }}" data-key="stock_{{ nombre }}">
+  </div>
+  <div class="inv-spin">
+    <span>Alerta</span>
+    <input class="inv-input" type="number" min="1" max="99"
+           name="alerta_{{ nombre }}" value="{{ cur_alerta }}" data-key="alerta_{{ nombre }}" style="width:50px">
+  </div>
+  {% if ex %}
+    {% if ex.stock == 0 %}
+      <span class="inv-badge c-red">⛔ Agotado</span>
+    {% elif ex.stock <= ex.alerta_min %}
+      <span class="inv-badge c-orange">⚠ {{ ex.stock }} unid.</span>
+    {% else %}
+      <span class="inv-badge c-green">✅ {{ ex.stock }}</span>
+    {% endif %}
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+
+<hr class="divider mt-16">
+<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🍹 Pulpas para jugos</h3>
+<p class="text-sm c-gray mb-12">Agrega las frutas disponibles hoy para los jugos naturales.</p>
+
+<div id="pulpas-container">
+  {% for p in pulpas %}
+  <div class="inv-row pulpa-row" style="gap:8px">
+    <input class="form-input" type="text" placeholder="Nombre fruta" value="{{ p.nombre }}"
+           style="flex:1;min-height:40px;font-size:.88rem">
+    <div class="inv-spin">
+      <span>Cant.</span>
+      <input class="inv-input" type="number" min="0" max="300" value="{{ p.stock }}">
+    </div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.pulpa-row').remove()">✕</button>
+  </div>
+  {% endfor %}
+</div>
+
+<button type="button" class="btn btn-outline btn-sm mt-8" onclick="addPulpa()">➕ Agregar fruta</button>
+
+<hr class="divider mt-16">
+<button type="button" class="btn btn-primary btn-full btn-lg" onclick="guardar()">
+  💾 Guardar inventario
+</button>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addPulpa(nombre='', stock=0){
+  const c = document.getElementById('pulpas-container');
+  const row = document.createElement('div');
+  row.className = 'inv-row pulpa-row'; row.style.gap='8px';
+  row.innerHTML = `
+    <input class="form-input" type="text" placeholder="Nombre fruta" value="${nombre}"
+           style="flex:1;min-height:40px;font-size:.88rem">
+    <div class="inv-spin">
+      <span>Cant.</span>
+      <input class="inv-input" type="number" min="0" max="300" value="${stock}">
+    </div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.pulpa-row').remove()">✕</button>
+  `;
+  c.appendChild(row);
+  row.querySelector('input[type=text]').focus();
+}
+
+async function guardar(){
+  const payload = {};
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    payload[el.dataset.key] = parseInt(el.value)||0;
+  });
+  const pulpas = [];
+  document.querySelectorAll('.pulpa-row').forEach(row=>{
+    const nom = row.querySelector('input[type=text]').value.trim();
+    const qty = parseInt(row.querySelector('input[type=number]').value)||0;
+    if(nom) pulpas.push({nombre: nom, stock: qty});
+  });
+  payload.pulpas = pulpas;
+  const r = await fetch('/admin/inventario', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if(r.ok){
+    const s = document.getElementById('status');
+    s.style.display='block';
+    setTimeout(()=>s.style.display='none', 3000);
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+}
+</script>
+{% endblock %}

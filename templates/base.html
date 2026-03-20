@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#292723">
+  <title>JACAPIZZA {% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+{% if session.get('usuario') %}
+<nav class="navbar">
+  <span class="nav-brand">🍕 JACAPIZZA</span>
+  <div class="nav-info">
+    <span class="nav-user">{{ session.nombre }}</span>
+    <span class="role-badge role-{{ session.rol | lower }}">{{ session.rol }}</span>
+  </div>
+  <a href="{{ url_for('logout') }}" class="nav-logout">Salir</a>
+</nav>
+
+<div class="nav-tabs">
+{% if session.rol == 'Administrador' %}
+  <a href="{{ url_for('admin_resumen') }}"    class="tab {% if request.endpoint=='admin_resumen' %}active{% endif %}">📊 Resumen</a>
+  <a href="{{ url_for('admin_inventario') }}" class="tab {% if request.endpoint=='admin_inventario' %}active{% endif %}">📦 Inventario</a>
+  <a href="{{ url_for('admin_pedidos') }}"    class="tab {% if request.endpoint=='admin_pedidos' %}active{% endif %}">📋 Pedidos</a>
+  <a href="{{ url_for('admin_reportes') }}"   class="tab {% if request.endpoint=='admin_reportes' %}active{% endif %}">📈 Reportes</a>
+  <a href="{{ url_for('admin_usuarios') }}"   class="tab {% if request.endpoint=='admin_usuarios' %}active{% endif %}">👥 Usuarios</a>
+  <a href="{{ url_for('admin_menu_pizzas') }}" class="tab {% if request.endpoint in ['admin_menu_pizzas','admin_menu_bebidas'] %}active{% endif %}">🍕 Menú</a>
+{% elif session.rol == 'Mesero' %}
+  <a href="{{ url_for('mesero_nuevo') }}"   class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
+  <a href="{{ url_for('mesero_pedidos') }}" class="tab {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}active{% endif %}">📋 Mis pedidos</a>
+{% elif session.rol == 'Cajero' %}
+  <a href="{{ url_for('cajero_cobrar') }}" class="tab {% if request.endpoint=='cajero_cobrar' %}active{% endif %}">⏳ Cobrar</a>
+  <a href="{{ url_for('cajero_caja') }}"   class="tab {% if request.endpoint=='cajero_caja' %}active{% endif %}">📈 Caja del día</a>
+{% elif session.rol == 'Cocina' %}
+  <a href="{{ url_for('cocina_pedidos') }}" class="tab active">🍳 Pedidos activos</a>
+{% endif %}
+</div>
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-wrap">
+  {% for cat, msg in messages %}
+  <div class="flash flash-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<main class="page">
+  {% block content %}{% endblock %}
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+function showToast(msg, dur=4000){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
+}
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}— Todos los Pedidos{% endblock %}
+{% block content %}
+<h2 class="sec-title">📋 Todos los Pedidos</h2>
+{% if pedidos %}
+<div class="tbl-wrap card" style="padding:0">
+  <table>
+    <thead>
+      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th><th>Fecha</th><th>Pago</th></tr>
+    </thead>
+    <tbody>
+      {% for p in pedidos %}
+      <tr>
+        <td class="c-accent font-bold">#{{ p.id }}</td>
+        <td class="font-bold">{{ p.mesa }}</td>
+        <td class="text-sm">{{ p.mesero }}</td>
+        <td class="c-green font-bold">{{ p.total | cop }}</td>
+        <td><span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span></td>
+        <td class="text-sm c-gray">{{ p.hora }}</td>
+        <td class="text-sm c-gray">{{ p.fecha }}</td>
+        <td class="text-sm">{{ p.pago or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><span class="e-ico">📭</span>No hay pedidos registrados</div>
+{% endif %}
+{% endblock %}

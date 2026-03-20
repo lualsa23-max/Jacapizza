@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}— Resumen{% endblock %}
+{% block content %}
+<h2 class="sec-title" style="margin-bottom:16px">📊 Panel de Administrador · {{ hoy }}</h2>
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-ico">💰</div>
+    <div class="metric-val c-green">{{ total_dia | cop }}</div>
+    <div class="metric-lbl">Ventas hoy</div>
+  </div>
+  <div class="metric">
+    <div class="metric-ico">📋</div>
+    <div class="metric-val c-accent">{{ total_pedidos }}</div>
+    <div class="metric-lbl">Total pedidos</div>
+  </div>
+  <div class="metric">
+    <div class="metric-ico">✅</div>
+    <div class="metric-val c-green">{{ pagados }}</div>
+    <div class="metric-lbl">Pagados</div>
+  </div>
+  <div class="metric">
+    <div class="metric-ico">⏳</div>
+    <div class="metric-val c-orange">{{ pendientes }}</div>
+    <div class="metric-lbl">Pendientes</div>
+  </div>
+</div>
+
+<h3 class="sec-title">Últimos pedidos</h3>
+{% if ultimos %}
+<div class="tbl-wrap card" style="padding:0">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in ultimos %}
+      <tr>
+        <td class="c-accent font-bold">#{{ p.id }}</td>
+        <td>{{ p.mesa }}</td>
+        <td>{{ p.mesero }}</td>
+        <td class="c-green font-bold">{{ p.total | cop }}</td>
+        <td><span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span></td>
+        <td class="c-gray text-sm">{{ p.hora }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><span class="e-ico">🍕</span>Sin pedidos registrados aún</div>
+{% endif %}
+
+<div class="mt-16" style="display:flex;gap:10px;flex-wrap:wrap">
+  <a href="{{ url_for('admin_inventario') }}" class="btn btn-ghost">📦 Ir a inventario</a>
+  <a href="{{ url_for('admin_reportes') }}"   class="btn btn-ghost">📈 Ver reportes</a>
+  <a href="{{ url_for('admin_pedidos') }}"    class="btn btn-ghost">📋 Todos los pedidos</a>
+</div>
+{% endblock %}

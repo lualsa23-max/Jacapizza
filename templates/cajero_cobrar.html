@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}— Cobrar Pedidos{% endblock %}
+{% block content %}
+<h2 class="sec-title">⏳ Pedidos listos para cobrar</h2>
+{% if pedidos %}
+  {% for p in pedidos %}
+  <div class="cobro-card">
+    <div class="cobro-head">
+      <div>
+        <div class="cobro-id">#{{ p.id }}</div>
+        <div class="cobro-code">{{ p.mesa }}</div>
+        <div class="cobro-meta">{{ p.mesero }} · {{ p.hora }}</div>
+      </div>
+      <span class="badge b-listo">Listo ✅</span>
+    </div>
+
+    {% if p.franja_hora %}
+    <div class="p-franja">⏰ Hora de entrega: {{ p.franja_hora }}</div>
+    {% endif %}
+
+    <div class="p-items mt-8">
+      {% for it in p.items %}
+      <div class="p-item">
+        <span class="p-item-qty">{{ it.cantidad }}×</span>
+        <span class="p-item-name">{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+        <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if p.notas %}
+    <div class="p-notas mt-8"><strong>📝 Notas</strong>{{ p.notas }}</div>
+    {% endif %}
+
+    <div class="cobro-total">{{ p.total | cop }}</div>
+    <div class="text-xs c-gray text-center mb-12">TOTAL A COBRAR</div>
+
+    <p class="text-sm c-gray mb-8 font-bold">Selecciona el método de pago:</p>
+    <div class="pay-grid">
+      {% for label, metodo, cls in [
+          ('💵 Efectivo',   'Efectivo',   'btn-green'),
+          ('💳 Tarjeta',    'Tarjeta',    'btn-ghost'),
+          ('📱 Nequi',      'Nequi',      'btn-primary'),
+          ('📲 Daviplata',  'Daviplata',  'btn-orange'),
+          ('🔑 Llave Bre-B','Llave Bre-B','btn-ghost'),
+      ] %}
+      <form method="post" action="{{ url_for('cajero_pagar', pid=p.id) }}"
+            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con {{ metodo }}?')">
+        <input type="hidden" name="metodo" value="{{ metodo }}">
+        <button type="submit" class="btn {{ cls }} btn-full">{{ label }}</button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty">
+  <span class="e-ico">🎉</span>
+  No hay pedidos listos para cobrar por ahora
+</div>
+{% endif %}
+{% endblock %}

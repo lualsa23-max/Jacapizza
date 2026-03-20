@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}— Caja del Día{% endblock %}
+{% block content %}
+<h2 class="sec-title">📈 Caja del día — {{ hoy }}</h2>
+
+<div class="metrics" style="grid-template-columns:repeat(2,1fr)">
+  <div class="metric" style="grid-column:1/-1">
+    <div class="metric-ico">💰</div>
+    <div class="metric-val c-green" style="font-size:1.6rem">{{ total | cop }}</div>
+    <div class="metric-lbl">Total del día</div>
+  </div>
+  {% for m, v in metodos.items() %}
+  {% set icons = {'Efectivo':'💵','Tarjeta':'💳','Nequi':'📱','Daviplata':'📲','Llave Bre-B':'🔑'} %}
+  <div class="metric">
+    <div class="metric-ico">{{ icons.get(m,'💳') }}</div>
+    <div class="metric-val c-accent">{{ v | cop }}</div>
+    <div class="metric-lbl">{{ m }}</div>
+  </div>
+  {% endfor %}
+  <div class="metric">
+    <div class="metric-ico">🧾</div>
+    <div class="metric-val c-white">{{ pedidos | length }}</div>
+    <div class="metric-lbl">Transacciones</div>
+  </div>
+</div>
+
+<h3 class="sec-title mt-16">Detalle de cobros</h3>
+{% if pedidos %}
+  {% for p in pedidos | reverse %}
+  <div class="card mb-8" style="display:flex;align-items:center;gap:10px;padding:12px 14px">
+    <div style="flex:1">
+      <div class="font-bold">#{{ p.id }} — {{ p.mesa }}</div>
+      <div class="text-xs c-gray">{{ p.mesero }} · {{ p.hora }}</div>
+    </div>
+    {% set col_map = {'Efectivo':'c-green','Tarjeta':'c-orange','Nequi':'c-accent','Daviplata':'c-blue','Llave Bre-B':'c-coral'} %}
+    <span class="text-sm font-bold {{ col_map.get(p.pago,'c-white') }}">{{ p.pago }}</span>
+    <span class="font-bold c-green" style="font-size:1rem">{{ p.total | cop }}</span>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty"><span class="e-ico">📭</span>Sin cobros registrados hoy</div>
+{% endif %}
+{% endblock %}
