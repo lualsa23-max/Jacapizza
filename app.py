@@ -6,7 +6,7 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'jacapizza-secret-2024-xK9!')
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pizza_data.db")
+DB_PATH = os.environ.get('DB_PATH', '/data/pizza_data.db')
 
 # ====================== DATOS EN MEMORIA ======================
 USUARIOS = {
