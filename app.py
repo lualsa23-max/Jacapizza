@@ -10,10 +10,10 @@ DB_PATH = os.environ.get('DB_PATH', '/data/pizza_data.db')
 
 # ====================== DATOS EN MEMORIA ======================
 USUARIOS = {
-    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Administrador"},
-    "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Carlos Ruiz"},
-    "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Ana Gómez"},
-    "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef Marco"},
+    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
+    "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
+    "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
+    "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
 }
 SABORES_PIZZA = {
     "Hawaiana": 20000, "Pollo con Champiñones": 20000,
