@@ -428,11 +428,13 @@ def _handle_menu(form, menu_dict):
 @rol_required('Mesero')
 def mesero_nuevo():
     if request.method == 'POST':
-        data   = request.get_json()
-        codigo = data.get('codigo', '').strip()
-        items  = data.get('items', [])
-        notas  = data.get('notas', '')
-        franja = data.get('franja', FRANJAS_HORA[0])
+        data       = request.get_json()
+        codigo     = data.get('codigo', '').strip()
+        items      = data.get('items', [])
+        notas      = data.get('notas', '')
+        franja     = data.get('franja', FRANJAS_HORA[0])
+        cobrar_ya  = data.get('cobrar_ya', False)
+        metodo_pago= data.get('metodo_pago', 'Efectivo')
         if not codigo or not items:
             return jsonify({'error': 'Datos incompletos'}), 400
         stock = get_stock_dict()
@@ -442,7 +444,12 @@ def mesero_nuevo():
             return jsonify({'error': f'Solo quedan {masas} masa(s) de pizza disponibles'}), 400
         p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
         descontar_inventario(items)
-        return jsonify({'ok': True, 'id': p['id']})
+        # Si cobrar_ya, registrar el pago pero dejar estado Pendiente para que cocina lo vea
+        if cobrar_ya:
+            with _conn() as c:
+                c.execute("UPDATE pedidos SET pago=? WHERE id=?", (metodo_pago, p['id']))
+            return jsonify({'ok': True, 'id': p['id'], 'cobrado': True})
+        return jsonify({'ok': True, 'id': p['id'], 'cobrado': False})
     stock  = get_stock_dict()
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
@@ -504,6 +511,17 @@ def cajero_caja():
         m = p["pago"] or "N/A"
         metodos[m] = metodos.get(m, 0) + p["total"]
     return render_template('cajero_caja.html', pedidos=pag, total=total, metodos=metodos, hoy=hoy)
+
+@app.route('/cajero/cobrar/<int:pid>/confirmar_pago', methods=['POST'])
+@rol_required('Cajero')
+def cajero_confirmar_pago(pid):
+    """Confirma un pedido que ya fue pagado por el mesero — solo cambia estado a Pagado"""
+    cobrar_pedido(pid, None)  # mantiene el pago ya registrado
+    with _conn() as c:
+        # Keep existing pago, just update estado
+        c.execute("UPDATE pedidos SET estado='Pagado' WHERE id=? AND pago IS NOT NULL", (pid,))
+    flash(f'✅ Pedido #{pid} confirmado como pagado', 'success')
+    return redirect(url_for('cajero_cobrar'))
 
 @app.route('/cocina/pedidos')
 @rol_required('Cocina')
