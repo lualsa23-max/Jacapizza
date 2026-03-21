@@ -96,6 +96,15 @@ def init_db():
             teorico INTEGER DEFAULT 0, real_contado INTEGER DEFAULT 0,
             diferencia INTEGER DEFAULT 0, nota TEXT DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS catalogo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            tipo TEXT NOT NULL,
+            precio REAL DEFAULT 0,
+            en_inventario INTEGER DEFAULT 1,
+            alerta_min INTEGER DEFAULT 5,
+            activo INTEGER DEFAULT 1
+        );
         """)
         for col in ["ALTER TABLE pedidos ADD COLUMN notas TEXT DEFAULT ''",
                     "ALTER TABLE pedidos ADD COLUMN franja_hora TEXT DEFAULT ''"]:
@@ -103,6 +112,75 @@ def init_db():
             except: pass
 
 init_db()
+
+def _seed_catalogo():
+    """Populate catalogo from hardcoded defaults if empty"""
+    with _conn() as c:
+        count = c.execute("SELECT COUNT(*) FROM catalogo").fetchone()[0]
+        if count > 0: return
+        # Pizzas
+        pizzas = [
+            ("Hawaiana",20000),("Pollo con Champiñones",20000),
+            ("Mexicana",20000),("Pepperoni",20000),
+            ("Criolla",20000),("Vegetariana",20000),
+        ]
+        for nombre, precio in pizzas:
+            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
+                     (nombre,"pizza",precio,0,0))
+        # Bebidas con inventario estandar
+        bebidas_inv = [
+            ("Gaseosa",4000,5),("Agua 600ml",4000,5),
+            ("Cerveza Águila",4000,5),("Cerveza Águila Light",4000,5),
+            ("Cerveza Coronita",5000,5),("Cerveza Poker",4000,5),
+            ("Soda Italiana - Frutos Rojos",5000,5),
+            ("Soda Italiana - Frutos Amarillos",5000,5),
+            ("Limonada de Coco",7000,5),("Cerezada",7000,5),
+        ]
+        for nombre, precio, alerta in bebidas_inv:
+            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
+                     (nombre,"bebida",precio,1,alerta))
+        # Bebidas especiales sin inventario directo (pulpas/sodas agrupadas)
+        especiales = [
+            ("Jugo Natural (agua)",7000),
+            ("Soda Italiana",5000),
+        ]
+        for nombre, precio in especiales:
+            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
+                     (nombre,"bebida_especial",precio,0,0))
+        # Pizza (masa) en inventario
+        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
+                 ("Pizza (masa)","pizza_inv",0,1,3))
+
+_seed_catalogo()
+
+def get_catalogo_bebidas():
+    """Returns dict {nombre: precio} for all active bebidas for order screen"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT nombre, precio FROM catalogo WHERE tipo IN ('bebida','bebida_especial') AND activo=1 ORDER BY id"
+        ).fetchall()
+    return {r["nombre"]: r["precio"] for r in rows}
+
+def get_catalogo_pizzas():
+    """Returns dict {nombre: precio} for all active pizzas"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT nombre, precio FROM catalogo WHERE tipo='pizza' AND activo=1 ORDER BY id"
+        ).fetchall()
+    return {r["nombre"]: r["precio"] for r in rows}
+
+def get_inv_estandar():
+    """Returns dict {nombre: (tipo_inv, alerta_min)} for inventory items"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT nombre, tipo, alerta_min FROM catalogo WHERE en_inventario=1 AND activo=1"
+        ).fetchall()
+    result = {}
+    for r in rows:
+        t = "pizza" if r["tipo"] == "pizza_inv" else "bebida"
+        result[r["nombre"]] = (t, r["alerta_min"])
+    return result
+
 
 def _pedido_from_row(row, items):
     return {
@@ -360,20 +438,43 @@ def admin_resumen():
 def admin_inventario():
     if request.method == 'POST':
         data = request.get_json()
-        for nombre, (tipo, _) in _INV_ESTANDAR.items():
+        inv_std = get_inv_estandar()
+        for nombre, (tipo, _) in inv_std.items():
             stock  = int(data.get(f'stock_{nombre}', 0))
             alerta = int(data.get(f'alerta_{nombre}', 5))
+            precio = data.get(f'precio_{nombre}')
             upsert_inventario(nombre, tipo, stock, alerta)
+            # Update price in catalogo if provided
+            if precio is not None:
+                try:
+                    with _conn() as c:
+                        c.execute("UPDATE catalogo SET precio=? WHERE nombre=?", (float(precio), nombre))
+                except: pass
         hoy = datetime.now().strftime("%d/%m/%Y")
         with _conn() as c:
             c.execute("DELETE FROM inventario WHERE tipo='pulpa' AND fecha=?", (hoy,))
         for p in data.get('pulpas', []):
             if p.get('nombre', '').strip():
                 upsert_inventario(p['nombre'].strip(), 'pulpa', int(p.get('stock', 0)), 3)
+        # New items added from inventory page
+        for item in data.get('nuevos', []):
+            nombre = item.get('nombre', '').strip()
+            tipo_cat = item.get('tipo_cat', 'bebida')
+            precio = float(item.get('precio', 0) or 0)
+            stock = int(item.get('stock', 0) or 0)
+            alerta = int(item.get('alerta', 5) or 5)
+            if nombre:
+                with _conn() as c:
+                    c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,1,?,1)",
+                              (nombre, tipo_cat, precio, alerta))
+                    c.execute("UPDATE catalogo SET precio=?,en_inventario=1,activo=1,alerta_min=? WHERE nombre=?",
+                              (precio, alerta, nombre))
+                upsert_inventario(nombre, 'bebida', stock, alerta)
         return jsonify({'ok': True})
     inv_dict = {i["nombre"]: i for i in get_inventario_hoy()}
     pulpas   = get_pulpas_hoy()
-    return render_template('admin_inventario.html', inv_estandar=_INV_ESTANDAR, inv_dict=inv_dict, pulpas=pulpas)
+    inv_std  = get_inv_estandar()
+    return render_template('admin_inventario.html', inv_estandar=inv_std, inv_dict=inv_dict, pulpas=pulpas)
 
 @app.route('/admin/cierre', methods=['GET', 'POST'])
 @rol_required('Administrador')
@@ -413,7 +514,8 @@ def admin_cierre():
 
         # Standard items
         cierre_items = []
-        for nombre, (tipo, _) in _INV_ESTANDAR.items():
+        inv_std = get_inv_estandar()
+        for nombre, (tipo, _) in inv_std.items():
             stock_ini = inv_fecha.get(nombre, 0)
             if tipo == "pizza":
                 vend = pizza_vend
@@ -574,34 +676,44 @@ def admin_usuarios():
 @rol_required('Administrador')
 def admin_menu_pizzas():
     if request.method == 'POST':
-        _handle_menu(request.form, SABORES_PIZZA)
+        _handle_menu(request.form, 'pizza')
         return redirect(url_for('admin_menu_pizzas'))
-    return render_template('admin_menu.html', menu=SABORES_PIZZA, tipo='pizzas', titulo='Menú Pizzas', icono='🍕')
+    return render_template('admin_menu.html', menu=get_catalogo_pizzas(), tipo='pizzas', titulo='Menú Pizzas', icono='🍕')
 
 @app.route('/admin/menu/bebidas', methods=['GET', 'POST'])
 @rol_required('Administrador')
 def admin_menu_bebidas():
     if request.method == 'POST':
-        _handle_menu(request.form, BEBIDAS)
+        _handle_menu(request.form, 'bebida')
         return redirect(url_for('admin_menu_bebidas'))
-    return render_template('admin_menu.html', menu=BEBIDAS, tipo='bebidas', titulo='Menú Bebidas', icono='🥤')
+    return render_template('admin_menu.html', menu=get_catalogo_bebidas(), tipo='bebidas', titulo='Menú Bebidas', icono='🥤')
 
-def _handle_menu(form, menu_dict):
+def _handle_menu(form, tipo_catalogo):
     action = form.get('action')
     if action == 'update':
-        old = form.get('old_name'); new = form.get('new_name', '').strip()
-        precio = int(form.get('precio', 0) or 0)
-        if old in menu_dict and new:
-            items = list(menu_dict.items())
-            idx   = next((i for i, kv in enumerate(items) if kv[0] == old), None)
-            if idx is not None:
-                items[idx] = (new, precio); menu_dict.clear(); menu_dict.update(items)
+        old_name = form.get('old_name', '').strip()
+        new_name = form.get('new_name', '').strip()
+        precio   = float(form.get('precio', 0) or 0)
+        if old_name and new_name:
+            with _conn() as c:
+                c.execute("UPDATE catalogo SET nombre=?, precio=? WHERE nombre=? AND tipo=?",
+                          (new_name, precio, old_name, tipo_catalogo))
     elif action == 'delete':
-        name = form.get('name')
-        if name in menu_dict and len(menu_dict) > 1: del menu_dict[name]
+        name = form.get('name', '').strip()
+        if name:
+            with _conn() as c:
+                c.execute("UPDATE catalogo SET activo=0 WHERE nombre=? AND tipo=?", (name, tipo_catalogo))
     elif action == 'add':
-        name = form.get('name', '').strip(); precio = int(form.get('precio', 0) or 0)
-        if name: menu_dict[name] = precio
+        name   = form.get('name', '').strip()
+        precio = float(form.get('precio', 0) or 0)
+        en_inv = 1 if form.get('en_inventario') == '1' else 0
+        alerta = int(form.get('alerta_min', 5) or 5)
+        if name:
+            with _conn() as c:
+                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,?,?,1)",
+                          (name, tipo_catalogo, precio, en_inv, alerta))
+                c.execute("UPDATE catalogo SET precio=?, activo=1, en_inventario=?, alerta_min=? WHERE nombre=? AND tipo=?",
+                          (precio, en_inv, alerta, name, tipo_catalogo))
 
 @app.route('/mesero/nuevo', methods=['GET', 'POST'])
 @rol_required('Mesero')
@@ -632,7 +744,7 @@ def mesero_nuevo():
     stock  = get_stock_dict()
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
-        sabores=SABORES_PIZZA, bebidas=BEBIDAS, franjas=FRANJAS_HORA,
+        sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
         stock_json=json.dumps(stock), pulpas_json=json.dumps(pulpas))
 
 @app.route('/mesero/pedidos')
@@ -666,7 +778,7 @@ def mesero_editar(pid):
         return jsonify({'ok': True})
     pulpas = get_pulpas_hoy()
     return render_template('mesero_editar.html', pedido=pedido,
-        sabores=SABORES_PIZZA, bebidas=BEBIDAS, franjas=FRANJAS_HORA,
+        sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
         pulpas_json=json.dumps(pulpas))
 
 @app.route('/cajero/cobrar')
