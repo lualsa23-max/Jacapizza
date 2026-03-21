@@ -8,39 +8,41 @@
 <div class="card mb-16" style="padding:12px">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <label class="form-label" style="margin:0;white-space:nowrap">📅 Fecha:</label>
-    <input type="text" id="fecha-input" class="form-input" value="{{ fecha }}"
+    <input type="text" id="fecha-input" class="form-input" value="{{ fecha | default('') }}"
            placeholder="dd/mm/aaaa" style="max-width:140px;min-height:38px">
     <button class="btn btn-ghost btn-sm" onclick="cambiarFecha()">Consultar</button>
     {% if fechas_disponibles %}
-    <select class="form-select btn-sm" style="max-width:180px;min-height:38px" onchange="irAFecha(this.value)">
+    <select class="form-select" style="max-width:200px;min-height:38px" onchange="irAFecha(this.value)">
       <option value="">Cierres guardados...</option>
       {% for f in fechas_disponibles %}
-      <option value="{{ f }}" {% if f==fecha %}selected{% endif %}>{{ f }}</option>
+      <option value="{{ f }}" {% if f == fecha %}selected{% endif %}>{{ f }}</option>
       {% endfor %}
     </select>
     {% endif %}
-    <a href="{{ url_for('admin_cierre_historial') }}" class="btn btn-ghost btn-sm">📋 Ver historial</a>
-    <a href="{{ url_for('admin_cierre_csv') }}" class="btn btn-ghost btn-sm">⬇ CSV total</a>
+    <a href="/admin/cierre/historial" class="btn btn-ghost btn-sm">📋 Historial</a>
+    <a href="/admin/cierre/csv" class="btn btn-ghost btn-sm">⬇ CSV</a>
   </div>
 </div>
 
-{% if error %}
-<div class="flash flash-error mb-12">⚠ Error: {{ error }}</div>
-{% endif %}
-
 {% if sin_inventario %}
-<div class="card mb-16" style="border:2px solid var(--orange);background:rgba(245,166,35,.08);padding:16px">
-  <div style="font-size:1.1rem;font-weight:700;color:var(--orange);margin-bottom:8px">⚠ Sin inventario registrado para {{ fecha }}</div>
-  <div class="text-sm c-gray" style="margin-bottom:12px">Para hacer el cierre del día, primero debes cargar el inventario inicial desde <strong>Inventario</strong>. El cierre compara lo que ingresó vs lo que se vendió.</div>
-  <a href="{{ url_for('admin_inventario') }}" class="btn btn-orange btn-sm">📦 Ir a cargar inventario</a>
+<div class="card" style="border:2px solid var(--orange);background:rgba(245,166,35,.08);padding:20px;text-align:center">
+  <div style="font-size:2rem;margin-bottom:8px">📋</div>
+  <div style="font-size:1.05rem;font-weight:700;color:var(--orange);margin-bottom:8px">
+    Sin inventario registrado para {{ fecha }}
+  </div>
+  <div class="text-sm c-gray" style="margin-bottom:16px;max-width:400px;margin-left:auto;margin-right:auto">
+    Para hacer el cierre primero debes cargar el inventario del día desde la sección <strong>Inventario</strong>.
+    El cierre compara lo que ingresó vs lo que se vendió.
+  </div>
+  <a href="/admin/inventario" class="btn btn-orange">📦 Ir a cargar inventario</a>
 </div>
-{% endif %}
+
+{% elif cierre_items %}
 
 {% if saved_dict %}
-<div class="flash flash-success mb-12">✅ Cierre del {{ fecha }} ya fue guardado. Puedes editarlo y volver a guardar.</div>
+<div class="flash flash-success mb-12">✅ Cierre del {{ fecha }} guardado. Puedes editarlo y volver a guardar.</div>
 {% endif %}
 
-<!-- Tabla de cierre -->
 <div id="status-msg" class="flash flash-success mb-12" style="display:none">✅ Cierre guardado correctamente</div>
 
 <div class="tbl-wrap card" style="padding:0;margin-bottom:16px">
@@ -59,43 +61,38 @@
     <tbody>
       {% for it in cierre_items %}
       {% set saved = saved_dict.get(it.nombre) %}
-      {% set real_val = saved.real_contado if saved else '' %}
-      {% set nota_val = saved.nota if saved else '' %}
       <tr data-nombre="{{ it.nombre }}" data-tipo="{{ it.tipo }}"
           data-inicial="{{ it.stock_inicial }}" data-vendido="{{ it.vendido }}"
           data-teorico="{{ it.teorico }}">
-        <td>
-          <span style="font-size:.9rem;font-weight:600">
-            {% if it.tipo == 'pizza' %}🍕{% elif it.tipo == 'bebida' %}🥤{% else %}🍹{% endif %}
-            {{ it.nombre }}
-          </span>
+        <td style="font-weight:600;font-size:.88rem">
+          {% if it.tipo == 'pizza' %}🍕
+          {% elif it.tipo == 'bebida' %}🥤
+          {% else %}🍹{% endif %}
+          {{ it.nombre }}
         </td>
         <td style="text-align:center;font-weight:700">{{ it.stock_inicial }}</td>
         <td style="text-align:center;color:var(--coral)">{{ it.vendido }}</td>
         <td style="text-align:center;font-weight:700;color:var(--accent)">{{ it.teorico }}</td>
         <td style="text-align:center">
           <input type="number" class="inv-input real-input" min="0" max="999"
-                 value="{{ real_val }}" placeholder="—"
-                 style="width:70px;text-align:center"
+                 value="{{ saved.real_contado if saved else '' }}"
+                 placeholder="—" style="width:70px;text-align:center"
                  oninput="calcularDif(this)">
         </td>
         <td style="text-align:center">
-          <span class="dif-badge" data-teorico="{{ it.teorico }}">
+          <span class="dif-badge">
             {% if saved %}
-              {% set dif = saved.diferencia %}
-              {% if dif == 0 %}
-                <span style="color:var(--green);font-weight:700">✅ 0</span>
-              {% elif dif < 0 %}
-                <span style="color:var(--red);font-weight:700">⚠ {{ dif }}</span>
-              {% else %}
-                <span style="color:var(--orange);font-weight:700">+{{ dif }}</span>
+              {% if saved.diferencia == 0 %}<span style="color:var(--green);font-weight:700">✅ 0</span>
+              {% elif saved.diferencia < 0 %}<span style="color:var(--red);font-weight:700">⚠ {{ saved.diferencia }}</span>
+              {% else %}<span style="color:var(--orange);font-weight:700">+{{ saved.diferencia }}</span>
               {% endif %}
             {% else %}—{% endif %}
           </span>
         </td>
         <td>
           <input type="text" class="form-input nota-input"
-                 value="{{ nota_val }}" placeholder="opcional..."
+                 value="{{ saved.nota if saved else '' }}"
+                 placeholder="opcional..."
                  style="min-height:34px;font-size:.8rem;padding:4px 8px">
         </td>
       </tr>
@@ -104,7 +101,6 @@
   </table>
 </div>
 
-<!-- Resumen -->
 <div id="resumen-wrap" style="display:none" class="card mb-16">
   <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px;color:var(--gray2)">RESUMEN DEL CIERRE</h3>
   <div id="resumen-content"></div>
@@ -114,11 +110,18 @@
   💾 Guardar cierre del {{ fecha }}
 </button>
 
+{% else %}
+<div class="empty">
+  <span class="e-ico">📦</span>
+  No hay datos para mostrar en esta fecha
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-const fecha = "{{ fecha }}";
+const fecha = "{{ fecha | default('') }}";
 
 function cambiarFecha(){
   const f = document.getElementById('fecha-input').value.trim();
@@ -135,28 +138,27 @@ function calcularDif(input){
   const badge = row.querySelector('.dif-badge');
   if(isNaN(real)){ badge.innerHTML = '—'; return; }
   const dif = real - teorico;
-  if(dif === 0)       badge.innerHTML = '<span style="color:var(--green);font-weight:700">✅ 0</span>';
-  else if(dif < 0)    badge.innerHTML = '<span style="color:var(--red);font-weight:700">⚠ ' + dif + '</span>';
-  else                badge.innerHTML = '<span style="color:var(--orange);font-weight:700">+' + dif + '</span>';
+  if(dif === 0)     badge.innerHTML = '<span style="color:var(--green);font-weight:700">✅ 0</span>';
+  else if(dif < 0)  badge.innerHTML = '<span style="color:var(--red);font-weight:700">⚠ ' + dif + '</span>';
+  else              badge.innerHTML = '<span style="color:var(--orange);font-weight:700">+' + dif + '</span>';
   actualizarResumen();
 }
 
 function actualizarResumen(){
   const rows = document.querySelectorAll('#tabla-cierre tbody tr');
   let ok=0, falta=0, sobra=0, sin_contar=0;
-  rows.forEach(row=>{
-    const real = parseInt(row.querySelector('.real-input').value);
-    const teorico = parseInt(row.dataset.teorico)||0;
-    if(isNaN(real)){ sin_contar++; return; }
+  rows.forEach(function(row){
+    const val = row.querySelector('.real-input').value;
+    if(val === ''){ sin_contar++; return; }
+    const real = parseInt(val);
+    const teorico = parseInt(row.dataset.teorico) || 0;
     const dif = real - teorico;
-    if(dif===0) ok++;
-    else if(dif<0) falta++;
+    if(dif === 0) ok++;
+    else if(dif < 0) falta++;
     else sobra++;
   });
-  const wrap = document.getElementById('resumen-wrap');
-  const cont = document.getElementById('resumen-content');
-  wrap.style.display = 'block';
-  cont.innerHTML =
+  document.getElementById('resumen-wrap').style.display = 'block';
+  document.getElementById('resumen-content').innerHTML =
     '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
     '<div class="metric" style="flex:1"><div class="metric-ico">✅</div><div class="metric-val c-green">'+ok+'</div><div class="metric-lbl">Cuadra</div></div>' +
     '<div class="metric" style="flex:1"><div class="metric-ico">⚠</div><div class="metric-val c-red">'+falta+'</div><div class="metric-lbl">Faltante</div></div>' +
@@ -167,43 +169,50 @@ function actualizarResumen(){
 
 async function guardarCierre(){
   const rows = document.querySelectorAll('#tabla-cierre tbody tr');
+  if(!rows.length){ alert('No hay ítems para guardar'); return; }
   const items = [];
-  rows.forEach(row=>{
+  rows.forEach(function(row){
     const real_val = row.querySelector('.real-input').value;
-    const real = real_val === '' ? -1 : parseInt(real_val);
-    const teorico = parseInt(row.dataset.teorico)||0;
-    const dif = real >= 0 ? real - teorico : 0;
+    const real = real_val === '' ? 0 : parseInt(real_val) || 0;
+    const teorico = parseInt(row.dataset.teorico) || 0;
     items.push({
-      nombre:       row.dataset.nombre,
-      tipo:         row.dataset.tipo,
-      stock_inicial:parseInt(row.dataset.inicial)||0,
-      vendido:      parseInt(row.dataset.vendido)||0,
-      teorico:      teorico,
-      real_contado: real >= 0 ? real : 0,
-      diferencia:   dif,
-      nota:         row.querySelector('.nota-input').value.trim()
+      nombre:        row.dataset.nombre,
+      tipo:          row.dataset.tipo,
+      stock_inicial: parseInt(row.dataset.inicial) || 0,
+      vendido:       parseInt(row.dataset.vendido) || 0,
+      teorico:       teorico,
+      real_contado:  real,
+      diferencia:    real - teorico,
+      nota:          row.querySelector('.nota-input').value.trim()
     });
   });
   try{
     const r = await fetch('/admin/cierre', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({fecha, items})
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({fecha: fecha, items: items})
     });
     const d = await r.json();
     if(d.ok){
       const s = document.getElementById('status-msg');
-      s.style.display='block';
-      window.scrollTo({top:0,behavior:'smooth'});
-      setTimeout(()=>s.style.display='none', 4000);
+      s.style.display = 'block';
+      window.scrollTo({top:0, behavior:'smooth'});
+      setTimeout(function(){ s.style.display='none'; }, 4000);
       actualizarResumen();
+    } else {
+      alert('Error al guardar: ' + (d.error || 'desconocido'));
     }
-  } catch(e){ alert('Error al guardar. Intenta de nuevo.'); }
+  } catch(e){
+    alert('Error de conexión. Intenta de nuevo.');
+  }
 }
 
-// Init resumen if there are saved values
-document.addEventListener('DOMContentLoaded', function(){
-  const filled = document.querySelectorAll('.real-input[value]:not([value=""])');
-  if(filled.length) actualizarResumen();
+// Init resumen if saved values exist
+window.addEventListener('load', function(){
+  const filled = document.querySelectorAll('.real-input');
+  let hasVal = false;
+  filled.forEach(function(el){ if(el.value !== '') hasVal = true; });
+  if(hasVal) actualizarResumen();
 });
 </script>
 {% endblock %}
