@@ -24,7 +24,6 @@
 
 <div class="k-groups">
 {% for franja in franjas_ord %}
-
   <div style="margin-bottom:20px">
 
     {% if franja == 'Sin hora' %}
@@ -47,7 +46,6 @@
     <div class="k-grid">
     {% for p in grupos[franja] %}
       <div class="k-card">
-
         <div class="k-card-head">
           <div>
             <div class="k-card-id">#{{ p.id }}</div>
@@ -90,23 +88,19 @@
             ✅ LISTO — Pasar a cobro
           </button>
         </form>
-
       </div>
     {% endfor %}
     </div>
-
   </div>
 {% endfor %}
 </div>
 {% endif %}
-
 {% endblock %}
 
 {% block scripts %}
 <script>
 let seconds = 30;
 const cntEl = document.querySelector('#countdown strong');
-
 async function checkNotifs(){
   try {
     const r = await fetch('/cocina/notificaciones');
@@ -116,13 +110,11 @@ async function checkNotifs(){
     });
   } catch(e) {}
 }
-
 const timer = setInterval(function(){
   seconds--;
   if(cntEl) cntEl.textContent = seconds;
   if(seconds <= 0){ clearInterval(timer); window.location.reload(); }
 }, 1000);
-
 checkNotifs();
 setInterval(checkNotifs, 8000);
 </script>
