@@ -17,7 +17,7 @@ if _db_dir and not os.path.exists(_db_dir):
         DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
 
 USUARIOS = {
-    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "LuNa"},
+    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
@@ -309,9 +309,13 @@ def admin_resumen():
     total_dia  = sum(p["total"] for p in todos if p["fecha"] == hoy and p["estado"] == "Pagado")
     pagados    = sum(1 for p in todos if p["estado"] == "Pagado")
     pendientes = sum(1 for p in todos if p["estado"] == "Pendiente")
+    hoy_str = datetime.now().strftime("%d/%m/%Y")
+    cobros_pendientes = sum(1 for p in todos if p["estado"] == "Listo" and p["fecha"] != hoy_str)
     return render_template('admin_resumen.html',
         total_dia=total_dia, total_pedidos=len(todos),
-        pagados=pagados, pendientes=pendientes, ultimos=todos[:10], hoy=hoy)
+        pagados=pagados, pendientes=pendientes,
+        cobros_pendientes=cobros_pendientes,
+        ultimos=todos[:10], hoy=hoy)
 
 @app.route('/admin/inventario', methods=['GET', 'POST'])
 @rol_required('Administrador')
@@ -511,8 +515,14 @@ def mesero_editar(pid):
 @app.route('/cajero/cobrar')
 @rol_required('Cajero')
 def cajero_cobrar():
-    listos = [p for p in get_pedidos() if p["estado"] == "Listo"]
-    return render_template('cajero_cobrar.html', pedidos=listos)
+    hoy = datetime.now().strftime("%d/%m/%Y")
+    todos_listos = [p for p in get_pedidos() if p["estado"] == "Listo"]
+    pendientes_anteriores = [p for p in todos_listos if p["fecha"] != hoy]
+    de_hoy = [p for p in todos_listos if p["fecha"] == hoy]
+    return render_template('cajero_cobrar.html',
+        pedidos=de_hoy,
+        pendientes_anteriores=pendientes_anteriores,
+        hoy=hoy)
 
 @app.route('/cajero/cobrar/<int:pid>', methods=['POST'])
 @rol_required('Cajero')
