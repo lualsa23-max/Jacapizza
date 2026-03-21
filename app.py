@@ -42,6 +42,7 @@ _INV_ESTANDAR = {
     "Soda Italiana":        ("bebida", 5),
     "Limonada de Coco":     ("bebida", 5),
     "Cerezada":             ("bebida", 5),
+    "Cerveza Poker":        ("bebida", 5),
 }
 FRANJAS_HORA = [
     "7:00 PM","7:15 PM","7:30 PM","7:45 PM",
@@ -231,7 +232,7 @@ def ajustar_stock(nombre, delta):
 def _item_a_stock_key(nombre, tipo):
     if tipo == "Pizza": return "Pizza (masa)"
     for key in ["Gaseosa","Agua 600ml","Cerveza Águila Light","Cerveza Águila","Cerveza Coronita",
-                "Soda Italiana","Limonada de Coco","Cerezada"]:
+                "Soda Italiana","Limonada de Coco","Cerezada","Cerveza Poker"]:
         if nombre.startswith(key): return key
     if nombre.startswith("Jugo Natural"):
         partes = nombre.split(" — ", 1)
