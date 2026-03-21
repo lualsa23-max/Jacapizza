@@ -7,6 +7,10 @@
   <a href="{{ url_for('admin_menu_bebidas') }}" class="btn btn-sm {% if tipo=='bebidas' %}btn-primary{% else %}btn-ghost{% endif %}">🥤 Bebidas</a>
 </div>
 
+<div class="flash flash-success mb-12" style="display:none" id="tip">
+  💡 Tip: también puedes cambiar precios directamente desde Inventario
+</div>
+
 {% for nombre, precio in menu.items() %}
 <div class="card mb-8">
   <form method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -18,10 +22,10 @@
     </div>
     <div style="flex:1;min-width:100px">
       <label class="form-label">Precio COP</label>
-      <input class="form-input" type="number" name="precio" value="{{ precio }}" step="500" style="min-height:40px;font-size:.88rem">
+      <input class="form-input" type="number" name="precio" value="{{ precio | int }}" step="500" style="min-height:40px;font-size:.88rem">
     </div>
     <div style="display:flex;gap:6px">
-      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">Guardar</button>
+      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">💾 Guardar</button>
       <button type="submit" name="action" value="delete"
               class="btn btn-danger btn-sm" style="min-height:40px"
               onclick="return confirm('¿Eliminar {{ nombre }}?')">🗑</button>
@@ -43,6 +47,15 @@
         <label class="form-label">Precio COP</label>
         <input class="form-input" type="number" name="precio" placeholder="20000" step="500" style="min-height:40px;font-size:.88rem">
       </div>
+      {% if tipo == 'bebidas' %}
+      <div style="min-width:120px">
+        <label class="form-label">¿Controlar stock?</label>
+        <select class="form-select" name="en_inventario" style="min-height:40px;font-size:.88rem">
+          <option value="1">Sí — aparece en inventario</option>
+          <option value="0">No — sin stock</option>
+        </select>
+      </div>
+      {% endif %}
       <button type="submit" class="btn btn-green" style="min-height:40px">➕ Agregar</button>
     </div>
   </form>
