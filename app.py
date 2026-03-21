@@ -113,9 +113,8 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
     with _conn() as c:
         cur = c.execute(
             "INSERT INTO pedidos (codigo,mesero,estado,total,hora,fecha,notas,franja_hora) VALUES (?,?,?,?,?,?,?,?)",
-            (mesa, "Pendiente", total, hora, fecha, notas, franja_hora))
+            (mesa, mesero, "Pendiente", total, hora, fecha, notas, franja_hora))
         pid = cur.lastrowid
-        c.execute("UPDATE pedidos SET mesero=? WHERE id=?", (mesero, pid))
         for i in items:
             c.execute("INSERT INTO items (pedido_id,nombre,tipo,cantidad,precio_unit) VALUES (?,?,?,?,?)",
                       (pid, i["nombre"], i["tipo"], i["cantidad"], i["precio_unit"]))
