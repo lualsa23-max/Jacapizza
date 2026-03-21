@@ -69,7 +69,7 @@
 <script>
 let qty = 1;
 let saboresSel = [];
-let carrito = {{ pedido.items | tojson }};
+let carrito = {{ pedido.productos | tojson }};
 
 function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
 
