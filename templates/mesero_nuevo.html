@@ -36,18 +36,17 @@
 <!-- PANEL PIZZAS -->
 <div class="order-panel active" id="panel-pizzas">
   <div class="card">
-    {% set masas = namespace(val=None) %}
-    {% for nombre, val in (stock_json | fromjson).items() if nombre == 'Pizza (masa)' %}{% set masas.val = val %}{% endfor %}
-    {% if masas.val is not none %}
-      {% if masas.val == 0 %}
+    {% set stock = stock_json | fromjson %}
+    {% set masas_val = stock.get('Pizza (masa)') %}
+    {% if masas_val is not none %}
+      {% if masas_val == 0 %}
         <div class="text-sm c-red mb-8 font-bold">⛔ Sin masas disponibles hoy</div>
-      {% elif masas.val <= 3 %}
-        <div class="text-sm c-orange mb-8 font-bold">⚠ Quedan {{ masas.val }} masa(s)</div>
+      {% elif masas_val <= 3 %}
+        <div class="text-sm c-orange mb-8 font-bold">⚠ Quedan {{ masas_val }} masa(s)</div>
       {% else %}
-        <div class="text-sm c-green mb-8">✅ Masas disponibles: {{ masas.val }}</div>
+        <div class="text-sm c-green mb-8">✅ Masas disponibles: {{ masas_val }}</div>
       {% endif %}
     {% endif %}
-
     <p class="text-sm c-gray mb-8">Selecciona 1 o 2 sabores</p>
     <div class="pizza-grid" id="pizza-grid">
       {% for sabor in sabores %}
@@ -65,32 +64,18 @@
     {% set stock = stock_json | fromjson %}
     {% set pulpas = pulpas_json | fromjson %}
     {% for nombre, precio in bebidas.items() %}
-    {% set agotado = namespace(val=false) %}
+    {% set agotado = false %}
     {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita'] %}
-      {% if stock.get(nombre, -1) == 0 %}{% set agotado.val = true %}{% endif %}
+      {% if stock.get(nombre) == 0 %}{% set agotado = true %}{% endif %}
     {% elif nombre == 'Jugo Natural (agua)' %}
-      {% if pulpas | length == 0 %}{% set agotado.val = true %}{% endif %}
+      {% if pulpas | length == 0 %}{% set agotado = true %}{% endif %}
     {% endif %}
     <div class="beb-row">
       <div style="flex:1">
-        <span class="beb-name {% if agotado.val %}c-gray{% endif %}">{{ nombre }}</span>
-        {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita'] %}
-          {% set s = stock.get(nombre) %}
-          {% if s is not none %}
-            {% if s == 0 %}<span class="stock-chip stock-out">Agotado</span>
-            {% elif s <= 5 %}<span class="stock-chip stock-low">⚠ {{ s }}</span>
-            {% else %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
-          {% endif %}
-        {% elif nombre == 'Jugo Natural (agua)' %}
-          {% if pulpas | length == 0 %}
-            <span class="stock-chip stock-out">Sin pulpas</span>
-          {% else %}
-            <span class="stock-chip stock-ok">{{ pulpas | length }} pulpa(s)</span>
-          {% endif %}
-        {% endif %}
+        <span class="beb-name {% if agotado %}c-gray{% endif %}">{{ nombre }}</span>
       </div>
       <span class="beb-price">{{ precio | cop }}</span>
-      {% if not agotado.val %}
+      {% if not agotado %}
         {% if nombre == 'Gaseosa' %}
           <button class="btn btn-primary btn-sm" onclick="modalTexto('{{ nombre }}', {{ precio }}, 'Sabor de gaseosa')">+</button>
         {% elif nombre == 'Jugo Natural (agua)' %}
@@ -126,9 +111,27 @@
     <textarea class="form-textarea" id="notas-txt" placeholder="Sin azúcar, en leche, sin topping..."></textarea>
   </div>
 
-  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarPedido()">
-    ✅ CONFIRMAR PEDIDO
+  <!-- BOTÓN 1: Enviar a cocina -->
+  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarPedido(false)">
+    📤 Enviar a cocina
   </button>
+
+  <!-- BOTÓN 2: Cobrar ahora -->
+  <div class="card mt-10" style="border:2px solid var(--green);padding:14px">
+    <div class="text-sm font-bold c-green mb-10">💵 Cobrar ahora — el cliente paga de inmediato</div>
+    <div class="pay-grid" style="margin-bottom:10px">
+      <button class="btn btn-ghost btn-sm" id="pay-Efectivo"    onclick="selPago('Efectivo')"   >💵 Efectivo</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"     onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Nequi"       onclick="selPago('Nequi')"      >📱 Nequi</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Daviplata"   onclick="selPago('Daviplata')"  >📲 Daviplata</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Llave Bre-B" onclick="selPago('Llave Bre-B')">🔑 Bre-B</button>
+    </div>
+    <div id="pago-sel-txt" class="text-sm c-gray mb-8">Selecciona un método de pago</div>
+    <button class="btn btn-green btn-full btn-lg" onclick="confirmarPedido(true)">
+      ✅ Confirmar y cobrar
+    </button>
+  </div>
+
   <button class="btn btn-ghost btn-full mt-8" onclick="limpiarCarrito()">🗑 Limpiar pedido</button>
 </div>
 
@@ -172,8 +175,8 @@ let qty = 1;
 let saboresSel = [];
 let carrito = [];
 let codConfirmado = false;
-let modalTextoCb = null;
 let modalNombreBase = '', modalPrecioBase = 0;
+let metodoPagoSel = '';
 
 // QTY
 function cambiarQty(d){ qty = Math.max(1, qty + d); document.getElementById('qty-num').textContent = qty; }
@@ -182,9 +185,9 @@ function cambiarQty(d){ qty = Math.max(1, qty + d); document.getElementById('qty
 function confirmarCodigo(){
   const cod = document.getElementById('cod-input').value.trim();
   if(!cod){ alert('Escribe un código primero'); return; }
-  if(confirm(`¿El código del pedido es: "${cod}"?`)){
+  if(confirm('¿El código del pedido es: "' + cod + '"?')){
     codConfirmado = true;
-    document.getElementById('cod-status').textContent = `✅ Código confirmado: ${cod}`;
+    document.getElementById('cod-status').textContent = '✅ Código confirmado: ' + cod;
     document.getElementById('cod-status').className = 'text-sm c-green mt-8';
     document.getElementById('cod-input').disabled = true;
     document.getElementById('btn-cod').textContent = '✏ Editar';
@@ -212,29 +215,19 @@ function switchTab(name, btn){
 // PIZZA
 function toggleSabor(btn){
   const s = btn.dataset.sabor;
-  if(saboresSel.includes(s)){
-    saboresSel = saboresSel.filter(x=>x!==s);
-    btn.classList.remove('sel');
-  } else if(saboresSel.length < 2){
-    saboresSel.push(s);
-    btn.classList.add('sel');
-  } else {
-    alert('Máximo 2 sabores. Quita uno primero.');
-    return;
-  }
+  if(saboresSel.includes(s)){ saboresSel = saboresSel.filter(x=>x!==s); btn.classList.remove('sel'); }
+  else if(saboresSel.length < 2){ saboresSel.push(s); btn.classList.add('sel'); }
+  else{ alert('Máximo 2 sabores. Quita uno primero.'); return; }
   updateSelDisplay();
 }
 function updateSelDisplay(){
   const d = document.getElementById('sel-display');
   if(!saboresSel.length){ d.textContent='Sin sabor seleccionado'; d.classList.remove('has-val'); }
-  else if(saboresSel.length===1){ d.textContent=`${saboresSel[0]}`; d.classList.add('has-val'); }
-  else{ d.textContent=`${saboresSel[0]}  +  ${saboresSel[1]}`; d.classList.add('has-val'); }
+  else{ d.textContent = saboresSel.join('  +  '); d.classList.add('has-val'); }
 }
 function agregarPizza(){
   if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
-  const nombre = saboresSel.join(' / ');
-  const precio = 20000;
-  addToCart(nombre, 'Pizza', precio);
+  addToCart(saboresSel.join(' / '), 'Pizza', 20000);
   saboresSel=[];
   document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
   updateSelDisplay();
@@ -242,11 +235,11 @@ function agregarPizza(){
 }
 
 // BEBIDAS
-function addBebida(nombre, precio){ addToCart(nombre, 'Bebida', precio); showToast(`${nombre} agregado ✅`); }
+function addBebida(nombre, precio){ addToCart(nombre, 'Bebida', precio); showToast(nombre + ' agregado ✅'); }
 
 function modalTexto(nombre, precio, placeholder){
   modalNombreBase=nombre; modalPrecioBase=precio;
-  document.getElementById('modal-texto-titulo').textContent = `¿Qué ${nombre.toLowerCase()} deseas?`;
+  document.getElementById('modal-texto-titulo').textContent = '¿Qué ' + nombre.toLowerCase() + ' deseas?';
   document.getElementById('modal-texto-input').placeholder = placeholder;
   document.getElementById('modal-texto-input').value = '';
   openModal('modal-texto');
@@ -254,7 +247,7 @@ function modalTexto(nombre, precio, placeholder){
 }
 function confirmTexto(){
   const det = document.getElementById('modal-texto-input').value.trim();
-  const nombre = det ? `${modalNombreBase} — ${det}` : modalNombreBase;
+  const nombre = det ? modalNombreBase + ' — ' + det : modalNombreBase;
   addBebida(nombre, modalPrecioBase);
   closeModal('modal-texto');
 }
@@ -265,16 +258,16 @@ function modalPulpas(){
   const disp = PULPAS.filter(p=>p.stock>0);
   if(!disp.length){ alert('No hay pulpas disponibles hoy'); return; }
   disp.forEach((p,i)=>{
-    const stock_info = p.stock <= p.alerta_min ? ` ⚠ quedan ${p.stock}` : ` (${p.stock} disp.)`;
-    list.innerHTML += `<div class="sheet-opt ${i===0?'sel':''}" onclick="selectOpt(this,'pulpa-opts')">
-      <input type="radio" name="pulpa-opts" value="${p.nombre}" ${i===0?'checked':''}>
-      <label>${p.nombre}${stock_info}</label></div>`;
+    const info = p.stock <= p.alerta_min ? ' ⚠ quedan ' + p.stock : ' (' + p.stock + ' disp.)';
+    list.innerHTML += '<div class="sheet-opt ' + (i===0?'sel':'') + '" onclick="selectOpt(this,\'pulpa-opts\')">' +
+      '<input type="radio" name="pulpa-opts" value="' + p.nombre + '" ' + (i===0?'checked':'') + '>' +
+      '<label>' + p.nombre + info + '</label></div>';
   });
   openModal('modal-pulpas');
 }
 function confirmPulpa(){
   const sel = document.querySelector('[name="pulpa-opts"]:checked');
-  if(sel){ addBebida(`Jugo Natural — ${sel.value}`, JUG_PRECIO); }
+  if(sel){ addBebida('Jugo Natural — ' + sel.value, JUG_PRECIO); }
   closeModal('modal-pulpas');
 }
 
@@ -285,42 +278,50 @@ function modalOpciones(nombre, precio, opciones){
   const list = document.getElementById('modal-opc-list');
   list.innerHTML = '';
   opciones.forEach((o,i)=>{
-    list.innerHTML += `<div class="sheet-opt ${i===0?'sel':''}" onclick="selectOpt(this,'opc-opts')">
-      <input type="radio" name="opc-opts" value="${o}" ${i===0?'checked':''}>
-      <label>${o}</label></div>`;
+    list.innerHTML += '<div class="sheet-opt ' + (i===0?'sel':'') + '" onclick="selectOpt(this,\'opc-opts\')">' +
+      '<input type="radio" name="opc-opts" value="' + o + '" ' + (i===0?'checked':'') + '>' +
+      '<label>' + o + '</label></div>';
   });
   openModal('modal-opciones');
 }
 function confirmOpciones(){
   const sel = document.querySelector('[name="opc-opts"]:checked');
-  if(sel){ addBebida(`${modalOpcNombre} — ${sel.value}`, modalOpcPrecio); }
+  if(sel){ addBebida(modalOpcNombre + ' — ' + sel.value, modalOpcPrecio); }
   closeModal('modal-opciones');
 }
 
 function selectOpt(el, name){
   el.closest('.sheet').querySelectorAll('.sheet-opt').forEach(x=>x.classList.remove('sel'));
   el.classList.add('sel');
-  el.querySelector(`input[name="${name}"]`).checked = true;
+  el.querySelector('input[name="' + name + '"]').checked = true;
 }
 
-// MODAL HELPERS
 function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',function(e){ if(e.target===this) closeModal(this.id); }));
 
+// METODO PAGO
+function selPago(metodo){
+  metodoPagoSel = metodo;
+  document.querySelectorAll('[id^="pay-"]').forEach(b=>b.classList.remove('btn-green'));
+  const btn = document.getElementById('pay-' + metodo);
+  if(btn) btn.classList.add('btn-green');
+  document.getElementById('pago-sel-txt').textContent = '✅ Método seleccionado: ' + metodo;
+  document.getElementById('pago-sel-txt').className = 'text-sm c-green mb-8';
+}
+
 // CART
 function addToCart(nombre, tipo, precio){
   const ex = carrito.find(i=>i.nombre===nombre);
-  if(ex){ ex.cantidad += qty; }
-  else{ carrito.push({nombre, tipo, cantidad: qty, precio_unit: precio}); }
+  if(ex){ ex.cantidad += qty; } else { carrito.push({nombre, tipo, cantidad: qty, precio_unit: precio}); }
   renderCart();
 }
 function removeFromCart(nombre){ carrito = carrito.filter(i=>i.nombre!==nombre); renderCart(); }
-function limpiarCarrito(){ carrito=[]; document.getElementById('notas-txt').value=''; renderCart(); }
+function limpiarCarrito(){ carrito=[]; document.getElementById('notas-txt').value=''; metodoPagoSel=''; renderCart(); }
 
 function renderCart(){
   const total = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit, 0);
-  document.getElementById('cart-total').textContent = '$'+total.toLocaleString('es-CO').replace(/,/g,'.');
+  document.getElementById('cart-total').textContent = '$' + total.toLocaleString('es-CO').replace(/,/g,'.');
   const badge = document.getElementById('cart-badge');
   const count = carrito.reduce((s,i)=>s+i.cantidad,0);
   badge.textContent = count;
@@ -335,38 +336,51 @@ function renderCart(){
     const sub = item.cantidad * item.precio_unit;
     const d = document.createElement('div');
     d.className='cart-item';
-    d.innerHTML=`<span class="cart-item-qty">${item.cantidad}×</span>
-      <div class="cart-item-info">
-        <div class="cart-item-name">${item.nombre}</div>
-        <div class="cart-item-sub">$${sub.toLocaleString('es-CO').replace(/,/g,'.')}</div>
-      </div>
-      <span class="cart-remove" onclick="removeFromCart('${item.nombre.replace(/'/g,"\\'")}')">✕</span>`;
+    d.innerHTML = '<span class="cart-item-qty">' + item.cantidad + '×</span>' +
+      '<div class="cart-item-info"><div class="cart-item-name">' + item.nombre + '</div>' +
+      '<div class="cart-item-sub">$' + sub.toLocaleString('es-CO').replace(/,/g,'.') + '</div></div>' +
+      '<span class="cart-remove" onclick="removeFromCart(\'' + item.nombre.replace(/'/g,"\\'") + '\')">✕</span>';
     el.appendChild(d);
   });
 }
 
-async function confirmarPedido(){
+async function confirmarPedido(cobrarYa){
   if(!codConfirmado){ alert('Confirma el código del pedido primero'); return; }
   if(!carrito.length){ alert('Agrega al menos un ítem al pedido'); return; }
+  if(cobrarYa && !metodoPagoSel){ alert('Selecciona un método de pago primero'); return; }
+
   const codigo = document.getElementById('cod-input').value.trim();
   const franja = document.getElementById('franja-sel').value;
   const notas  = document.getElementById('notas-txt').value.trim();
   const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
-  const items_txt = carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ');
-  if(!confirm(`Pedido: ${codigo}\n\n${items_txt}\n\nTotal: $${total.toLocaleString('es-CO').replace(/,/g,'.')}\nEntrega: ${franja}\n\n¿Enviar a cocina?`)) return;
+  const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
+
+  const msg = cobrarYa
+    ? 'Pedido: ' + codigo + '\n\n' + items_txt + '\n\nTotal: $' + total.toLocaleString('es-CO').replace(/,/g,'.') + '\nPago: ' + metodoPagoSel + '\n\n¿Confirmar y cobrar ahora?'
+    : 'Pedido: ' + codigo + '\n\n' + items_txt + '\n\nTotal: $' + total.toLocaleString('es-CO').replace(/,/g,'.') + '\nEntrega: ' + franja + '\n\n¿Enviar a cocina?';
+
+  if(!confirm(msg)) return;
+
   try{
     const r = await fetch('/mesero/nuevo',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({codigo, items: carrito, notas, franja})
+      body: JSON.stringify({
+        codigo, items: carrito, notas, franja,
+        cobrar_ya: cobrarYa, metodo_pago: metodoPagoSel
+      })
     });
     const d = await r.json();
     if(d.ok){
-      alert(`✅ Pedido #${d.id} enviado a cocina!\nCódigo: ${codigo}\nHora: ${franja}`);
+      if(d.cobrado){
+        alert('✅ Pedido #' + d.id + ' registrado y cobrado con ' + metodoPagoSel + '!');
+      } else {
+        alert('✅ Pedido #' + d.id + ' enviado a cocina!\nCódigo: ' + codigo + '\nHora: ' + franja);
+      }
       editarCodigo();
       limpiarCarrito();
       switchTab('pizzas', document.querySelectorAll('.order-tab')[0]);
     } else {
-      alert('Error: '+d.error);
+      alert('Error: ' + d.error);
     }
   } catch(e){ alert('Error de conexión. Intenta de nuevo.'); }
 }
