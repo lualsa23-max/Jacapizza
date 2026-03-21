@@ -22,20 +22,16 @@
 
 <div class="nav-tabs">
 {% if session.rol == 'Administrador' %}
-  <a href="{{ url_for('admin_resumen') }}"     class="tab {% if request.endpoint=='admin_resumen' %}active{% endif %}">📊 Resumen</a>
-  <a href="{{ url_for('admin_inventario') }}"  class="tab {% if request.endpoint=='admin_inventario' %}active{% endif %}">📦 Inventario</a>
-  <a href="{{ url_for('admin_pedidos') }}"     class="tab {% if request.endpoint=='admin_pedidos' %}active{% endif %}">📋 Pedidos</a>
-  <a href="{{ url_for('admin_reportes') }}"    class="tab {% if request.endpoint=='admin_reportes' %}active{% endif %}">📈 Reportes</a>
-  <a href="{{ url_for('admin_usuarios') }}"    class="tab {% if request.endpoint=='admin_usuarios' %}active{% endif %}">👥 Usuarios</a>
-  <a href="{{ url_for('admin_menu_pizzas') }}" class="tab {% if request.endpoint in ['admin_menu_pizzas','admin_menu_bebidas'] %}active{% endif %}">🍕 Menú</a>
-  <span style="display:inline-block;width:1px;background:var(--card2);margin:8px 4px;"></span>
   <a href="{{ url_for('mesero_nuevo') }}"      class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
-  <a href="{{ url_for('mesero_pedidos') }}"    class="tab {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}active{% endif %}">🧾 Mis pedidos</a>
-  <span style="display:inline-block;width:1px;background:var(--card2);margin:8px 4px;"></span>
-  <a href="{{ url_for('cajero_cobrar') }}"     class="tab {% if request.endpoint=='cajero_cobrar' %}active{% endif %}">⏳ Cobrar</a>
-  <a href="{{ url_for('cajero_caja') }}"       class="tab {% if request.endpoint=='cajero_caja' %}active{% endif %}">💰 Caja</a>
-  <span style="display:inline-block;width:1px;background:var(--card2);margin:8px 4px;"></span>
-  <a href="{{ url_for('cocina_pedidos') }}"    class="tab {% if request.endpoint=='cocina_pedidos' %}active{% endif %}">🍳 Cocina</a>
+  <a href="{{ url_for('admin_pedidos') }}"      class="tab {% if request.endpoint=='admin_pedidos' %}active{% endif %}">📋 Pedidos</a>
+  <a href="{{ url_for('cocina_pedidos') }}"     class="tab {% if request.endpoint=='cocina_pedidos' %}active{% endif %}">🍳 Cocina</a>
+  <a href="{{ url_for('cajero_cobrar') }}"      class="tab {% if request.endpoint=='cajero_cobrar' %}active{% endif %}">⏳ Cobrar</a>
+  <a href="{{ url_for('cajero_caja') }}"        class="tab {% if request.endpoint=='cajero_caja' %}active{% endif %}">💰 Caja</a>
+  <a href="{{ url_for('mesero_pedidos') }}"     class="tab {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}active{% endif %}">🧾 Mis pedidos</a>
+  <a href="{{ url_for('admin_menu_pizzas') }}"  class="tab {% if request.endpoint in ['admin_menu_pizzas','admin_menu_bebidas'] %}active{% endif %}">🍕 Menú</a>
+  <a href="{{ url_for('admin_inventario') }}"   class="tab {% if request.endpoint=='admin_inventario' %}active{% endif %}">📦 Inventario</a>
+  <a href="{{ url_for('admin_usuarios') }}"     class="tab {% if request.endpoint=='admin_usuarios' %}active{% endif %}">👥 Usuarios</a>
+  <a href="{{ url_for('admin_reportes') }}"     class="tab {% if request.endpoint in ['admin_reportes','admin_resumen'] %}active{% endif %}">📈 Reportes</a>
 
 {% elif session.rol == 'Mesero' %}
   <a href="{{ url_for('mesero_nuevo') }}"   class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
