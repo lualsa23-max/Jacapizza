@@ -17,7 +17,7 @@ if _db_dir and not os.path.exists(_db_dir):
         DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
 
 USUARIOS = {
-    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
+    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "LuNa"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
@@ -39,7 +39,8 @@ _INV_ESTANDAR = {
     "Cerveza Águila":       ("bebida", 5),
     "Cerveza Águila Light": ("bebida", 5),
     "Cerveza Coronita":     ("bebida", 5),
-    "Soda Italiana":        ("bebida", 5),
+    "Soda Italiana - Frutos Rojos":     ("bebida", 5),
+    "Soda Italiana - Frutos Amarillos": ("bebida", 5),
     "Limonada de Coco":     ("bebida", 5),
     "Cerezada":             ("bebida", 5),
     "Cerveza Poker":        ("bebida", 5),
@@ -231,8 +232,13 @@ def ajustar_stock(nombre, delta):
 
 def _item_a_stock_key(nombre, tipo):
     if tipo == "Pizza": return "Pizza (masa)"
+    # Soda Italiana: match by flavor (order name uses em dash, inventory uses hyphen)
+    if nombre.startswith("Soda Italiana"):
+        if "Frutos Rojos" in nombre:    return "Soda Italiana - Frutos Rojos"
+        if "Frutos Amarillos" in nombre: return "Soda Italiana - Frutos Amarillos"
+        return "Soda Italiana - Frutos Rojos"  # fallback
     for key in ["Gaseosa","Agua 600ml","Cerveza Águila Light","Cerveza Águila","Cerveza Coronita",
-                "Soda Italiana","Limonada de Coco","Cerezada","Cerveza Poker"]:
+                "Limonada de Coco","Cerezada","Cerveza Poker"]:
         if nombre.startswith(key): return key
     if nombre.startswith("Jugo Natural"):
         partes = nombre.split(" — ", 1)
