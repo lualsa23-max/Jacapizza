@@ -2,6 +2,7 @@
 {% block title %}— Cobrar Pedidos{% endblock %}
 {% block content %}
 <h2 class="sec-title">⏳ Pedidos listos para cobrar</h2>
+
 {% if pedidos %}
   {% for p in pedidos %}
   <div class="cobro-card">
@@ -22,7 +23,10 @@
       {% for it in p.items %}
       <div class="p-item">
         <span class="p-item-qty">{{ it.cantidad }}×</span>
-        <span class="p-item-name">{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+        <span class="p-item-name">
+          {% if it.tipo == 'Pizza' %}🍕{% else %}🥤{% endif %}
+          {{ it.nombre }}
+        </span>
         <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
       </div>
       {% endfor %}
@@ -37,22 +41,35 @@
 
     <p class="text-sm c-gray mb-8 font-bold">Selecciona el método de pago:</p>
     <div class="pay-grid">
-      {% for label, metodo, cls in [
-          ('💵 Efectivo',   'Efectivo',   'btn-green'),
-          ('💳 Tarjeta',    'Tarjeta',    'btn-ghost'),
-          ('📱 Nequi',      'Nequi',      'btn-primary'),
-          ('📲 Daviplata',  'Daviplata',  'btn-orange'),
-          ('🔑 Llave Bre-B','Llave Bre-B','btn-ghost'),
-      ] %}
-      <form method="post" action="{{ url_for('cajero_pagar', pid=p.id) }}"
-            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con {{ metodo }}?')">
-        <input type="hidden" name="metodo" value="{{ metodo }}">
-        <button type="submit" class="btn {{ cls }} btn-full">{{ label }}</button>
+      <form method="post" action="/cajero/cobrar/{{ p.id }}"
+            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con Efectivo?')">
+        <input type="hidden" name="metodo" value="Efectivo">
+        <button type="submit" class="btn btn-green btn-full">💵 Efectivo</button>
       </form>
-      {% endfor %}
+      <form method="post" action="/cajero/cobrar/{{ p.id }}"
+            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con Tarjeta?')">
+        <input type="hidden" name="metodo" value="Tarjeta">
+        <button type="submit" class="btn btn-ghost btn-full">💳 Tarjeta</button>
+      </form>
+      <form method="post" action="/cajero/cobrar/{{ p.id }}"
+            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con Nequi?')">
+        <input type="hidden" name="metodo" value="Nequi">
+        <button type="submit" class="btn btn-primary btn-full">📱 Nequi</button>
+      </form>
+      <form method="post" action="/cajero/cobrar/{{ p.id }}"
+            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con Daviplata?')">
+        <input type="hidden" name="metodo" value="Daviplata">
+        <button type="submit" class="btn btn-orange btn-full">📲 Daviplata</button>
+      </form>
+      <form method="post" action="/cajero/cobrar/{{ p.id }}"
+            onsubmit="return confirm('¿Confirmar cobro de {{ p.total | cop }} con Llave Bre-B?')">
+        <input type="hidden" name="metodo" value="Llave Bre-B">
+        <button type="submit" class="btn btn-ghost btn-full">🔑 Llave Bre-B</button>
+      </form>
     </div>
   </div>
   {% endfor %}
+
 {% else %}
 <div class="empty">
   <span class="e-ico">🎉</span>
