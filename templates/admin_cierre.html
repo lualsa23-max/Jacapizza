@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}— Cierre de Inventario{% endblock %}
+{% block content %}
+
+<h2 class="sec-title">📦 Cierre de Inventario</h2>
+
+<!-- Selector de fecha -->
+<div class="card mb-16" style="padding:12px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <label class="form-label" style="margin:0;white-space:nowrap">📅 Fecha:</label>
+    <input type="text" id="fecha-input" class="form-input" value="{{ fecha }}"
+           placeholder="dd/mm/aaaa" style="max-width:140px;min-height:38px">
+    <button class="btn btn-ghost btn-sm" onclick="cambiarFecha()">Consultar</button>
+    {% if fechas_disponibles %}
+    <select class="form-select btn-sm" style="max-width:180px;min-height:38px" onchange="irAFecha(this.value)">
+      <option value="">Cierres guardados...</option>
+      {% for f in fechas_disponibles %}
+      <option value="{{ f }}" {% if f==fecha %}selected{% endif %}>{{ f }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <a href="{{ url_for('admin_cierre_historial') }}" class="btn btn-ghost btn-sm">📋 Ver historial</a>
+    <a href="{{ url_for('admin_cierre_csv') }}" class="btn btn-ghost btn-sm">⬇ CSV total</a>
+  </div>
+</div>
+
+{% if saved_dict %}
+<div class="flash flash-success mb-12">✅ Cierre del {{ fecha }} ya fue guardado. Puedes editarlo y volver a guardar.</div>
+{% endif %}
+
+<!-- Tabla de cierre -->
+<div id="status-msg" class="flash flash-success mb-12" style="display:none">✅ Cierre guardado correctamente</div>
+
+<div class="tbl-wrap card" style="padding:0;margin-bottom:16px">
+  <table id="tabla-cierre">
+    <thead>
+      <tr>
+        <th>Ítem</th>
+        <th style="text-align:center">Ingresó</th>
+        <th style="text-align:center">Vendido</th>
+        <th style="text-align:center">Debería quedar</th>
+        <th style="text-align:center">Hay en físico</th>
+        <th style="text-align:center">Diferencia</th>
+        <th>Nota</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in cierre_items %}
+      {% set saved = saved_dict.get(it.nombre) %}
+      {% set real_val = saved.real_contado if saved else '' %}
+      {% set nota_val = saved.nota if saved else '' %}
+      <tr data-nombre="{{ it.nombre }}" data-tipo="{{ it.tipo }}"
+          data-inicial="{{ it.stock_inicial }}" data-vendido="{{ it.vendido }}"
+          data-teorico="{{ it.teorico }}">
+        <td>
+          <span style="font-size:.9rem;font-weight:600">
+            {% if it.tipo == 'pizza' %}🍕{% elif it.tipo == 'bebida' %}🥤{% else %}🍹{% endif %}
+            {{ it.nombre }}
+          </span>
+        </td>
+        <td style="text-align:center;font-weight:700">{{ it.stock_inicial }}</td>
+        <td style="text-align:center;color:var(--coral)">{{ it.vendido }}</td>
+        <td style="text-align:center;font-weight:700;color:var(--accent)">{{ it.teorico }}</td>
+        <td style="text-align:center">
+          <input type="number" class="inv-input real-input" min="0" max="999"
+                 value="{{ real_val }}" placeholder="—"
+                 style="width:70px;text-align:center"
+                 oninput="calcularDif(this)">
+        </td>
+        <td style="text-align:center">
+          <span class="dif-badge" data-teorico="{{ it.teorico }}">
+            {% if saved %}
+              {% set dif = saved.diferencia %}
+              {% if dif == 0 %}
+                <span style="color:var(--green);font-weight:700">✅ 0</span>
+              {% elif dif < 0 %}
+                <span style="color:var(--red);font-weight:700">⚠ {{ dif }}</span>
+              {% else %}
+                <span style="color:var(--orange);font-weight:700">+{{ dif }}</span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </span>
+        </td>
+        <td>
+          <input type="text" class="form-input nota-input"
+                 value="{{ nota_val }}" placeholder="opcional..."
+                 style="min-height:34px;font-size:.8rem;padding:4px 8px">
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Resumen -->
+<div id="resumen-wrap" style="display:none" class="card mb-16">
+  <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px;color:var(--gray2)">RESUMEN DEL CIERRE</h3>
+  <div id="resumen-content"></div>
+</div>
+
+<button class="btn btn-primary btn-full btn-lg" onclick="guardarCierre()">
+  💾 Guardar cierre del {{ fecha }}
+</button>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const fecha = "{{ fecha }}";
+
+function cambiarFecha(){
+  const f = document.getElementById('fecha-input').value.trim();
+  if(f) window.location = '/admin/cierre?fecha=' + encodeURIComponent(f);
+}
+function irAFecha(f){
+  if(f) window.location = '/admin/cierre?fecha=' + encodeURIComponent(f);
+}
+
+function calcularDif(input){
+  const row = input.closest('tr');
+  const teorico = parseInt(row.dataset.teorico) || 0;
+  const real = parseInt(input.value);
+  const badge = row.querySelector('.dif-badge');
+  if(isNaN(real)){ badge.innerHTML = '—'; return; }
+  const dif = real - teorico;
+  if(dif === 0)       badge.innerHTML = '<span style="color:var(--green);font-weight:700">✅ 0</span>';
+  else if(dif < 0)    badge.innerHTML = '<span style="color:var(--red);font-weight:700">⚠ ' + dif + '</span>';
+  else                badge.innerHTML = '<span style="color:var(--orange);font-weight:700">+' + dif + '</span>';
+  actualizarResumen();
+}
+
+function actualizarResumen(){
+  const rows = document.querySelectorAll('#tabla-cierre tbody tr');
+  let ok=0, falta=0, sobra=0, sin_contar=0;
+  rows.forEach(row=>{
+    const real = parseInt(row.querySelector('.real-input').value);
+    const teorico = parseInt(row.dataset.teorico)||0;
+    if(isNaN(real)){ sin_contar++; return; }
+    const dif = real - teorico;
+    if(dif===0) ok++;
+    else if(dif<0) falta++;
+    else sobra++;
+  });
+  const wrap = document.getElementById('resumen-wrap');
+  const cont = document.getElementById('resumen-content');
+  wrap.style.display = 'block';
+  cont.innerHTML =
+    '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">✅</div><div class="metric-val c-green">'+ok+'</div><div class="metric-lbl">Cuadra</div></div>' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">⚠</div><div class="metric-val c-red">'+falta+'</div><div class="metric-lbl">Faltante</div></div>' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">📦</div><div class="metric-val c-orange">'+sobra+'</div><div class="metric-lbl">Sobrante</div></div>' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">❓</div><div class="metric-val c-gray">'+sin_contar+'</div><div class="metric-lbl">Sin contar</div></div>' +
+    '</div>';
+}
+
+async function guardarCierre(){
+  const rows = document.querySelectorAll('#tabla-cierre tbody tr');
+  const items = [];
+  rows.forEach(row=>{
+    const real_val = row.querySelector('.real-input').value;
+    const real = real_val === '' ? -1 : parseInt(real_val);
+    const teorico = parseInt(row.dataset.teorico)||0;
+    const dif = real >= 0 ? real - teorico : 0;
+    items.push({
+      nombre:       row.dataset.nombre,
+      tipo:         row.dataset.tipo,
+      stock_inicial:parseInt(row.dataset.inicial)||0,
+      vendido:      parseInt(row.dataset.vendido)||0,
+      teorico:      teorico,
+      real_contado: real >= 0 ? real : 0,
+      diferencia:   dif,
+      nota:         row.querySelector('.nota-input').value.trim()
+    });
+  });
+  try{
+    const r = await fetch('/admin/cierre', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({fecha, items})
+    });
+    const d = await r.json();
+    if(d.ok){
+      const s = document.getElementById('status-msg');
+      s.style.display='block';
+      window.scrollTo({top:0,behavior:'smooth'});
+      setTimeout(()=>s.style.display='none', 4000);
+      actualizarResumen();
+    }
+  } catch(e){ alert('Error al guardar. Intenta de nuevo.'); }
+}
+
+// Init resumen if there are saved values
+document.addEventListener('DOMContentLoaded', function(){
+  const filled = document.querySelectorAll('.real-input[value]:not([value=""])');
+  if(filled.length) actualizarResumen();
+});
+</script>
+{% endblock %}

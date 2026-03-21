@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}— Historial de Cierres{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <h2 class="sec-title" style="margin:0">📋 Historial de Cierres</h2>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('admin_cierre') }}" class="btn btn-primary btn-sm">➕ Nuevo cierre</a>
+    <a href="{{ url_for('admin_cierre_csv') }}" class="btn btn-ghost btn-sm">⬇ Exportar CSV</a>
+  </div>
+</div>
+
+{% if not fechas %}
+<div class="empty"><span class="e-ico">📭</span>No hay cierres registrados aún</div>
+{% else %}
+
+{% for fecha in fechas %}
+{% set items = cierres_por_fecha[fecha] %}
+{% set faltantes = items | selectattr('diferencia', 'lt', 0) | list | length %}
+{% set sobrantes = items | selectattr('diferencia', 'gt', 0) | list | length %}
+{% set ok = items | selectattr('diferencia', 'equalto', 0) | list | length %}
+
+<div class="card mb-16">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-family:var(--fh);font-size:1.1rem;color:var(--accent)">{{ fecha }}</div>
+      <div class="text-xs c-gray mt-4">{{ items|length }} ítems registrados</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      {% if faltantes > 0 %}
+        <span class="badge" style="background:rgba(232,93,93,.15);color:var(--red)">⚠ {{ faltantes }} faltante{{ 's' if faltantes!=1 }}</span>
+      {% endif %}
+      {% if sobrantes > 0 %}
+        <span class="badge" style="background:rgba(245,166,35,.15);color:var(--orange)">+{{ sobrantes }} sobrante{{ 's' if sobrantes!=1 }}</span>
+      {% endif %}
+      {% if ok == items|length %}
+        <span class="badge" style="background:rgba(78,203,113,.15);color:var(--green)">✅ Todo cuadra</span>
+      {% endif %}
+      <a href="{{ url_for('admin_cierre') }}?fecha={{ fecha }}" class="btn btn-ghost btn-sm">✏ Editar</a>
+      <a href="{{ url_for('admin_cierre_csv') }}?fi={{ fecha }}&ff={{ fecha }}" class="btn btn-ghost btn-sm">⬇</a>
+    </div>
+  </div>
+
+  <div class="tbl-wrap" style="border-radius:8px">
+    <table>
+      <thead>
+        <tr>
+          <th>Ítem</th>
+          <th style="text-align:center">Ingresó</th>
+          <th style="text-align:center">Vendido</th>
+          <th style="text-align:center">Teórico</th>
+          <th style="text-align:center">Real</th>
+          <th style="text-align:center">Diferencia</th>
+          <th>Nota</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td style="font-size:.85rem;font-weight:600">
+            {% if it.tipo == 'pizza' %}🍕{% elif it.tipo == 'bebida' %}🥤{% else %}🍹{% endif %}
+            {{ it.nombre }}
+          </td>
+          <td style="text-align:center">{{ it.stock_inicial }}</td>
+          <td style="text-align:center;color:var(--coral)">{{ it.vendido }}</td>
+          <td style="text-align:center;font-weight:700;color:var(--accent)">{{ it.teorico }}</td>
+          <td style="text-align:center;font-weight:700">{{ it.real_contado }}</td>
+          <td style="text-align:center">
+            {% if it.diferencia == 0 %}
+              <span style="color:var(--green);font-weight:700">✅ 0</span>
+            {% elif it.diferencia < 0 %}
+              <span style="color:var(--red);font-weight:700">⚠ {{ it.diferencia }}</span>
+            {% else %}
+              <span style="color:var(--orange);font-weight:700">+{{ it.diferencia }}</span>
+            {% endif %}
+          </td>
+          <td class="text-xs c-gray">{{ it.nota or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
