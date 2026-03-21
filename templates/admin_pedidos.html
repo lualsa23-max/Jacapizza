@@ -6,7 +6,7 @@
 <div class="tbl-wrap card" style="padding:0">
   <table>
     <thead>
-      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th><th>Fecha</th><th>Pago</th></tr>
+      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Pago</th><th>Hora</th><th>Fecha</th><th></th></tr>
     </thead>
     <tbody>
       {% for p in pedidos %}
@@ -16,9 +16,21 @@
         <td class="text-sm">{{ p.mesero }}</td>
         <td class="c-green font-bold">{{ p.total | cop }}</td>
         <td><span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span></td>
+        <td class="text-sm">
+          {% if p.pago %}
+            <span class="c-green font-bold">{{ p.pago }}</span>
+          {% else %}
+            <span class="c-gray">—</span>
+          {% endif %}
+        </td>
         <td class="text-sm c-gray">{{ p.hora }}</td>
         <td class="text-sm c-gray">{{ p.fecha }}</td>
-        <td class="text-sm">{{ p.pago or '—' }}</td>
+        <td>
+          <form method="post" action="/admin/pedido/{{ p.id }}/eliminar"
+                onsubmit="return confirm('¿Eliminar el pedido #{{ p.id }} de {{ p.mesa }}? Esta acción no se puede deshacer.')">
+            <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
