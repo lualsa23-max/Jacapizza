@@ -7,7 +7,7 @@
 
 <h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Ítems en inventario</h3>
 <div id="inv-estandar">
-{% for nombre, (tipo, alerta_def) in inv_estandar.items() %}
+{% for nombre, vals in inv_estandar.items() %}{% set tipo = vals[0] %}{% set alerta_def = vals[1] %}
 {% set ex = inv_dict.get(nombre) %}
 {% set cur_stock  = ex.stock       if ex else 0 %}
 {% set cur_alerta = ex.alerta_min  if ex else alerta_def %}
@@ -35,6 +35,151 @@
     {% if ex.stock == 0 %}
       <span class="inv-badge c-red">⛔ Agotado</span>
     {% elif ex.stock <= ex.alerta_min %}
+      <span class="inv-badge c-orange">⚠ {{ ex.stock }}</span>
+    {% else %}
+      <span class="inv-badge c-green">✅ {{ ex.stock }}</span>
+    {% endif %}
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+
+<hr class="divider mt-16">
+<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">➕ Agregar nuevo producto al inventario</h3>
+<p class="text-sm c-gray mb-12">Al agregar un producto aquí, aparecerá automáticamente en el menú de pedidos del mesero.</p>
+
+<div id="nuevos-container"></div>
+<button type="button" class="btn btn-outline btn-sm mb-16" onclick="addNuevo()">➕ Agregar producto nuevo</button>
+
+<hr class="divider">
+<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">🍹 Pulpas para jugos</h3>
+<p class="text-sm c-gray mb-12">Frutas disponibles hoy para jugos naturales.</p>
+
+<div id="pulpas-container">
+  {% for p in pulpas %}
+  <div class="inv-row pulpa-row" style="gap:8px">
+    <input class="form-input" type="text" placeholder="Nombre fruta" value="{{ p.nombre }}"
+           style="flex:1;min-height:40px;font-size:.88rem">
+    <div class="inv-spin">
+      <span>Cant.</span>
+      <input class="inv-input" type="number" min="0" max="300" value="{{ p.stock }}">
+    </div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.pulpa-row').remove()">✕</button>
+  </div>
+  {% endfor %}
+</div>
+<button type="button" class="btn btn-outline btn-sm mt-8 mb-16" onclick="addPulpa()">➕ Agregar fruta</button>
+
+<hr class="divider">
+<button type="button" class="btn btn-primary btn-full btn-lg mt-8" onclick="guardar()">
+  💾 Guardar inventario
+</button>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addPulpa(nombre='', stock=0){
+  const c = document.getElementById('pulpas-container');
+  const row = document.createElement('div');
+  row.className = 'inv-row pulpa-row'; row.style.gap='8px';
+  row.innerHTML = `
+    <input class="form-input" type="text" placeholder="Nombre fruta" value="${nombre}"
+           style="flex:1;min-height:40px;font-size:.88rem">
+    <div class="inv-spin">
+      <span>Cant.</span>
+      <input class="inv-input" type="number" min="0" max="300" value="${stock}">
+    </div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.pulpa-row').remove()">✕</button>
+  `;
+  c.appendChild(row);
+  row.querySelector('input[type=text]').focus();
+}
+
+function addNuevo(){
+  const c = document.getElementById('nuevos-container');
+  const row = document.createElement('div');
+  row.className = 'card mb-8 nuevo-row';
+  row.style.cssText = 'padding:12px;border:1.5px solid var(--accent)';
+  row.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:2;min-width:140px">
+        <label class="form-label">Nombre del producto</label>
+        <input class="form-input nuevo-nombre" type="text" placeholder="Ej: Cerveza Águila Cero" style="min-height:40px;font-size:.88rem">
+      </div>
+      <div style="flex:1;min-width:90px">
+        <label class="form-label">Precio COP</label>
+        <input class="form-input nuevo-precio" type="number" placeholder="4000" step="500" style="min-height:40px;font-size:.88rem">
+      </div>
+      <div style="flex:1;min-width:70px">
+        <label class="form-label">Stock inicial</label>
+        <input class="form-input nuevo-stock" type="number" placeholder="0" min="0" style="min-height:40px;font-size:.88rem">
+      </div>
+      <div style="flex:1;min-width:70px">
+        <label class="form-label">Alerta mín.</label>
+        <input class="form-input nuevo-alerta" type="number" placeholder="5" min="1" style="min-height:40px;font-size:.88rem" value="5">
+      </div>
+      <div style="min-width:60px">
+        <label class="form-label">Tipo</label>
+        <select class="form-select nuevo-tipo" style="min-height:40px;font-size:.88rem">
+          <option value="bebida">🥤 Bebida</option>
+          <option value="pizza">🍕 Pizza</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-danger btn-sm" style="min-height:40px" onclick="this.closest('.nuevo-row').remove()">✕</button>
+    </div>
+    <div style="background:rgba(78,203,113,.1);border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:1.1rem">💡</span>
+      <span class="text-sm c-green">Cuando termines de llenar los campos, toca el botón <strong>"💾 Guardar inventario"</strong> al final de la página para guardar todo.</span>
+    </div>
+  `;
+  c.appendChild(row);
+  row.querySelector('.nuevo-nombre').focus();
+}
+
+async function guardar(){
+  const payload = {};
+
+  // Standard items
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    const val = el.value;
+    if(val !== '') payload[el.dataset.key] = el.dataset.key.startsWith('stock_') || el.dataset.key.startsWith('alerta_')
+      ? parseInt(val)||0 : parseFloat(val)||0;
+  });
+
+  // Pulpas
+  const pulpas = [];
+  document.querySelectorAll('.pulpa-row').forEach(row=>{
+    const nom = row.querySelector('input[type=text]').value.trim();
+    const qty = parseInt(row.querySelector('input[type=number]').value)||0;
+    if(nom) pulpas.push({nombre: nom, stock: qty});
+  });
+  payload.pulpas = pulpas;
+
+  // New items
+  const nuevos = [];
+  document.querySelectorAll('.nuevo-row').forEach(row=>{
+    const nombre = row.querySelector('.nuevo-nombre').value.trim();
+    const precio = parseFloat(row.querySelector('.nuevo-precio').value)||0;
+    const stock  = parseInt(row.querySelector('.nuevo-stock').value)||0;
+    const alerta = parseInt(row.querySelector('.nuevo-alerta').value)||5;
+    const tipo_cat = row.querySelector('.nuevo-tipo').value;
+    if(nombre) nuevos.push({nombre, precio, stock, alerta, tipo_cat});
+  });
+  payload.nuevos = nuevos;
+
+  const r = await fetch('/admin/inventario', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if(r.ok){
+    const s = document.getElementById('status');
+    s.style.display='block';
+    setTimeout(()=>{ s.style.display='none'; window.location.reload(); }, 2000);
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+}
+</script>
+{% endblock %}    {% elif ex.stock <= ex.alerta_min %}
       <span class="inv-badge c-orange">⚠ {{ ex.stock }}</span>
     {% else %}
       <span class="inv-badge c-green">✅ {{ ex.stock }}</span>
