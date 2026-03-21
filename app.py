@@ -17,7 +17,7 @@ if _db_dir and not os.path.exists(_db_dir):
         DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
 
 USUARIOS = {
-    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
+    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "LuNa"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
@@ -250,6 +250,25 @@ def get_pulpas_hoy():
         rows = c.execute(
             "SELECT nombre,stock,alerta_min FROM inventario WHERE tipo='pulpa' AND fecha=? ORDER BY nombre", (hoy,)).fetchall()
         return [{"nombre": r["nombre"], "stock": r["stock"], "alerta_min": r["alerta_min"]} for r in rows]
+
+
+def get_vendido_hoy(fecha):
+    vendido = {}
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT i.nombre, i.tipo, SUM(i.cantidad) as total "
+            "FROM items i JOIN pedidos p ON p.id=i.pedido_id "
+            "WHERE p.estado=\'Pagado\' AND p.fecha=? "
+            "GROUP BY i.nombre, i.tipo", (fecha,)).fetchall()
+    for r in rows:
+        vendido[r["nombre"]] = {"cantidad": r["total"], "tipo": r["tipo"]}
+    return vendido
+
+def get_cierre_fechas():
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT DISTINCT fecha FROM cierres_inventario ORDER BY fecha DESC").fetchall()
+        return [r["fecha"] for r in rows]
 
 # ====================== AUTH ======================
 def login_required(f):
