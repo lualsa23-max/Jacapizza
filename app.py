@@ -17,7 +17,7 @@ if _db_dir and not os.path.exists(_db_dir):
         DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
 
 USUARIOS = {
-    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "LuNa"},
+    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
@@ -30,6 +30,7 @@ SABORES_PIZZA = {
 BEBIDAS = {
     "Gaseosa": 4000, "Agua 600ml": 4000, "Soda Italiana": 5000,
     "Cerveza Águila": 4000, "Cerveza Águila Light": 4000, "Cerveza Coronita": 5000,
+    "Cerveza Poker": 4000,
     "Jugo Natural (agua)": 7000, "Limonada de Coco": 7000, "Cerezada": 7000,
 }
 _INV_ESTANDAR = {
