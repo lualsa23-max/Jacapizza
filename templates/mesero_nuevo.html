@@ -63,25 +63,76 @@
   <div class="card">
     {% set stock = stock_json | fromjson %}
     {% set pulpas = pulpas_json | fromjson %}
+
     {% for nombre, precio in bebidas.items() %}
+
+    {# Determinar disponibilidad y stock #}
     {% set agotado = false %}
-    {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita'] %}
-      {% if stock.get(nombre) == 0 %}{% set agotado = true %}{% endif %}
+    {% set stock_val = none %}
+
+    {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita','Limonada de Coco','Cerezada','Cerveza Poker'] %}
+      {% set stock_val = stock.get(nombre) %}
+      {% if stock_val == 0 %}{% set agotado = true %}{% endif %}
+
+    {% elif nombre == 'Soda Italiana' %}
+      {# Soda: mostrar stock de cada sabor #}
+      {% set s_rojos = stock.get('Soda Italiana - Frutos Rojos', 0) %}
+      {% set s_amarillos = stock.get('Soda Italiana - Frutos Amarillos', 0) %}
+      {% if s_rojos == 0 and s_amarillos == 0 %}{% set agotado = true %}{% endif %}
+
     {% elif nombre == 'Jugo Natural (agua)' %}
       {% if pulpas | length == 0 %}{% set agotado = true %}{% endif %}
     {% endif %}
+
     <div class="beb-row">
       <div style="flex:1">
-        <span class="beb-name {% if agotado %}c-gray{% endif %}">{{ nombre }}</span>
+        <div class="beb-name {% if agotado %}c-gray{% endif %}">{{ nombre }}</div>
+        {# Stock chips por tipo #}
+        {% if nombre == 'Soda Italiana' %}
+          {% set s_rojos = stock.get('Soda Italiana - Frutos Rojos', 0) %}
+          {% set s_amarillos = stock.get('Soda Italiana - Frutos Amarillos', 0) %}
+          <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">
+            {% if s_rojos == 0 %}
+              <span class="stock-chip stock-out">🔴 Rojos agotados</span>
+            {% elif s_rojos <= 3 %}
+              <span class="stock-chip stock-low">🔴 Rojos: {{ s_rojos }}</span>
+            {% else %}
+              <span class="stock-chip stock-ok">🔴 Rojos: {{ s_rojos }}</span>
+            {% endif %}
+            {% if s_amarillos == 0 %}
+              <span class="stock-chip stock-out">🟡 Amarillos agotados</span>
+            {% elif s_amarillos <= 3 %}
+              <span class="stock-chip stock-low">🟡 Amarillos: {{ s_amarillos }}</span>
+            {% else %}
+              <span class="stock-chip stock-ok">🟡 Amarillos: {{ s_amarillos }}</span>
+            {% endif %}
+          </div>
+        {% elif nombre == 'Jugo Natural (agua)' %}
+          {% if pulpas | length == 0 %}
+            <span class="stock-chip stock-out">Sin pulpas</span>
+          {% else %}
+            <span class="stock-chip stock-ok">{{ pulpas | length }} pulpa(s) disp.</span>
+          {% endif %}
+        {% elif stock_val is not none %}
+          {% if stock_val == 0 %}
+            <span class="stock-chip stock-out">Agotado</span>
+          {% elif stock_val <= 3 %}
+            <span class="stock-chip stock-low">⚠ {{ stock_val }} unid.</span>
+          {% else %}
+            <span class="stock-chip stock-ok">{{ stock_val }} unid.</span>
+          {% endif %}
+        {% endif %}
       </div>
+
       <span class="beb-price">{{ precio | cop }}</span>
+
       {% if not agotado %}
         {% if nombre == 'Gaseosa' %}
           <button class="btn btn-primary btn-sm" onclick="modalTexto('{{ nombre }}', {{ precio }}, 'Sabor de gaseosa')">+</button>
         {% elif nombre == 'Jugo Natural (agua)' %}
           <button class="btn btn-primary btn-sm" onclick="modalPulpas()">+</button>
         {% elif nombre == 'Soda Italiana' %}
-          <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['Frutos Rojos','Frutos Amarillos'])">+</button>
+          <button class="btn btn-primary btn-sm" onclick="modalSoda({{ precio }})">+</button>
         {% elif nombre == 'Cerezada' %}
           <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['en agua','en leche'])">+</button>
         {% else %}
@@ -99,9 +150,7 @@
 <div class="order-panel" id="panel-carrito">
   <div class="cart-total" id="cart-total">$0</div>
   <div class="cart-total-lbl">TOTAL DEL PEDIDO</div>
-
   <div id="cart-items"></div>
-
   <div class="card mt-12">
     <label class="form-label">⏰ Hora de entrega</label>
     <select class="form-select mb-12" id="franja-sel">
@@ -111,25 +160,21 @@
     <textarea class="form-textarea" id="notas-txt" placeholder="Sin azúcar, en leche, sin topping..."></textarea>
   </div>
 
-  <!-- BOTÓN 1: Enviar a cocina -->
   <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarPedido(false)">
     📤 Enviar a cocina
   </button>
 
-  <!-- BOTÓN 2: Cobrar ahora -->
   <div class="card mt-10" style="border:2px solid var(--green);padding:14px">
     <div class="text-sm font-bold c-green mb-10">💵 Cobrar ahora — el cliente paga de inmediato</div>
     <div class="pay-grid" style="margin-bottom:10px">
-      <button class="btn btn-ghost btn-sm" id="pay-Efectivo"    onclick="selPago('Efectivo')"   >💵 Efectivo</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"     onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Nequi"       onclick="selPago('Nequi')"      >📱 Nequi</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Daviplata"   onclick="selPago('Daviplata')"  >📲 Daviplata</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Llave Bre-B" onclick="selPago('Llave Bre-B')">🔑 Bre-B</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Efectivo"     onclick="selPago('Efectivo')"   >💵 Efectivo</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"      onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Nequi"        onclick="selPago('Nequi')"      >📱 Nequi</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Daviplata"    onclick="selPago('Daviplata')"  >📲 Daviplata</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Llave Bre-B"  onclick="selPago('Llave Bre-B')">🔑 Bre-B</button>
     </div>
     <div id="pago-sel-txt" class="text-sm c-gray mb-8">Selecciona un método de pago</div>
-    <button class="btn btn-green btn-full btn-lg" onclick="confirmarPedido(true)">
-      ✅ Confirmar y cobrar
-    </button>
+    <button class="btn btn-green btn-full btn-lg" onclick="confirmarPedido(true)">✅ Confirmar y cobrar</button>
   </div>
 
   <button class="btn btn-ghost btn-full mt-8" onclick="limpiarCarrito()">🗑 Limpiar pedido</button>
@@ -142,6 +187,16 @@
     <input class="form-input mb-12" type="text" id="modal-texto-input" placeholder="Ej: Cola, Naranja...">
     <button class="btn btn-primary btn-full" onclick="confirmTexto()">Agregar</button>
     <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-texto')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL SODA ITALIANA -->
+<div class="overlay" id="modal-soda">
+  <div class="sheet">
+    <h3 class="sheet-title">🥤 Soda Italiana — ¿Qué sabor?</h3>
+    <div id="soda-opts"></div>
+    <button class="btn btn-primary btn-full mt-12" onclick="confirmSoda()">Agregar</button>
+    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-soda')">Cancelar</button>
   </div>
 </div>
 
@@ -169,6 +224,7 @@
 {% block scripts %}
 <script>
 const PULPAS = {{ pulpas_json | safe }};
+const STOCK  = {{ stock_json | safe }};
 const JUG_PRECIO = {{ bebidas.get('Jugo Natural (agua)', 7000) }};
 
 let qty = 1;
@@ -177,11 +233,10 @@ let carrito = [];
 let codConfirmado = false;
 let modalNombreBase = '', modalPrecioBase = 0;
 let metodoPagoSel = '';
+let sodaPrecio = 0;
 
-// QTY
-function cambiarQty(d){ qty = Math.max(1, qty + d); document.getElementById('qty-num').textContent = qty; }
+function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
 
-// CODIGO
 function confirmarCodigo(){
   const cod = document.getElementById('cod-input').value.trim();
   if(!cod){ alert('Escribe un código primero'); return; }
@@ -204,7 +259,6 @@ function editarCodigo(){
   document.getElementById('cod-input').focus();
 }
 
-// TABS
 function switchTab(name, btn){
   document.querySelectorAll('.order-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.order-tab').forEach(b=>b.classList.remove('active'));
@@ -212,134 +266,148 @@ function switchTab(name, btn){
   btn.classList.add('active');
 }
 
-// PIZZA
 function toggleSabor(btn){
   const s = btn.dataset.sabor;
-  if(saboresSel.includes(s)){ saboresSel = saboresSel.filter(x=>x!==s); btn.classList.remove('sel'); }
-  else if(saboresSel.length < 2){ saboresSel.push(s); btn.classList.add('sel'); }
+  if(saboresSel.includes(s)){ saboresSel=saboresSel.filter(x=>x!==s); btn.classList.remove('sel'); }
+  else if(saboresSel.length<2){ saboresSel.push(s); btn.classList.add('sel'); }
   else{ alert('Máximo 2 sabores. Quita uno primero.'); return; }
-  updateSelDisplay();
-}
-function updateSelDisplay(){
-  const d = document.getElementById('sel-display');
-  if(!saboresSel.length){ d.textContent='Sin sabor seleccionado'; d.classList.remove('has-val'); }
-  else{ d.textContent = saboresSel.join('  +  '); d.classList.add('has-val'); }
+  const d=document.getElementById('sel-display');
+  d.textContent=saboresSel.length?saboresSel.join('  +  '):'Sin sabor seleccionado';
+  d.classList.toggle('has-val', saboresSel.length>0);
 }
 function agregarPizza(){
   if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
   addToCart(saboresSel.join(' / '), 'Pizza', 20000);
   saboresSel=[];
   document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
-  updateSelDisplay();
+  document.getElementById('sel-display').textContent='Sin sabor seleccionado';
+  document.getElementById('sel-display').classList.remove('has-val');
   switchTab('carrito', document.querySelectorAll('.order-tab')[2]);
 }
 
-// BEBIDAS
-function addBebida(nombre, precio){ addToCart(nombre, 'Bebida', precio); showToast(nombre + ' agregado ✅'); }
+function addBebida(nombre, precio){ addToCart(nombre, 'Bebida', precio); showToast(nombre+' agregado ✅'); }
 
 function modalTexto(nombre, precio, placeholder){
   modalNombreBase=nombre; modalPrecioBase=precio;
-  document.getElementById('modal-texto-titulo').textContent = '¿Qué ' + nombre.toLowerCase() + ' deseas?';
-  document.getElementById('modal-texto-input').placeholder = placeholder;
-  document.getElementById('modal-texto-input').value = '';
+  document.getElementById('modal-texto-titulo').textContent='¿Qué '+nombre.toLowerCase()+' deseas?';
+  document.getElementById('modal-texto-input').placeholder=placeholder;
+  document.getElementById('modal-texto-input').value='';
   openModal('modal-texto');
   setTimeout(()=>document.getElementById('modal-texto-input').focus(), 300);
 }
 function confirmTexto(){
-  const det = document.getElementById('modal-texto-input').value.trim();
-  const nombre = det ? modalNombreBase + ' — ' + det : modalNombreBase;
-  addBebida(nombre, modalPrecioBase);
+  const det=document.getElementById('modal-texto-input').value.trim();
+  addBebida(det ? modalNombreBase+' — '+det : modalNombreBase, modalPrecioBase);
   closeModal('modal-texto');
 }
 
-function modalPulpas(){
-  const list = document.getElementById('pulpas-list');
+// SODA ITALIANA — con stock por sabor
+function modalSoda(precio){
+  sodaPrecio = precio;
+  const sR = STOCK['Soda Italiana - Frutos Rojos'] || 0;
+  const sA = STOCK['Soda Italiana - Frutos Amarillos'] || 0;
+  const opts = [];
+  if(sR > 0) opts.push({val:'Frutos Rojos',    label:'🔴 Frutos Rojos — '+sR+' disp.'});
+  if(sA > 0) opts.push({val:'Frutos Amarillos', label:'🟡 Frutos Amarillos — '+sA+' disp.'});
+  if(!opts.length){ alert('Ambos sabores de Soda Italiana están agotados'); return; }
+  const list = document.getElementById('soda-opts');
   list.innerHTML = '';
-  const disp = PULPAS.filter(p=>p.stock>0);
+  opts.forEach((o,i)=>{
+    list.innerHTML += '<div class="sheet-opt '+(i===0?'sel':'')+'" onclick="selectOpt(this,\'soda-opt\')">' +
+      '<input type="radio" name="soda-opt" value="'+o.val+'" '+(i===0?'checked':'')+'>'+
+      '<label>'+o.label+'</label></div>';
+  });
+  openModal('modal-soda');
+}
+function confirmSoda(){
+  const sel = document.querySelector('[name="soda-opt"]:checked');
+  if(sel){ addBebida('Soda Italiana — '+sel.value, sodaPrecio); }
+  closeModal('modal-soda');
+}
+
+function modalPulpas(){
+  const list=document.getElementById('pulpas-list');
+  list.innerHTML='';
+  const disp=PULPAS.filter(p=>p.stock>0);
   if(!disp.length){ alert('No hay pulpas disponibles hoy'); return; }
   disp.forEach((p,i)=>{
-    const info = p.stock <= p.alerta_min ? ' ⚠ quedan ' + p.stock : ' (' + p.stock + ' disp.)';
-    list.innerHTML += '<div class="sheet-opt ' + (i===0?'sel':'') + '" onclick="selectOpt(this,\'pulpa-opts\')">' +
-      '<input type="radio" name="pulpa-opts" value="' + p.nombre + '" ' + (i===0?'checked':'') + '>' +
-      '<label>' + p.nombre + info + '</label></div>';
+    const info=p.stock<=p.alerta_min?' ⚠ quedan '+p.stock:' ('+p.stock+' disp.)';
+    list.innerHTML+='<div class="sheet-opt '+(i===0?'sel':'')+'" onclick="selectOpt(this,\'pulpa-opts\')">' +
+      '<input type="radio" name="pulpa-opts" value="'+p.nombre+'" '+(i===0?'checked':'')+'>'+
+      '<label>'+p.nombre+info+'</label></div>';
   });
   openModal('modal-pulpas');
 }
 function confirmPulpa(){
-  const sel = document.querySelector('[name="pulpa-opts"]:checked');
-  if(sel){ addBebida('Jugo Natural — ' + sel.value, JUG_PRECIO); }
+  const sel=document.querySelector('[name="pulpa-opts"]:checked');
+  if(sel){ addBebida('Jugo Natural — '+sel.value, JUG_PRECIO); }
   closeModal('modal-pulpas');
 }
 
 let modalOpcNombre='', modalOpcPrecio=0;
 function modalOpciones(nombre, precio, opciones){
   modalOpcNombre=nombre; modalOpcPrecio=precio;
-  document.getElementById('modal-opc-titulo').textContent = nombre;
-  const list = document.getElementById('modal-opc-list');
-  list.innerHTML = '';
+  document.getElementById('modal-opc-titulo').textContent=nombre;
+  const list=document.getElementById('modal-opc-list');
+  list.innerHTML='';
   opciones.forEach((o,i)=>{
-    list.innerHTML += '<div class="sheet-opt ' + (i===0?'sel':'') + '" onclick="selectOpt(this,\'opc-opts\')">' +
-      '<input type="radio" name="opc-opts" value="' + o + '" ' + (i===0?'checked':'') + '>' +
-      '<label>' + o + '</label></div>';
+    list.innerHTML+='<div class="sheet-opt '+(i===0?'sel':'')+'" onclick="selectOpt(this,\'opc-opts\')">' +
+      '<input type="radio" name="opc-opts" value="'+o+'" '+(i===0?'checked':'')+'>'+
+      '<label>'+o+'</label></div>';
   });
   openModal('modal-opciones');
 }
 function confirmOpciones(){
-  const sel = document.querySelector('[name="opc-opts"]:checked');
-  if(sel){ addBebida(modalOpcNombre + ' — ' + sel.value, modalOpcPrecio); }
+  const sel=document.querySelector('[name="opc-opts"]:checked');
+  if(sel){ addBebida(modalOpcNombre+' — '+sel.value, modalOpcPrecio); }
   closeModal('modal-opciones');
 }
 
 function selectOpt(el, name){
   el.closest('.sheet').querySelectorAll('.sheet-opt').forEach(x=>x.classList.remove('sel'));
   el.classList.add('sel');
-  el.querySelector('input[name="' + name + '"]').checked = true;
+  el.querySelector('input[name="'+name+'"]').checked=true;
 }
-
 function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',function(e){ if(e.target===this) closeModal(this.id); }));
 
-// METODO PAGO
 function selPago(metodo){
-  metodoPagoSel = metodo;
+  metodoPagoSel=metodo;
   document.querySelectorAll('[id^="pay-"]').forEach(b=>b.classList.remove('btn-green'));
-  const btn = document.getElementById('pay-' + metodo);
+  const btn=document.getElementById('pay-'+metodo);
   if(btn) btn.classList.add('btn-green');
-  document.getElementById('pago-sel-txt').textContent = '✅ Método seleccionado: ' + metodo;
-  document.getElementById('pago-sel-txt').className = 'text-sm c-green mb-8';
+  document.getElementById('pago-sel-txt').textContent='✅ Método seleccionado: '+metodo;
+  document.getElementById('pago-sel-txt').className='text-sm c-green mb-8';
 }
 
-// CART
 function addToCart(nombre, tipo, precio){
-  const ex = carrito.find(i=>i.nombre===nombre);
-  if(ex){ ex.cantidad += qty; } else { carrito.push({nombre, tipo, cantidad: qty, precio_unit: precio}); }
+  const ex=carrito.find(i=>i.nombre===nombre);
+  if(ex){ ex.cantidad+=qty; } else { carrito.push({nombre,tipo,cantidad:qty,precio_unit:precio}); }
   renderCart();
 }
-function removeFromCart(nombre){ carrito = carrito.filter(i=>i.nombre!==nombre); renderCart(); }
+function removeFromCart(nombre){ carrito=carrito.filter(i=>i.nombre!==nombre); renderCart(); }
 function limpiarCarrito(){ carrito=[]; document.getElementById('notas-txt').value=''; metodoPagoSel=''; renderCart(); }
 
 function renderCart(){
-  const total = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit, 0);
-  document.getElementById('cart-total').textContent = '$' + total.toLocaleString('es-CO').replace(/,/g,'.');
-  const badge = document.getElementById('cart-badge');
-  const count = carrito.reduce((s,i)=>s+i.cantidad,0);
-  badge.textContent = count;
-  badge.classList.toggle('show', count>0);
-  const el = document.getElementById('cart-items');
-  el.innerHTML = '';
+  const total=carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
+  document.getElementById('cart-total').textContent='$'+total.toLocaleString('es-CO').replace(/,/g,'.');
+  const badge=document.getElementById('cart-badge');
+  const count=carrito.reduce((s,i)=>s+i.cantidad,0);
+  badge.textContent=count; badge.classList.toggle('show',count>0);
+  const el=document.getElementById('cart-items');
+  el.innerHTML='';
   if(!carrito.length){
-    el.innerHTML = '<div class="empty" style="padding:20px 0"><span class="e-ico">🛒</span>Agrega pizzas o bebidas</div>';
+    el.innerHTML='<div class="empty" style="padding:20px 0"><span class="e-ico">🛒</span>Agrega pizzas o bebidas</div>';
     return;
   }
   carrito.forEach(item=>{
-    const sub = item.cantidad * item.precio_unit;
-    const d = document.createElement('div');
-    d.className='cart-item';
-    d.innerHTML = '<span class="cart-item-qty">' + item.cantidad + '×</span>' +
-      '<div class="cart-item-info"><div class="cart-item-name">' + item.nombre + '</div>' +
-      '<div class="cart-item-sub">$' + sub.toLocaleString('es-CO').replace(/,/g,'.') + '</div></div>' +
-      '<span class="cart-remove" onclick="removeFromCart(\'' + item.nombre.replace(/'/g,"\\'") + '\')">✕</span>';
+    const sub=item.cantidad*item.precio_unit;
+    const d=document.createElement('div'); d.className='cart-item';
+    d.innerHTML='<span class="cart-item-qty">'+item.cantidad+'×</span>'+
+      '<div class="cart-item-info"><div class="cart-item-name">'+item.nombre+'</div>'+
+      '<div class="cart-item-sub">$'+sub.toLocaleString('es-CO').replace(/,/g,'.')+'</div></div>'+
+      '<span class="cart-remove" onclick="removeFromCart(\''+item.nombre.replace(/'/g,"\\'")+'\')">✕</span>';
     el.appendChild(d);
   });
 }
@@ -348,43 +416,27 @@ async function confirmarPedido(cobrarYa){
   if(!codConfirmado){ alert('Confirma el código del pedido primero'); return; }
   if(!carrito.length){ alert('Agrega al menos un ítem al pedido'); return; }
   if(cobrarYa && !metodoPagoSel){ alert('Selecciona un método de pago primero'); return; }
-
-  const codigo = document.getElementById('cod-input').value.trim();
-  const franja = document.getElementById('franja-sel').value;
-  const notas  = document.getElementById('notas-txt').value.trim();
-  const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
-  const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
-
-  const msg = cobrarYa
-    ? 'Pedido: ' + codigo + '\n\n' + items_txt + '\n\nTotal: $' + total.toLocaleString('es-CO').replace(/,/g,'.') + '\nPago: ' + metodoPagoSel + '\n\n¿Confirmar y cobrar ahora?'
-    : 'Pedido: ' + codigo + '\n\n' + items_txt + '\n\nTotal: $' + total.toLocaleString('es-CO').replace(/,/g,'.') + '\nEntrega: ' + franja + '\n\n¿Enviar a cocina?';
-
+  const codigo=document.getElementById('cod-input').value.trim();
+  const franja=document.getElementById('franja-sel').value;
+  const notas=document.getElementById('notas-txt').value.trim();
+  const total=carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
+  const items_txt=carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
+  const msg=cobrarYa
+    ?'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nPago: '+metodoPagoSel+'\n\n¿Confirmar y cobrar ahora?'
+    :'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nEntrega: '+franja+'\n\n¿Enviar a cocina?';
   if(!confirm(msg)) return;
-
   try{
-    const r = await fetch('/mesero/nuevo',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        codigo, items: carrito, notas, franja,
-        cobrar_ya: cobrarYa, metodo_pago: metodoPagoSel
-      })
-    });
-    const d = await r.json();
+    const r=await fetch('/mesero/nuevo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({codigo,items:carrito,notas,franja,cobrar_ya:cobrarYa,metodo_pago:metodoPagoSel})});
+    const d=await r.json();
     if(d.ok){
-      if(d.cobrado){
-        alert('✅ Pedido #' + d.id + ' registrado y cobrado con ' + metodoPagoSel + '!');
-      } else {
-        alert('✅ Pedido #' + d.id + ' enviado a cocina!\nCódigo: ' + codigo + '\nHora: ' + franja);
-      }
-      editarCodigo();
-      limpiarCarrito();
+      if(d.cobrado) alert('✅ Pedido #'+d.id+' registrado y cobrado con '+metodoPagoSel+'!');
+      else alert('✅ Pedido #'+d.id+' enviado a cocina!\nCódigo: '+codigo+'\nHora: '+franja);
+      editarCodigo(); limpiarCarrito();
       switchTab('pizzas', document.querySelectorAll('.order-tab')[0]);
-    } else {
-      alert('Error: ' + d.error);
-    }
+    } else { alert('Error: '+d.error); }
   } catch(e){ alert('Error de conexión. Intenta de nuevo.'); }
 }
-
 renderCart();
 </script>
 {% endblock %}
