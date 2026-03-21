@@ -26,24 +26,23 @@
 <div class="k-groups">
 {% for franja in franjas_ord %}
 {% set pedidos_grupo = grupos[franja] %}
-{% set gi = loop.index0 %}
-{% if franja == 'Sin hora' %}
-  {% set hcls = 'k-gh-gray' %}
-{% elif gi == 0 %}
-  {% set hcls = 'k-gh-red' %}
-{% elif gi == 1 %}
-  {% set hcls = 'k-gh-orange' %}
-{% elif gi == 2 %}
-  {% set hcls = 'k-gh-accent' %}
-{% else %}
-  {% set hcls = 'k-gh-panel' %}
-{% endif %}
 
 <div>
-  <div class="k-group-header {{ hcls }}">
-    <span>{{ '🔴' if gi==0 and franja!='Sin hora' else '⏰' }} {{ franja }}</span>
+  {% if franja == 'Sin hora' %}
+    <div class="k-group-header k-gh-gray">
+  {% elif loop.index0 == 0 %}
+    <div class="k-group-header k-gh-red">
+  {% elif loop.index0 == 1 %}
+    <div class="k-group-header k-gh-orange">
+  {% elif loop.index0 == 2 %}
+    <div class="k-group-header k-gh-accent">
+  {% else %}
+    <div class="k-group-header k-gh-panel">
+  {% endif %}
+    <span>{% if loop.index0 == 0 and franja != 'Sin hora' %}🔴{% else %}⏰{% endif %} {{ franja }}</span>
     <span style="font-size:.85rem;font-weight:500">{{ pedidos_grupo|length }} pedido{{ 's' if pedidos_grupo|length!=1 else '' }}</span>
   </div>
+
   <div class="k-grid">
     {% for p in pedidos_grupo %}
     <div class="k-card">
@@ -56,8 +55,12 @@
         <span class="k-franja-tag">{{ p.franja_hora or 'Sin hora' }}</span>
       </div>
 
-      {% set pizzas  = p.items | selectattr('tipo','equalto','Pizza')  | list %}
-      {% set bebidas = p.items | selectattr('tipo','equalto','Bebida') | list %}
+      {% set pizzas  = [] %}
+      {% set bebidas = [] %}
+      {% for it in p.items %}
+        {% if it.tipo == 'Pizza' %}{% set _ = pizzas.append(it) %}{% endif %}
+        {% if it.tipo == 'Bebida' %}{% set _ = bebidas.append(it) %}{% endif %}
+      {% endfor %}
 
       {% if pizzas %}
       <div class="k-sec-lbl">🍕 Pizzas</div>
@@ -103,21 +106,16 @@
 
 {% block scripts %}
 <script>
-// Auto-refresh con countdown
 let seconds = 30;
 const cntEl = document.querySelector('#countdown strong');
-let notifShown = false;
 
 async function checkNotifs(){
   try{
     const r = await fetch('/cocina/notificaciones');
     const data = await r.json();
-    if(data.length && !notifShown){
-      notifShown = true;
-      data.forEach(n=>{
-        showToast(`⚠️ Pedido #${n.pid} fue modificado: ${n.detalle}`, 6000);
-      });
-    }
+    data.forEach(n=>{
+      showToast('⚠️ Pedido #'+n.pid+' fue modificado: '+n.detalle, 6000);
+    });
   } catch(e){}
 }
 
