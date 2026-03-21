@@ -351,94 +351,82 @@ def admin_cierre():
     fecha = request.args.get('fecha', hoy)
 
     if request.method == 'POST':
-        data = request.get_json()
-        fecha_cierre = data.get('fecha', hoy)
-        items_cierre = data.get('items', [])
-        # Delete existing cierre for that date and reinsert
-        with _conn() as c:
-            c.execute("DELETE FROM cierres_inventario WHERE fecha=?", (fecha_cierre,))
-            for it in items_cierre:
-                c.execute(
-                    "INSERT INTO cierres_inventario (fecha,nombre,tipo,stock_inicial,vendido,teorico,real_contado,diferencia,nota) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (fecha_cierre, it["nombre"], it["tipo"],
-                     it["stock_inicial"], it["vendido"], it["teorico"],
-                     it["real_contado"], it["diferencia"], it.get("nota","")))
-        return jsonify({'ok': True})
+        try:
+            data = request.get_json()
+            fecha_cierre = data.get('fecha', hoy)
+            items_cierre = data.get('items', [])
+            with _conn() as c:
+                c.execute("DELETE FROM cierres_inventario WHERE fecha=?", (fecha_cierre,))
+                for it in items_cierre:
+                    c.execute(
+                        "INSERT INTO cierres_inventario (fecha,nombre,tipo,stock_inicial,vendido,teorico,real_contado,diferencia,nota) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (fecha_cierre, it["nombre"], it["tipo"],
+                         it["stock_inicial"], it["vendido"], it["teorico"],
+                         it["real_contado"], it["diferencia"], it.get("nota","")))
+            return jsonify({'ok': True})
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
 
-    # Build cierre data for selected date
-    inv_dia = {i["nombre"]: i for i in get_inventario_hoy() if True}
-    # Get inventory for selected date
-    with _conn() as c:
-        inv_rows = c.execute(
-            "SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (fecha,)).fetchall()
+    try:
+        # Get inventory for selected date
+        with _conn() as c:
+            inv_rows = c.execute(
+                "SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (fecha,)).fetchall()
         inv_fecha = {r["nombre"]: r["stock"] for r in inv_rows}
 
-    vendido_dict = get_vendido_hoy(fecha)
+        vendido_dict = get_vendido_hoy(fecha)
 
-    # Build items list
-    # Standard items
-    cierre_items = []
-    for nombre, (tipo, _) in _INV_ESTANDAR.items():
-        stock_ini = inv_fecha.get(nombre, 0)
-        # Calculate vendido for this item
-        vend = 0
-        if tipo == "pizza":
-            # Count all pizza items
-            for k, v in vendido_dict.items():
-                if v["tipo"] == "Pizza":
-                    vend += v["cantidad"]
-            # Only count once
-            vendido_dict_tmp = {}
-        elif tipo == "bebida":
-            # Match by name prefix
-            for k, v in vendido_dict.items():
-                if k.startswith(nombre):
-                    vend += v["cantidad"]
-        teorico = max(0, stock_ini - vend)
-        cierre_items.append({
-            "nombre": nombre, "tipo": tipo,
-            "stock_inicial": stock_ini, "vendido": vend,
-            "teorico": teorico
-        })
+        # Pizza vendidas
+        pizza_vend = sum(v["cantidad"] for v in vendido_dict.values() if v["tipo"] == "Pizza")
 
-    # Fix pizza count - only count once
-    pizza_vend = sum(v["cantidad"] for v in vendido_dict.values() if v["tipo"] == "Pizza")
-    for it in cierre_items:
-        if it["tipo"] == "pizza":
-            it["vendido"] = pizza_vend
-            it["teorico"] = max(0, it["stock_inicial"] - pizza_vend)
+        # Standard items
+        cierre_items = []
+        for nombre, (tipo, _) in _INV_ESTANDAR.items():
+            stock_ini = inv_fecha.get(nombre, 0)
+            if tipo == "pizza":
+                vend = pizza_vend
+            else:
+                vend = sum(v["cantidad"] for k, v in vendido_dict.items() if k.startswith(nombre))
+            teorico = max(0, stock_ini - vend)
+            cierre_items.append({
+                "nombre": nombre, "tipo": tipo,
+                "stock_inicial": stock_ini, "vendido": vend, "teorico": teorico
+            })
 
-    # Pulpas
-    with _conn() as c:
-        pulpa_rows = c.execute(
-            "SELECT nombre, stock FROM inventario WHERE tipo='pulpa' AND fecha=?", (fecha,)).fetchall()
-    for r in pulpa_rows:
-        nombre = r["nombre"]
-        stock_ini = r["stock"]
-        # Jugos vendidos con this pulpa
-        vend = 0
-        for k, v in vendido_dict.items():
-            if k.startswith("Jugo Natural") and nombre in k:
-                vend += v["cantidad"]
-        teorico = max(0, stock_ini - vend)
-        cierre_items.append({
-            "nombre": nombre, "tipo": "pulpa",
-            "stock_inicial": stock_ini, "vendido": vend,
-            "teorico": teorico
-        })
+        # Pulpas
+        with _conn() as c:
+            pulpa_rows = c.execute(
+                "SELECT nombre, stock FROM inventario WHERE tipo='pulpa' AND fecha=?", (fecha,)).fetchall()
+        for r in pulpa_rows:
+            nombre = r["nombre"]
+            stock_ini = r["stock"]
+            vend = sum(v["cantidad"] for k, v in vendido_dict.items()
+                      if k.startswith("Jugo Natural") and nombre in k)
+            teorico = max(0, stock_ini - vend)
+            cierre_items.append({
+                "nombre": nombre, "tipo": "pulpa",
+                "stock_inicial": stock_ini, "vendido": vend, "teorico": teorico
+            })
 
-    # Check if cierre already saved for this date
-    with _conn() as c:
-        saved = c.execute(
-            "SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY nombre", (fecha,)).fetchall()
+        # Check saved cierre
+        with _conn() as c:
+            saved = c.execute(
+                "SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY nombre", (fecha,)).fetchall()
         saved_dict = {r["nombre"]: dict(r) for r in saved}
 
-    fechas_disponibles = get_cierre_fechas()
+        fechas_disponibles = get_cierre_fechas()
+        sin_inventario = len(inv_fecha) == 0
 
-    return render_template('admin_cierre.html',
-        cierre_items=cierre_items, fecha=fecha, hoy=hoy,
-        saved_dict=saved_dict, fechas_disponibles=fechas_disponibles)
+        return render_template('admin_cierre.html',
+            cierre_items=cierre_items, fecha=fecha, hoy=hoy,
+            saved_dict=saved_dict, fechas_disponibles=fechas_disponibles,
+            sin_inventario=sin_inventario)
+    except Exception as e:
+        return render_template('admin_cierre.html',
+            cierre_items=[], fecha=fecha, hoy=hoy,
+            saved_dict={}, fechas_disponibles=get_cierre_fechas(),
+            sin_inventario=True, error=str(e))
 
 @app.route('/admin/cierre/historial')
 @rol_required('Administrador')
