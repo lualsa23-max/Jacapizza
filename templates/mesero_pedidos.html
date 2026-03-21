@@ -11,7 +11,12 @@
         <div class="p-mesa">{{ p.mesa }}</div>
         <div class="p-meta">{{ p.mesero }} · {{ p.hora }} · {{ p.fecha }}</div>
       </div>
-      <span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+        <span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span>
+        {% if p.pago %}
+        <span class="badge" style="background:rgba(78,203,113,.15);color:var(--green)">{{ p.pago }}</span>
+        {% endif %}
+      </div>
     </div>
     {% if p.franja_hora %}
     <div class="p-franja">⏰ Entrega: {{ p.franja_hora }}</div>
