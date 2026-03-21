@@ -508,14 +508,21 @@ def cajero_caja():
 @app.route('/cocina/pedidos')
 @rol_required('Cocina')
 def cocina_pedidos():
-    activos = [p for p in get_pedidos() if p["estado"] == "Pendiente"]
-    grupos  = {}
+    todos   = get_pedidos()
+    activos = [p for p in todos if p["estado"] == "Pendiente"]
+    # Pre-separar pizzas y bebidas por pedido para simplificar el template
+    for p in activos:
+        p["pizzas"]  = [i for i in p["items"] if i["tipo"] == "Pizza"]
+        p["bebidas"] = [i for i in p["items"] if i["tipo"] == "Bebida"]
+    grupos = {}
     for p in activos:
         k = p.get("franja_hora") or "Sin hora"
         grupos.setdefault(k, []).append(p)
     franjas_ord = [f for f in FRANJAS_HORA if f in grupos]
-    if "Sin hora" in grupos: franjas_ord.append("Sin hora")
-    return render_template('cocina_pedidos.html', activos=activos, grupos=grupos, franjas_ord=franjas_ord)
+    if "Sin hora" in grupos:
+        franjas_ord.append("Sin hora")
+    return render_template('cocina_pedidos.html',
+        activos=activos, grupos=grupos, franjas_ord=franjas_ord)
 
 @app.route('/cocina/pedido/<int:pid>/listo', methods=['POST'])
 @rol_required('Cocina')
