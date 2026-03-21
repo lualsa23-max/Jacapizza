@@ -88,7 +88,7 @@ def _pedido_from_row(row, items):
         "id": row["id"], "mesa": row["codigo"], "mesero": row["mesero"],
         "estado": row["estado"], "total": row["total"], "hora": row["hora"],
         "fecha": row["fecha"], "pago": row["pago"], "modificado": bool(row["modificado"]),
-        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "", "items": items,
+        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "", "productos": items,
     }
 
 def _get_items(c, pid):
@@ -468,7 +468,7 @@ def mesero_editar(pid):
         franja = data.get('franja', pedido['franja_hora'])
         if not items:
             return jsonify({'error': 'El pedido no puede quedar vacío'}), 400
-        restaurar_inventario(pedido['items'])
+        restaurar_inventario(pedido['productos'])
         actualizar_pedido(pid, items, notas, franja)
         descontar_inventario(items)
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
@@ -512,8 +512,8 @@ def cocina_pedidos():
     activos = [p for p in todos if p["estado"] == "Pendiente"]
     # Pre-separar pizzas y bebidas por pedido para simplificar el template
     for p in activos:
-        p["pizzas"]  = [i for i in p["items"] if i["tipo"] == "Pizza"]
-        p["bebidas"] = [i for i in p["items"] if i["tipo"] == "Bebida"]
+        p["pizzas"]  = [i for i in p["productos"] if i["tipo"] == "Pizza"]
+        p["bebidas"] = [i for i in p["productos"] if i["tipo"] == "Bebida"]
     grupos = {}
     for p in activos:
         k = p.get("franja_hora") or "Sin hora"
