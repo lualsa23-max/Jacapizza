@@ -7,14 +7,10 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'jacapizza-secret-2024-xK9!')
 
 DB_PATH = os.environ.get('DB_PATH', '/data/pizza_data.db')
-
-# Crear directorio de la BD si no existe
 _db_dir = os.path.dirname(DB_PATH)
 if _db_dir and not os.path.exists(_db_dir):
-    try:
-        os.makedirs(_db_dir, exist_ok=True)
-    except Exception:
-        DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
+    try: os.makedirs(_db_dir, exist_ok=True)
+    except: DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
 
 USUARIOS = {
     "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
@@ -22,43 +18,35 @@ USUARIOS = {
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
 }
-SABORES_PIZZA = {
-    "Hawaiana": 20000, "Pollo con Champiñones": 20000,
-    "Mexicana": 20000, "Pepperoni": 20000,
-    "Criolla":  20000, "Vegetariana": 20000,
-}
-BEBIDAS = {
-    "Gaseosa": 4000, "Agua 600ml": 4000, "Soda Italiana": 5000,
-    "Cerveza Águila": 4000, "Cerveza Águila Light": 4000, "Cerveza Coronita": 5000,
-    "Cerveza Poker": 4000,
-    "Jugo Natural (agua)": 7000, "Limonada de Coco": 7000, "Cerezada": 7000,
-}
-_INV_ESTANDAR = {
-    "Pizza (masa)":         ("pizza",  3),
-    "Agua 600ml":           ("bebida", 5),
-    "Gaseosa":              ("bebida", 5),
-    "Cerveza Águila":       ("bebida", 5),
-    "Cerveza Águila Light": ("bebida", 5),
-    "Cerveza Coronita":     ("bebida", 5),
-    "Soda Italiana - Frutos Rojos":     ("bebida", 5),
-    "Soda Italiana - Frutos Amarillos": ("bebida", 5),
-    "Limonada de Coco":     ("bebida", 5),
-    "Cerezada":             ("bebida", 5),
-    "Cerveza Poker":        ("bebida", 5),
-}
 FRANJAS_HORA = [
     "7:00 PM","7:15 PM","7:30 PM","7:45 PM",
     "8:00 PM","8:15 PM","8:30 PM","8:45 PM","9:00 PM",
 ]
+BEBIDAS_DEFAULT = {
+    "Gaseosa":4000,"Agua 600ml":4000,"Soda Italiana":5000,
+    "Cerveza Águila":4000,"Cerveza Águila Light":4000,"Cerveza Coronita":5000,
+    "Cerveza Poker":4000,"Jugo Natural (agua)":7000,"Limonada de Coco":7000,"Cerezada":7000,
+}
+PIZZAS_DEFAULT = {
+    "Hawaiana":20000,"Pollo con Champiñones":20000,"Mexicana":20000,
+    "Pepperoni":20000,"Criolla":20000,"Vegetariana":20000,
+}
+INV_DEFAULT = {
+    "Pizza (masa)":("pizza",3),"Agua 600ml":("bebida",5),"Gaseosa":("bebida",5),
+    "Cerveza Águila":("bebida",5),"Cerveza Águila Light":("bebida",5),
+    "Cerveza Coronita":("bebida",5),"Cerveza Poker":("bebida",5),
+    "Soda Italiana - Frutos Rojos":("bebida",5),"Soda Italiana - Frutos Amarillos":("bebida",5),
+    "Limonada de Coco":("bebida",5),"Cerezada":("bebida",5),
+}
 
 @app.template_filter('fromjson')
-def fromjson_filter(value):
-    try: return json.loads(value)
+def fromjson_filter(v):
+    try: return json.loads(v)
     except: return {}
 
 @app.template_filter('cop')
-def fmt_cop(valor):
-    try: return f"${float(valor):,.0f}".replace(",", ".")
+def fmt_cop(v):
+    try: return f"${float(v):,.0f}".replace(",",".")
     except: return "$0"
 
 def _conn():
@@ -98,12 +86,9 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS catalogo (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL UNIQUE,
-            tipo TEXT NOT NULL,
-            precio REAL DEFAULT 0,
-            en_inventario INTEGER DEFAULT 1,
-            alerta_min INTEGER DEFAULT 5,
-            activo INTEGER DEFAULT 1
+            nombre TEXT NOT NULL UNIQUE, tipo TEXT NOT NULL,
+            precio REAL DEFAULT 0, en_inventario INTEGER DEFAULT 1,
+            alerta_min INTEGER DEFAULT 5, activo INTEGER DEFAULT 1
         );
         """)
         for col in ["ALTER TABLE pedidos ADD COLUMN notas TEXT DEFAULT ''",
@@ -114,80 +99,78 @@ def init_db():
 init_db()
 
 def _seed_catalogo():
-    """Populate catalogo from hardcoded defaults if empty"""
-    with _conn() as c:
-        count = c.execute("SELECT COUNT(*) FROM catalogo").fetchone()[0]
-        if count > 0: return
-        # Pizzas
-        pizzas = [
-            ("Hawaiana",20000),("Pollo con Champiñones",20000),
-            ("Mexicana",20000),("Pepperoni",20000),
-            ("Criolla",20000),("Vegetariana",20000),
-        ]
-        for nombre, precio in pizzas:
-            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
-                     (nombre,"pizza",precio,0,0))
-        # Bebidas con inventario estandar
-        bebidas_inv = [
-            ("Gaseosa",4000,5),("Agua 600ml",4000,5),
-            ("Cerveza Águila",4000,5),("Cerveza Águila Light",4000,5),
-            ("Cerveza Coronita",5000,5),("Cerveza Poker",4000,5),
-            ("Soda Italiana - Frutos Rojos",5000,5),
-            ("Soda Italiana - Frutos Amarillos",5000,5),
-            ("Limonada de Coco",7000,5),("Cerezada",7000,5),
-        ]
-        for nombre, precio, alerta in bebidas_inv:
-            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
-                     (nombre,"bebida",precio,1,alerta))
-        # Bebidas especiales sin inventario directo (pulpas/sodas agrupadas)
-        especiales = [
-            ("Jugo Natural (agua)",7000),
-            ("Soda Italiana",5000),
-        ]
-        for nombre, precio in especiales:
-            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
-                     (nombre,"bebida_especial",precio,0,0))
-        # Pizza (masa) en inventario
-        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,?,?)",
-                 ("Pizza (masa)","pizza_inv",0,1,3))
+    try:
+        with _conn() as c:
+            count = c.execute("SELECT COUNT(*) FROM catalogo").fetchone()[0]
+            if count > 0: return
+            for nombre, precio in PIZZAS_DEFAULT.items():
+                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
+                         (nombre,"pizza",precio))
+            beb_inv = [
+                ("Gaseosa",4000,5),("Agua 600ml",4000,5),
+                ("Cerveza Águila",4000,5),("Cerveza Águila Light",4000,5),
+                ("Cerveza Coronita",5000,5),("Cerveza Poker",4000,5),
+                ("Soda Italiana - Frutos Rojos",5000,5),
+                ("Soda Italiana - Frutos Amarillos",5000,5),
+                ("Limonada de Coco",7000,5),("Cerezada",7000,5),
+            ]
+            for nombre, precio, alerta in beb_inv:
+                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,1,?)",
+                         (nombre,"bebida",precio,alerta))
+            for nombre, precio in [("Jugo Natural (agua)",7000),("Soda Italiana",5000)]:
+                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
+                         (nombre,"bebida_especial",precio))
+            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,0,1,3)",
+                     ("Pizza (masa)","pizza_inv"))
+    except Exception as e:
+        print("Seed error:", e)
 
 _seed_catalogo()
 
+# ── CATALOG HELPERS ──────────────────────────────────
 def get_catalogo_bebidas():
-    """Returns dict {nombre: precio} for all active bebidas for order screen"""
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT nombre, precio FROM catalogo WHERE tipo IN ('bebida','bebida_especial') AND activo=1 ORDER BY id"
-        ).fetchall()
-    return {r["nombre"]: r["precio"] for r in rows}
+    try:
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT nombre, precio FROM catalogo WHERE tipo IN ('bebida','bebida_especial') AND activo=1 ORDER BY id"
+            ).fetchall()
+        r = {row["nombre"]: row["precio"] for row in rows}
+        if r: return r
+    except: pass
+    return dict(BEBIDAS_DEFAULT)
 
 def get_catalogo_pizzas():
-    """Returns dict {nombre: precio} for all active pizzas"""
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT nombre, precio FROM catalogo WHERE tipo='pizza' AND activo=1 ORDER BY id"
-        ).fetchall()
-    return {r["nombre"]: r["precio"] for r in rows}
+    try:
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT nombre, precio FROM catalogo WHERE tipo='pizza' AND activo=1 ORDER BY id"
+            ).fetchall()
+        r = {row["nombre"]: row["precio"] for row in rows}
+        if r: return r
+    except: pass
+    return dict(PIZZAS_DEFAULT)
 
 def get_inv_estandar():
-    """Returns dict {nombre: (tipo_inv, alerta_min)} for inventory items"""
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT nombre, tipo, alerta_min FROM catalogo WHERE en_inventario=1 AND activo=1"
-        ).fetchall()
-    result = {}
-    for r in rows:
-        t = "pizza" if r["tipo"] == "pizza_inv" else "bebida"
-        result[r["nombre"]] = (t, r["alerta_min"])
-    return result
+    try:
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT nombre, tipo, alerta_min FROM catalogo WHERE en_inventario=1 AND activo=1"
+            ).fetchall()
+        result = {}
+        for r in rows:
+            t = "pizza" if r["tipo"] == "pizza_inv" else "bebida"
+            result[r["nombre"]] = (t, r["alerta_min"])
+        if result: return result
+    except: pass
+    return dict(INV_DEFAULT)
 
-
-def _pedido_from_row(row, items):
+# ── PEDIDOS ───────────────────────────────────────────
+def _pedido_from_row(row, prods):
     return {
         "id": row["id"], "mesa": row["codigo"], "mesero": row["mesero"],
         "estado": row["estado"], "total": row["total"], "hora": row["hora"],
         "fecha": row["fecha"], "pago": row["pago"], "modificado": bool(row["modificado"]),
-        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "", "productos": items,
+        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "", "productos": prods,
     }
 
 def _get_items(c, pid):
@@ -253,6 +236,7 @@ def get_notificaciones_nuevas():
             c.execute(f"UPDATE notificaciones SET vista=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
         return [{"pid": r["pid"], "codigo": r["codigo"], "detalle": r["detalle"], "total": r["total"]} for r in rows]
 
+# ── INVENTARIO ────────────────────────────────────────
 def get_reporte(fecha_ini, fecha_fin):
     with _conn() as c:
         pagados = c.execute(
@@ -300,7 +284,7 @@ def upsert_inventario(nombre, tipo, stock, alerta_min=None):
             amin = alerta_min if alerta_min is not None else ex["alerta_min"]
             c.execute("UPDATE inventario SET stock=?,alerta_min=? WHERE id=?", (max(0, stock), amin, ex["id"]))
         else:
-            amin = alerta_min if alerta_min is not None else (3 if tipo == "pizza" else 5)
+            amin = alerta_min if alerta_min is not None else 5
             c.execute("INSERT INTO inventario (nombre,tipo,stock,alerta_min,fecha) VALUES (?,?,?,?,?)",
                       (nombre, tipo, max(0, stock), amin, hoy))
 
@@ -311,14 +295,18 @@ def ajustar_stock(nombre, delta):
 
 def _item_a_stock_key(nombre, tipo):
     if tipo == "Pizza": return "Pizza (masa)"
-    # Soda Italiana: match by flavor (order name uses em dash, inventory uses hyphen)
     if nombre.startswith("Soda Italiana"):
-        if "Frutos Rojos" in nombre:    return "Soda Italiana - Frutos Rojos"
+        if "Frutos Rojos" in nombre:     return "Soda Italiana - Frutos Rojos"
         if "Frutos Amarillos" in nombre: return "Soda Italiana - Frutos Amarillos"
-        return "Soda Italiana - Frutos Rojos"  # fallback
     for key in ["Gaseosa","Agua 600ml","Cerveza Águila Light","Cerveza Águila","Cerveza Coronita",
                 "Limonada de Coco","Cerezada","Cerveza Poker"]:
         if nombre.startswith(key): return key
+    # Dynamic items from catalogo
+    try:
+        with _conn() as c:
+            row = c.execute("SELECT nombre FROM catalogo WHERE en_inventario=1 AND nombre=?", (nombre,)).fetchone()
+            if row: return row["nombre"]
+    except: pass
     if nombre.startswith("Jugo Natural"):
         partes = nombre.split(" — ", 1)
         if len(partes) > 1: return partes[1]
@@ -341,14 +329,14 @@ def get_pulpas_hoy():
             "SELECT nombre,stock,alerta_min FROM inventario WHERE tipo='pulpa' AND fecha=? ORDER BY nombre", (hoy,)).fetchall()
         return [{"nombre": r["nombre"], "stock": r["stock"], "alerta_min": r["alerta_min"]} for r in rows]
 
-
+# ── CIERRE ────────────────────────────────────────────
 def get_vendido_hoy(fecha):
     vendido = {}
     with _conn() as c:
         rows = c.execute(
             "SELECT i.nombre, i.tipo, SUM(i.cantidad) as total "
             "FROM items i JOIN pedidos p ON p.id=i.pedido_id "
-            "WHERE p.estado=\'Pagado\' AND p.fecha=? "
+            "WHERE p.estado='Pagado' AND p.fecha=? "
             "GROUP BY i.nombre, i.tipo", (fecha,)).fetchall()
     for r in rows:
         vendido[r["nombre"]] = {"cantidad": r["total"], "tipo": r["tipo"]}
@@ -360,12 +348,11 @@ def get_cierre_fechas():
             "SELECT DISTINCT fecha FROM cierres_inventario ORDER BY fecha DESC").fetchall()
         return [r["fecha"] for r in rows]
 
-# ====================== AUTH ======================
+# ── AUTH ──────────────────────────────────────────────
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario' not in session:
-            return redirect(url_for('login'))
+        if 'usuario' not in session: return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -373,27 +360,25 @@ def rol_required(*roles):
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            if 'usuario' not in session:
-                return redirect(url_for('login'))
-            # Administrador tiene acceso a todo
+            if 'usuario' not in session: return redirect(url_for('login'))
             if session['rol'] not in roles and session['rol'] != 'Administrador':
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
         return decorated
     return decorator
 
-# ====================== ROUTES ======================
+# ── ROUTES ────────────────────────────────────────────
 @app.route('/')
 def index():
     if 'usuario' in session: return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET','POST'])
 def login():
     error = None
     if request.method == 'POST':
-        u = request.form.get('usuario', '').strip()
-        p = request.form.get('password', '').strip()
+        u = request.form.get('usuario','').strip()
+        p = request.form.get('password','').strip()
         if u in USUARIOS and USUARIOS[u]['password'] == p:
             session['usuario'] = u
             session['rol']     = USUARIOS[u]['rol']
@@ -417,35 +402,33 @@ def dashboard():
     elif rol == 'Cocina':        return redirect(url_for('cocina_pedidos'))
     return redirect(url_for('login'))
 
+# ── ADMIN ─────────────────────────────────────────────
 @app.route('/admin/resumen')
 @rol_required('Administrador')
 def admin_resumen():
     hoy   = datetime.now().strftime("%d/%m/%Y")
     todos = get_pedidos()
-    total_dia  = sum(p["total"] for p in todos if p["fecha"] == hoy and p["estado"] == "Pagado")
-    pagados    = sum(1 for p in todos if p["estado"] == "Pagado")
-    pendientes = sum(1 for p in todos if p["estado"] == "Pendiente")
-    hoy_str = datetime.now().strftime("%d/%m/%Y")
-    cobros_pendientes = sum(1 for p in todos if p["estado"] == "Listo" and p["fecha"] != hoy_str)
+    total_dia  = sum(p["total"] for p in todos if p["fecha"]==hoy and p["estado"]=="Pagado")
+    pagados    = sum(1 for p in todos if p["estado"]=="Pagado")
+    pendientes = sum(1 for p in todos if p["estado"]=="Pendiente")
+    cobros_pendientes = sum(1 for p in todos if p["estado"]=="Listo" and p["fecha"]!=hoy)
     return render_template('admin_resumen.html',
         total_dia=total_dia, total_pedidos=len(todos),
         pagados=pagados, pendientes=pendientes,
-        cobros_pendientes=cobros_pendientes,
-        ultimos=todos[:10], hoy=hoy)
+        cobros_pendientes=cobros_pendientes, ultimos=todos[:10], hoy=hoy)
 
-@app.route('/admin/inventario', methods=['GET', 'POST'])
+@app.route('/admin/inventario', methods=['GET','POST'])
 @rol_required('Administrador')
 def admin_inventario():
     if request.method == 'POST':
-        data = request.get_json()
+        data    = request.get_json()
         inv_std = get_inv_estandar()
         for nombre, (tipo, _) in inv_std.items():
             stock  = int(data.get(f'stock_{nombre}', 0))
             alerta = int(data.get(f'alerta_{nombre}', 5))
             precio = data.get(f'precio_{nombre}')
             upsert_inventario(nombre, tipo, stock, alerta)
-            # Update price in catalogo if provided
-            if precio is not None:
+            if precio:
                 try:
                     with _conn() as c:
                         c.execute("UPDATE catalogo SET precio=? WHERE nombre=?", (float(precio), nombre))
@@ -454,21 +437,22 @@ def admin_inventario():
         with _conn() as c:
             c.execute("DELETE FROM inventario WHERE tipo='pulpa' AND fecha=?", (hoy,))
         for p in data.get('pulpas', []):
-            if p.get('nombre', '').strip():
-                upsert_inventario(p['nombre'].strip(), 'pulpa', int(p.get('stock', 0)), 3)
-        # New items added from inventory page
+            if p.get('nombre','').strip():
+                upsert_inventario(p['nombre'].strip(), 'pulpa', int(p.get('stock',0)), 3)
         for item in data.get('nuevos', []):
-            nombre = item.get('nombre', '').strip()
-            tipo_cat = item.get('tipo_cat', 'bebida')
-            precio = float(item.get('precio', 0) or 0)
-            stock = int(item.get('stock', 0) or 0)
-            alerta = int(item.get('alerta', 5) or 5)
+            nombre   = item.get('nombre','').strip()
+            tipo_cat = item.get('tipo_cat','bebida')
+            precio   = float(item.get('precio',0) or 0)
+            stock    = int(item.get('stock',0) or 0)
+            alerta   = int(item.get('alerta',5) or 5)
             if nombre:
-                with _conn() as c:
-                    c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,1,?,1)",
-                              (nombre, tipo_cat, precio, alerta))
-                    c.execute("UPDATE catalogo SET precio=?,en_inventario=1,activo=1,alerta_min=? WHERE nombre=?",
-                              (precio, alerta, nombre))
+                try:
+                    with _conn() as c:
+                        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,1,?,1)",
+                                  (nombre, tipo_cat, precio, alerta))
+                        c.execute("UPDATE catalogo SET precio=?,en_inventario=1,activo=1,alerta_min=? WHERE nombre=?",
+                                  (precio, alerta, nombre))
+                except: pass
                 upsert_inventario(nombre, 'bebida', stock, alerta)
         return jsonify({'ok': True})
     inv_dict = {i["nombre"]: i for i in get_inventario_hoy()}
@@ -476,85 +460,56 @@ def admin_inventario():
     inv_std  = get_inv_estandar()
     return render_template('admin_inventario.html', inv_estandar=inv_std, inv_dict=inv_dict, pulpas=pulpas)
 
-@app.route('/admin/cierre', methods=['GET', 'POST'])
+@app.route('/admin/cierre', methods=['GET','POST'])
 @rol_required('Administrador')
 def admin_cierre():
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy   = datetime.now().strftime("%d/%m/%Y")
     fecha = request.args.get('fecha', hoy)
-
     if request.method == 'POST':
         try:
-            data = request.get_json()
+            data         = request.get_json()
             fecha_cierre = data.get('fecha', hoy)
             items_cierre = data.get('items', [])
             with _conn() as c:
                 c.execute("DELETE FROM cierres_inventario WHERE fecha=?", (fecha_cierre,))
                 for it in items_cierre:
                     c.execute(
-                        "INSERT INTO cierres_inventario (fecha,nombre,tipo,stock_inicial,vendido,teorico,real_contado,diferencia,nota) "
-                        "VALUES (?,?,?,?,?,?,?,?,?)",
-                        (fecha_cierre, it["nombre"], it["tipo"],
-                         it["stock_inicial"], it["vendido"], it["teorico"],
-                         it["real_contado"], it["diferencia"], it.get("nota","")))
+                        "INSERT INTO cierres_inventario (fecha,nombre,tipo,stock_inicial,vendido,teorico,real_contado,diferencia,nota) VALUES (?,?,?,?,?,?,?,?,?)",
+                        (fecha_cierre, it["nombre"], it["tipo"], it["stock_inicial"],
+                         it["vendido"], it["teorico"], it["real_contado"], it["diferencia"], it.get("nota","")))
             return jsonify({'ok': True})
         except Exception as e:
             return jsonify({'ok': False, 'error': str(e)}), 500
-
     try:
-        # Get inventory for selected date
         with _conn() as c:
-            inv_rows = c.execute(
-                "SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (fecha,)).fetchall()
-        inv_fecha = {r["nombre"]: r["stock"] for r in inv_rows}
-
+            inv_rows = c.execute("SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (fecha,)).fetchall()
+        inv_fecha    = {r["nombre"]: r["stock"] for r in inv_rows}
         vendido_dict = get_vendido_hoy(fecha)
-
-        # Pizza vendidas
-        pizza_vend = sum(v["cantidad"] for v in vendido_dict.values() if v["tipo"] == "Pizza")
-
-        # Standard items
+        pizza_vend   = sum(v["cantidad"] for v in vendido_dict.values() if v["tipo"] == "Pizza")
         cierre_items = []
-        inv_std = get_inv_estandar()
-        for nombre, (tipo, _) in inv_std.items():
+        for nombre, (tipo, _) in get_inv_estandar().items():
             stock_ini = inv_fecha.get(nombre, 0)
             if tipo == "pizza":
                 vend = pizza_vend
             else:
                 vend = sum(v["cantidad"] for k, v in vendido_dict.items() if k.startswith(nombre))
             teorico = max(0, stock_ini - vend)
-            cierre_items.append({
-                "nombre": nombre, "tipo": tipo,
-                "stock_inicial": stock_ini, "vendido": vend, "teorico": teorico
-            })
-
-        # Pulpas
+            cierre_items.append({"nombre": nombre, "tipo": tipo,
+                                  "stock_inicial": stock_ini, "vendido": vend, "teorico": teorico})
         with _conn() as c:
-            pulpa_rows = c.execute(
-                "SELECT nombre, stock FROM inventario WHERE tipo='pulpa' AND fecha=?", (fecha,)).fetchall()
+            pulpa_rows = c.execute("SELECT nombre, stock FROM inventario WHERE tipo='pulpa' AND fecha=?", (fecha,)).fetchall()
         for r in pulpa_rows:
-            nombre = r["nombre"]
-            stock_ini = r["stock"]
-            vend = sum(v["cantidad"] for k, v in vendido_dict.items()
-                      if k.startswith("Jugo Natural") and nombre in k)
-            teorico = max(0, stock_ini - vend)
-            cierre_items.append({
-                "nombre": nombre, "tipo": "pulpa",
-                "stock_inicial": stock_ini, "vendido": vend, "teorico": teorico
-            })
-
-        # Check saved cierre
+            vend = sum(v["cantidad"] for k, v in vendido_dict.items() if k.startswith("Jugo Natural") and r["nombre"] in k)
+            teorico = max(0, r["stock"] - vend)
+            cierre_items.append({"nombre": r["nombre"], "tipo": "pulpa",
+                                  "stock_inicial": r["stock"], "vendido": vend, "teorico": teorico})
         with _conn() as c:
-            saved = c.execute(
-                "SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY nombre", (fecha,)).fetchall()
+            saved = c.execute("SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY nombre", (fecha,)).fetchall()
         saved_dict = {r["nombre"]: dict(r) for r in saved}
-
-        fechas_disponibles = get_cierre_fechas()
-        sin_inventario = len(inv_fecha) == 0
-
         return render_template('admin_cierre.html',
             cierre_items=cierre_items, fecha=fecha, hoy=hoy,
-            saved_dict=saved_dict, fechas_disponibles=fechas_disponibles,
-            sin_inventario=sin_inventario)
+            saved_dict=saved_dict, fechas_disponibles=get_cierre_fechas(),
+            sin_inventario=len(inv_fecha)==0)
     except Exception as e:
         return render_template('admin_cierre.html',
             cierre_items=[], fecha=fecha, hoy=hoy,
@@ -568,33 +523,23 @@ def admin_cierre_historial():
     cierres_por_fecha = {}
     for f in fechas:
         with _conn() as c:
-            rows = c.execute(
-                "SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY tipo,nombre", (f,)).fetchall()
+            rows = c.execute("SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY tipo,nombre", (f,)).fetchall()
             cierres_por_fecha[f] = [dict(r) for r in rows]
-    return render_template('admin_cierre_historial.html',
-        cierres_por_fecha=cierres_por_fecha, fechas=fechas)
+    return render_template('admin_cierre_historial.html', cierres_por_fecha=cierres_por_fecha, fechas=fechas)
 
 @app.route('/admin/cierre/csv')
 @rol_required('Administrador')
 def admin_cierre_csv():
-    fi = request.args.get('fi', '')
-    ff = request.args.get('ff', '')
+    fi = request.args.get('fi',''); ff = request.args.get('ff','')
     with _conn() as c:
         if fi and ff:
-            rows = c.execute(
-                "SELECT * FROM cierres_inventario WHERE fecha>=? AND fecha<=? ORDER BY fecha,tipo,nombre",
-                (fi, ff)).fetchall()
+            rows = c.execute("SELECT * FROM cierres_inventario WHERE fecha>=? AND fecha<=? ORDER BY fecha,tipo,nombre", (fi,ff)).fetchall()
         else:
-            rows = c.execute(
-                "SELECT * FROM cierres_inventario ORDER BY fecha DESC,tipo,nombre").fetchall()
-    out = io.StringIO()
-    w = csv.writer(out)
+            rows = c.execute("SELECT * FROM cierres_inventario ORDER BY fecha DESC,tipo,nombre").fetchall()
+    out = io.StringIO(); w = csv.writer(out)
     w.writerow(["Fecha","Ítem","Tipo","Inicial","Vendido","Teórico","Real","Diferencia","Nota"])
-    for r in rows:
-        w.writerow([r["fecha"],r["nombre"],r["tipo"],r["stock_inicial"],
-                    r["vendido"],r["teorico"],r["real_contado"],r["diferencia"],r["nota"]])
-    return Response(out.getvalue(), mimetype='text/csv',
-        headers={"Content-Disposition": "attachment;filename=cierre_inventario.csv"})
+    for r in rows: w.writerow([r["fecha"],r["nombre"],r["tipo"],r["stock_inicial"],r["vendido"],r["teorico"],r["real_contado"],r["diferencia"],r["nota"]])
+    return Response(out.getvalue(), mimetype='text/csv', headers={"Content-Disposition":"attachment;filename=cierre_inventario.csv"})
 
 @app.route('/admin/pedidos')
 @rol_required('Administrador')
@@ -615,7 +560,7 @@ def admin_eliminar_pedido(pid):
 @rol_required('Administrador')
 def admin_reportes():
     hoy     = datetime.now().strftime("%d/%m/%Y")
-    periodo = request.args.get('periodo', 'hoy')
+    periodo = request.args.get('periodo','hoy')
     fi      = request.args.get('fi', hoy)
     ff      = request.args.get('ff', hoy)
     if periodo == 'hoy':     fi = ff = hoy
@@ -630,49 +575,71 @@ def admin_reportes():
 @app.route('/admin/reportes/csv')
 @rol_required('Administrador')
 def admin_csv():
-    fi = request.args.get('fi', '')
-    ff = request.args.get('ff', '')
+    fi = request.args.get('fi',''); ff = request.args.get('ff','')
     with _conn() as c:
         rows = c.execute(
             "SELECT p.id,p.codigo,p.mesero,p.estado,p.total,p.hora,p.fecha,p.pago,"
             "i.nombre,i.tipo,i.cantidad,i.precio_unit "
             "FROM pedidos p JOIN items i ON i.pedido_id=p.id "
             "WHERE p.estado='Pagado' AND p.fecha>=? AND p.fecha<=? ORDER BY p.id",
-            (fi, ff)).fetchall()
-    out = io.StringIO()
-    w   = csv.writer(out)
+            (fi,ff)).fetchall()
+    out = io.StringIO(); w = csv.writer(out)
     w.writerow(["ID","Código","Mesero","Estado","Total","Hora","Fecha","Pago","Ítem","Tipo","Cantidad","Precio"])
     for r in rows: w.writerow(list(r))
-    return Response(out.getvalue(), mimetype='text/csv',
-                    headers={"Content-Disposition": f"attachment;filename=reporte_{fi}_{ff}.csv"})
+    return Response(out.getvalue(), mimetype='text/csv', headers={"Content-Disposition":f"attachment;filename=reporte_{fi}_{ff}.csv"})
 
-@app.route('/admin/usuarios', methods=['GET', 'POST'])
+@app.route('/admin/usuarios', methods=['GET','POST'])
 @rol_required('Administrador')
 def admin_usuarios():
     if request.method == 'POST':
         action = request.form.get('action')
-        u = request.form.get('username', '').strip()
+        u = request.form.get('username','').strip()
         if action == 'update' and u in USUARIOS:
-            USUARIOS[u]['nombre']   = request.form.get('nombre', '').strip() or USUARIOS[u]['nombre']
-            USUARIOS[u]['password'] = request.form.get('password', '').strip() or USUARIOS[u]['password']
-            USUARIOS[u]['rol']      = request.form.get('rol', 'Mesero')
-            flash(f'Usuario @{u} actualizado ✅', 'success')
+            USUARIOS[u]['nombre']   = request.form.get('nombre','').strip() or USUARIOS[u]['nombre']
+            USUARIOS[u]['password'] = request.form.get('password','').strip() or USUARIOS[u]['password']
+            USUARIOS[u]['rol']      = request.form.get('rol','Mesero')
+            flash(f'Usuario @{u} actualizado ✅','success')
         elif action == 'delete' and u in USUARIOS and u != 'admin':
-            del USUARIOS[u]; flash(f'Usuario @{u} eliminado', 'success')
+            del USUARIOS[u]; flash(f'Usuario @{u} eliminado','success')
         elif action == 'create':
-            nu = request.form.get('new_username', '').strip()
-            nn = request.form.get('new_nombre', '').strip()
-            np = request.form.get('new_password', '').strip()
-            nr = request.form.get('new_rol', 'Mesero')
+            nu = request.form.get('new_username','').strip()
+            nn = request.form.get('new_nombre','').strip()
+            np = request.form.get('new_password','').strip()
+            nr = request.form.get('new_rol','Mesero')
             if nu and nn and np and nu not in USUARIOS:
-                USUARIOS[nu] = {'password': np, 'rol': nr, 'nombre': nn}
-                flash(f'Usuario @{nu} creado ✅', 'success')
+                USUARIOS[nu] = {'password':np,'rol':nr,'nombre':nn}
+                flash(f'Usuario @{nu} creado ✅','success')
             elif nu in USUARIOS:
-                flash(f'El usuario @{nu} ya existe', 'error')
+                flash(f'El usuario @{nu} ya existe','error')
         return redirect(url_for('admin_usuarios'))
     return render_template('admin_usuarios.html', usuarios=USUARIOS, roles=["Administrador","Mesero","Cajero","Cocina"])
 
-@app.route('/admin/menu/pizzas', methods=['GET', 'POST'])
+def _handle_menu(form, tipo_catalogo):
+    action = form.get('action')
+    if action == 'update':
+        old_name = form.get('old_name','').strip(); new_name = form.get('new_name','').strip()
+        precio   = float(form.get('precio',0) or 0)
+        if old_name and new_name:
+            with _conn() as c:
+                c.execute("UPDATE catalogo SET nombre=?,precio=? WHERE nombre=? AND tipo=?",
+                          (new_name, precio, old_name, tipo_catalogo))
+    elif action == 'delete':
+        name = form.get('name','').strip()
+        if name:
+            with _conn() as c:
+                c.execute("UPDATE catalogo SET activo=0 WHERE nombre=? AND tipo=?", (name, tipo_catalogo))
+    elif action == 'add':
+        name   = form.get('name','').strip(); precio = float(form.get('precio',0) or 0)
+        en_inv = 1 if form.get('en_inventario') == '1' else 0
+        alerta = int(form.get('alerta_min',5) or 5)
+        if name:
+            with _conn() as c:
+                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,?,?,1)",
+                          (name, tipo_catalogo, precio, en_inv, alerta))
+                c.execute("UPDATE catalogo SET precio=?,activo=1,en_inventario=?,alerta_min=? WHERE nombre=? AND tipo=?",
+                          (precio, en_inv, alerta, name, tipo_catalogo))
+
+@app.route('/admin/menu/pizzas', methods=['GET','POST'])
 @rol_required('Administrador')
 def admin_menu_pizzas():
     if request.method == 'POST':
@@ -680,7 +647,7 @@ def admin_menu_pizzas():
         return redirect(url_for('admin_menu_pizzas'))
     return render_template('admin_menu.html', menu=get_catalogo_pizzas(), tipo='pizzas', titulo='Menú Pizzas', icono='🍕')
 
-@app.route('/admin/menu/bebidas', methods=['GET', 'POST'])
+@app.route('/admin/menu/bebidas', methods=['GET','POST'])
 @rol_required('Administrador')
 def admin_menu_bebidas():
     if request.method == 'POST':
@@ -688,59 +655,32 @@ def admin_menu_bebidas():
         return redirect(url_for('admin_menu_bebidas'))
     return render_template('admin_menu.html', menu=get_catalogo_bebidas(), tipo='bebidas', titulo='Menú Bebidas', icono='🥤')
 
-def _handle_menu(form, tipo_catalogo):
-    action = form.get('action')
-    if action == 'update':
-        old_name = form.get('old_name', '').strip()
-        new_name = form.get('new_name', '').strip()
-        precio   = float(form.get('precio', 0) or 0)
-        if old_name and new_name:
-            with _conn() as c:
-                c.execute("UPDATE catalogo SET nombre=?, precio=? WHERE nombre=? AND tipo=?",
-                          (new_name, precio, old_name, tipo_catalogo))
-    elif action == 'delete':
-        name = form.get('name', '').strip()
-        if name:
-            with _conn() as c:
-                c.execute("UPDATE catalogo SET activo=0 WHERE nombre=? AND tipo=?", (name, tipo_catalogo))
-    elif action == 'add':
-        name   = form.get('name', '').strip()
-        precio = float(form.get('precio', 0) or 0)
-        en_inv = 1 if form.get('en_inventario') == '1' else 0
-        alerta = int(form.get('alerta_min', 5) or 5)
-        if name:
-            with _conn() as c:
-                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,?,?,1)",
-                          (name, tipo_catalogo, precio, en_inv, alerta))
-                c.execute("UPDATE catalogo SET precio=?, activo=1, en_inventario=?, alerta_min=? WHERE nombre=? AND tipo=?",
-                          (precio, en_inv, alerta, name, tipo_catalogo))
-
-@app.route('/mesero/nuevo', methods=['GET', 'POST'])
+# ── MESERO ────────────────────────────────────────────
+@app.route('/mesero/nuevo', methods=['GET','POST'])
 @rol_required('Mesero')
 def mesero_nuevo():
     if request.method == 'POST':
         data       = request.get_json()
-        codigo     = data.get('codigo', '').strip()
-        items      = data.get('items', [])
-        notas      = data.get('notas', '')
+        codigo     = data.get('codigo','').strip()
+        items      = data.get('items',[])
+        notas      = data.get('notas','')
         franja     = data.get('franja', FRANJAS_HORA[0])
         cobrar_ya  = data.get('cobrar_ya', False)
-        metodo_pago= data.get('metodo_pago', 'Efectivo')
+        metodo_pago= data.get('metodo_pago','Efectivo')
         if not codigo or not items:
-            return jsonify({'error': 'Datos incompletos'}), 400
-        stock = get_stock_dict()
-        total_piz = sum(i["cantidad"] for i in items if i["tipo"] == "Pizza")
-        masas = stock.get("Pizza (masa)")
+            return jsonify({'error':'Datos incompletos'}), 400
+        stock     = get_stock_dict()
+        total_piz = sum(i["cantidad"] for i in items if i["tipo"]=="Pizza")
+        masas     = stock.get("Pizza (masa)")
         if masas is not None and total_piz > masas:
             return jsonify({'error': f'Solo quedan {masas} masa(s) de pizza disponibles'}), 400
         p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
         descontar_inventario(items)
-        # Si cobrar_ya, registrar el pago pero dejar estado Pendiente para que cocina lo vea
         if cobrar_ya:
             with _conn() as c:
                 c.execute("UPDATE pedidos SET pago=? WHERE id=?", (metodo_pago, p['id']))
-            return jsonify({'ok': True, 'id': p['id'], 'cobrado': True})
-        return jsonify({'ok': True, 'id': p['id'], 'cobrado': False})
+            return jsonify({'ok':True,'id':p['id'],'cobrado':True})
+        return jsonify({'ok':True,'id':p['id'],'cobrado':False})
     stock  = get_stock_dict()
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
@@ -750,10 +690,10 @@ def mesero_nuevo():
 @app.route('/mesero/pedidos')
 @rol_required('Mesero')
 def mesero_pedidos():
-    mis = [p for p in get_pedidos() if p["mesero"] == session['nombre']]
+    mis = [p for p in get_pedidos() if p["mesero"]==session['nombre']]
     return render_template('mesero_pedidos.html', pedidos=mis)
 
-@app.route('/mesero/pedido/<int:pid>/editar', methods=['GET', 'POST'])
+@app.route('/mesero/pedido/<int:pid>/editar', methods=['GET','POST'])
 @rol_required('Mesero')
 def mesero_editar(pid):
     pedido = get_pedido(pid)
@@ -761,51 +701,57 @@ def mesero_editar(pid):
         return redirect(url_for('mesero_pedidos'))
     if request.method == 'POST':
         data   = request.get_json()
-        items  = data.get('items', [])
+        items  = data.get('items',[])
         notas  = data.get('notas', pedido['notas'])
         franja = data.get('franja', pedido['franja_hora'])
         if not items:
-            return jsonify({'error': 'El pedido no puede quedar vacío'}), 400
+            return jsonify({'error':'El pedido no puede quedar vacío'}), 400
         restaurar_inventario(pedido['productos'])
         actualizar_pedido(pid, items, notas, franja)
         descontar_inventario(items)
-        # Si estaba Listo, volver a Pendiente para que cocina lo vea de nuevo
         if pedido['estado'] == 'Listo':
             with _conn() as c:
                 c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
-        add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"] * i["precio_unit"] for i in items))
-        return jsonify({'ok': True})
+        add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"]*i["precio_unit"] for i in items))
+        return jsonify({'ok':True})
     pulpas = get_pulpas_hoy()
     return render_template('mesero_editar.html', pedido=pedido,
         sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
         pulpas_json=json.dumps(pulpas))
 
+# ── CAJERO ────────────────────────────────────────────
 @app.route('/cajero/cobrar')
 @rol_required('Cajero')
 def cajero_cobrar():
     hoy = datetime.now().strftime("%d/%m/%Y")
-    todos_listos = [p for p in get_pedidos() if p["estado"] == "Listo"]
-    pendientes_anteriores = [p for p in todos_listos if p["fecha"] != hoy]
-    de_hoy = [p for p in todos_listos if p["fecha"] == hoy]
-    return render_template('cajero_cobrar.html',
-        pedidos=de_hoy,
-        pendientes_anteriores=pendientes_anteriores,
-        hoy=hoy)
+    todos_listos = [p for p in get_pedidos() if p["estado"]=="Listo"]
+    pendientes_anteriores = [p for p in todos_listos if p["fecha"]!=hoy]
+    de_hoy = [p for p in todos_listos if p["fecha"]==hoy]
+    return render_template('cajero_cobrar.html', pedidos=de_hoy,
+        pendientes_anteriores=pendientes_anteriores, hoy=hoy)
 
 @app.route('/cajero/cobrar/<int:pid>', methods=['POST'])
 @rol_required('Cajero')
 def cajero_pagar(pid):
-    metodo = request.form.get('metodo', 'Efectivo')
+    metodo = request.form.get('metodo','Efectivo')
     cobrar_pedido(pid, metodo)
-    flash(f'✅ Pedido #{pid} cobrado — {metodo}', 'success')
+    flash(f'✅ Pedido #{pid} cobrado — {metodo}','success')
+    return redirect(url_for('cajero_cobrar'))
+
+@app.route('/cajero/cobrar/<int:pid>/confirmar_pago', methods=['POST'])
+@rol_required('Cajero')
+def cajero_confirmar_pago(pid):
+    with _conn() as c:
+        c.execute("UPDATE pedidos SET estado='Pagado' WHERE id=? AND pago IS NOT NULL", (pid,))
+    flash(f'✅ Pedido #{pid} confirmado como pagado','success')
     return redirect(url_for('cajero_cobrar'))
 
 @app.route('/cajero/caja')
 @rol_required('Cajero')
 def cajero_caja():
     hoy = datetime.now().strftime("%d/%m/%Y")
-    pag = [p for p in get_pedidos() if p["estado"] == "Pagado" and p["fecha"] == hoy]
+    pag = [p for p in get_pedidos() if p["estado"]=="Pagado" and p["fecha"]==hoy]
     total   = sum(p["total"] for p in pag)
     metodos = {}
     for p in pag:
@@ -813,33 +759,22 @@ def cajero_caja():
         metodos[m] = metodos.get(m, 0) + p["total"]
     return render_template('cajero_caja.html', pedidos=pag, total=total, metodos=metodos, hoy=hoy)
 
-@app.route('/cajero/cobrar/<int:pid>/confirmar_pago', methods=['POST'])
-@rol_required('Cajero')
-def cajero_confirmar_pago(pid):
-    """Confirma un pedido que ya fue pagado por el mesero — solo cambia estado a Pagado"""
-    with _conn() as c:
-        c.execute("UPDATE pedidos SET estado='Pagado' WHERE id=? AND pago IS NOT NULL", (pid,))
-    flash(f'✅ Pedido #{pid} confirmado como pagado', 'success')
-    return redirect(url_for('cajero_cobrar'))
-
+# ── COCINA ────────────────────────────────────────────
 @app.route('/cocina/pedidos')
 @rol_required('Cocina')
 def cocina_pedidos():
     todos   = get_pedidos()
-    activos = [p for p in todos if p["estado"] == "Pendiente"]
-    # Pre-separar pizzas y bebidas por pedido para simplificar el template
+    activos = [p for p in todos if p["estado"]=="Pendiente"]
     for p in activos:
-        p["pizzas"]  = [i for i in p["productos"] if i["tipo"] == "Pizza"]
-        p["bebidas"] = [i for i in p["productos"] if i["tipo"] == "Bebida"]
+        p["pizzas"]  = [i for i in p["productos"] if i["tipo"]=="Pizza"]
+        p["bebidas"] = [i for i in p["productos"] if i["tipo"]=="Bebida"]
     grupos = {}
     for p in activos:
         k = p.get("franja_hora") or "Sin hora"
-        grupos.setdefault(k, []).append(p)
+        grupos.setdefault(k,[]).append(p)
     franjas_ord = [f for f in FRANJAS_HORA if f in grupos]
-    if "Sin hora" in grupos:
-        franjas_ord.append("Sin hora")
-    return render_template('cocina_pedidos.html',
-        activos=activos, grupos=grupos, franjas_ord=franjas_ord)
+    if "Sin hora" in grupos: franjas_ord.append("Sin hora")
+    return render_template('cocina_pedidos.html', activos=activos, grupos=grupos, franjas_ord=franjas_ord)
 
 @app.route('/cocina/pedido/<int:pid>/listo', methods=['POST'])
 @rol_required('Cocina')
@@ -855,7 +790,7 @@ def cocina_notifs():
 @app.route('/api/pedidos_count')
 @login_required
 def api_pedidos_count():
-    activos = sum(1 for p in get_pedidos() if p["estado"] == "Pendiente")
+    activos = sum(1 for p in get_pedidos() if p["estado"]=="Pendiente")
     return jsonify({"count": activos})
 
 if __name__ == '__main__':
