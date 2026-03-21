@@ -484,7 +484,7 @@ def mesero_pedidos():
 @rol_required('Mesero')
 def mesero_editar(pid):
     pedido = get_pedido(pid)
-    if not pedido or pedido['estado'] not in ['Pendiente']:
+    if not pedido or pedido['estado'] in ['Pagado']:
         return redirect(url_for('mesero_pedidos'))
     if request.method == 'POST':
         data   = request.get_json()
@@ -496,6 +496,10 @@ def mesero_editar(pid):
         restaurar_inventario(pedido['productos'])
         actualizar_pedido(pid, items, notas, franja)
         descontar_inventario(items)
+        # Si estaba Listo, volver a Pendiente para que cocina lo vea de nuevo
+        if pedido['estado'] == 'Listo':
+            with _conn() as c:
+                c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
         add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"] * i["precio_unit"] for i in items))
         return jsonify({'ok': True})
