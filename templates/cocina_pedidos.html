@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}— Cocina{% endblock %}
 {% block content %}
+
 <div class="refresh-bar">
   <div class="refresh-indicator">
     <div class="refresh-dot"></div>
@@ -17,91 +18,88 @@
 </div>
 
 {% else %}
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-  <span style="font-family:var(--fh);font-size:1.1rem;color:var(--orange)">
-    {{ activos | length }} pedido{{ 's' if activos|length!=1 else '' }} en espera
-  </span>
+<div style="margin-bottom:14px;font-family:var(--fh);font-size:1.1rem;color:var(--orange)">
+  {{ activos | length }} pedido{% if activos|length != 1 %}s{% endif %} en espera
 </div>
 
 <div class="k-groups">
 {% for franja in franjas_ord %}
-{% set pedidos_grupo = grupos[franja] %}
 
-<div>
-  {% if franja == 'Sin hora' %}
-    <div class="k-group-header k-gh-gray">
-  {% elif loop.index0 == 0 %}
-    <div class="k-group-header k-gh-red">
-  {% elif loop.index0 == 1 %}
-    <div class="k-group-header k-gh-orange">
-  {% elif loop.index0 == 2 %}
-    <div class="k-group-header k-gh-accent">
-  {% else %}
-    <div class="k-group-header k-gh-panel">
-  {% endif %}
-    <span>{% if loop.index0 == 0 and franja != 'Sin hora' %}🔴{% else %}⏰{% endif %} {{ franja }}</span>
-    <span style="font-size:.85rem;font-weight:500">{{ pedidos_grupo|length }} pedido{{ 's' if pedidos_grupo|length!=1 else '' }}</span>
-  </div>
+  <div style="margin-bottom:20px">
 
-  <div class="k-grid">
-    {% for p in pedidos_grupo %}
-    <div class="k-card">
-      <div class="k-card-head">
-        <div>
-          <div class="k-card-id">#{{ p.id }}</div>
-          <div class="k-card-code">{{ p.mesa }}</div>
-          <div class="text-xs c-gray mt-4">{{ p.mesero }} · {{ p.hora }}</div>
-        </div>
-        <span class="k-franja-tag">{{ p.franja_hora or 'Sin hora' }}</span>
-      </div>
-
-      {% set pizzas  = [] %}
-      {% set bebidas = [] %}
-      {% for it in p.items %}
-        {% if it.tipo == 'Pizza' %}{% set _ = pizzas.append(it) %}{% endif %}
-        {% if it.tipo == 'Bebida' %}{% set _ = bebidas.append(it) %}{% endif %}
-      {% endfor %}
-
-      {% if pizzas %}
-      <div class="k-sec-lbl">🍕 Pizzas</div>
-      {% for it in pizzas %}
-      <div class="k-item">
-        <span class="k-item-qty">{{ it.cantidad }}×</span>
-        <span class="k-item-name">{{ it.nombre }}</span>
-      </div>
-      {% endfor %}
-      {% endif %}
-
-      {% if bebidas %}
-      <div class="k-sec-lbl">🥤 Bebidas</div>
-      {% for it in bebidas %}
-      <div class="k-item">
-        <span class="k-item-qty k-item-bqty">{{ it.cantidad }}×</span>
-        <span class="k-item-name">{{ it.nombre }}</span>
-      </div>
-      {% endfor %}
-      {% endif %}
-
-      {% if p.notas %}
-      <div class="k-notas">
-        <div class="k-notas-lbl">📝 Notas</div>
-        <div class="k-notas-txt">{{ p.notas }}</div>
-      </div>
-      {% endif %}
-
-      <form method="post" action="{{ url_for('cocina_listo', pid=p.id) }}"
-            onsubmit="return confirm('¿Marcar pedido #{{ p.id }} como LISTO?')">
-        <button type="submit" class="btn btn-green btn-full btn-lg mt-12">
-          ✅ LISTO — Pasar a cobro
-        </button>
-      </form>
+    {% if franja == 'Sin hora' %}
+      <div class="k-group-header k-gh-gray">
+    {% elif loop.index == 1 %}
+      <div class="k-group-header k-gh-red">
+    {% elif loop.index == 2 %}
+      <div class="k-group-header k-gh-orange">
+    {% elif loop.index == 3 %}
+      <div class="k-group-header k-gh-accent">
+    {% else %}
+      <div class="k-group-header k-gh-panel">
+    {% endif %}
+      <span>{% if loop.index == 1 and franja != 'Sin hora' %}🔴{% else %}⏰{% endif %} {{ franja }}</span>
+      <span style="font-size:.85rem;font-weight:500">
+        {{ grupos[franja]|length }} pedido{% if grupos[franja]|length != 1 %}s{% endif %}
+      </span>
     </div>
+
+    <div class="k-grid">
+    {% for p in grupos[franja] %}
+      <div class="k-card">
+
+        <div class="k-card-head">
+          <div>
+            <div class="k-card-id">#{{ p.id }}</div>
+            <div class="k-card-code">{{ p.mesa }}</div>
+            <div class="text-xs c-gray mt-4">{{ p.mesero }} · {{ p.hora }}</div>
+          </div>
+          <span class="k-franja-tag">{{ p.franja_hora if p.franja_hora else 'Sin hora' }}</span>
+        </div>
+
+        {% if p.pizzas %}
+          <div class="k-sec-lbl">🍕 Pizzas</div>
+          {% for it in p.pizzas %}
+          <div class="k-item">
+            <span class="k-item-qty">{{ it.cantidad }}×</span>
+            <span class="k-item-name">{{ it.nombre }}</span>
+          </div>
+          {% endfor %}
+        {% endif %}
+
+        {% if p.bebidas %}
+          <div class="k-sec-lbl">🥤 Bebidas</div>
+          {% for it in p.bebidas %}
+          <div class="k-item">
+            <span class="k-item-qty k-item-bqty">{{ it.cantidad }}×</span>
+            <span class="k-item-name">{{ it.nombre }}</span>
+          </div>
+          {% endfor %}
+        {% endif %}
+
+        {% if p.notas %}
+        <div class="k-notas">
+          <div class="k-notas-lbl">📝 Notas</div>
+          <div class="k-notas-txt">{{ p.notas }}</div>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/cocina/pedido/{{ p.id }}/listo"
+              onsubmit="return confirm('¿Marcar pedido #{{ p.id }} como LISTO?')">
+          <button type="submit" class="btn btn-green btn-full btn-lg mt-12">
+            ✅ LISTO — Pasar a cobro
+          </button>
+        </form>
+
+      </div>
     {% endfor %}
+    </div>
+
   </div>
-</div>
 {% endfor %}
 </div>
 {% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -110,16 +108,16 @@ let seconds = 30;
 const cntEl = document.querySelector('#countdown strong');
 
 async function checkNotifs(){
-  try{
+  try {
     const r = await fetch('/cocina/notificaciones');
     const data = await r.json();
-    data.forEach(n=>{
-      showToast('⚠️ Pedido #'+n.pid+' fue modificado: '+n.detalle, 6000);
+    data.forEach(function(n){
+      showToast('⚠️ Pedido #' + n.pid + ' fue modificado: ' + n.detalle, 6000);
     });
-  } catch(e){}
+  } catch(e) {}
 }
 
-const timer = setInterval(()=>{
+const timer = setInterval(function(){
   seconds--;
   if(cntEl) cntEl.textContent = seconds;
   if(seconds <= 0){ clearInterval(timer); window.location.reload(); }
