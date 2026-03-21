@@ -24,6 +24,18 @@
   </div>
 </div>
 
+{% if error %}
+<div class="flash flash-error mb-12">⚠ Error: {{ error }}</div>
+{% endif %}
+
+{% if sin_inventario %}
+<div class="card mb-16" style="border:2px solid var(--orange);background:rgba(245,166,35,.08);padding:16px">
+  <div style="font-size:1.1rem;font-weight:700;color:var(--orange);margin-bottom:8px">⚠ Sin inventario registrado para {{ fecha }}</div>
+  <div class="text-sm c-gray" style="margin-bottom:12px">Para hacer el cierre del día, primero debes cargar el inventario inicial desde <strong>Inventario</strong>. El cierre compara lo que ingresó vs lo que se vendió.</div>
+  <a href="{{ url_for('admin_inventario') }}" class="btn btn-orange btn-sm">📦 Ir a cargar inventario</a>
+</div>
+{% endif %}
+
 {% if saved_dict %}
 <div class="flash flash-success mb-12">✅ Cierre del {{ fecha }} ya fue guardado. Puedes editarlo y volver a guardar.</div>
 {% endif %}
