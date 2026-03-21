@@ -35,7 +35,7 @@
     {% endif %}
     <div class="p-foot">
       <span class="p-total">{{ p.total | cop }}</span>
-      {% if p.estado == 'Pendiente' %}
+      {% if p.estado in ['Pendiente', 'Listo'] %}
       <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm">✏ Editar</a>
       {% endif %}
     </div>
