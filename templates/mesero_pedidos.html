@@ -17,7 +17,7 @@
     <div class="p-franja">⏰ Entrega: {{ p.franja_hora }}</div>
     {% endif %}
     <div class="p-items">
-      {% for it in p.items %}
+      {% for it in p.productos %}
       <div class="p-item">
         <span class="p-item-qty">{{ it.cantidad }}×</span>
         <span class="p-item-name">{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
