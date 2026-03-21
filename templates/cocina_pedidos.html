@@ -51,6 +51,11 @@
             <div class="k-card-id">#{{ p.id }}</div>
             <div class="k-card-code">{{ p.mesa }}</div>
             <div class="text-xs c-gray mt-4">{{ p.mesero }} · {{ p.hora }}</div>
+            {% if p.pago %}
+            <div style="margin-top:5px">
+              <span style="background:rgba(78,203,113,.2);color:var(--green);font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px">💳 Ya pagado · {{ p.pago }}</span>
+            </div>
+            {% endif %}
           </div>
           <span class="k-franja-tag">{{ p.franja_hora if p.franja_hora else 'Sin hora' }}</span>
         </div>
