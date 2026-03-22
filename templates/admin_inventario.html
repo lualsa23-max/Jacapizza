@@ -21,12 +21,6 @@
            name="stock_{{ nombre }}" value="{{ cur_stock }}" data-key="stock_{{ nombre }}">
   </div>
   <div class="inv-spin">
-    <span>Precio $</span>
-    <input class="inv-input" type="number" min="0" step="500"
-           name="precio_{{ nombre }}" data-key="precio_{{ nombre }}"
-           placeholder="precio" style="width:90px">
-  </div>
-  <div class="inv-spin">
     <span>Alerta</span>
     <input class="inv-input" type="number" min="1" max="99"
            name="alerta_{{ nombre }}" value="{{ cur_alerta }}" data-key="alerta_{{ nombre }}" style="width:50px">
@@ -106,10 +100,6 @@ function addNuevo(){
         <label class="form-label">Nombre del producto</label>
         <input class="form-input nuevo-nombre" type="text" placeholder="Ej: Cerveza Águila Cero" style="min-height:40px;font-size:.88rem">
       </div>
-      <div style="flex:1;min-width:90px">
-        <label class="form-label">Precio COP</label>
-        <input class="form-input nuevo-precio" type="number" placeholder="4000" step="500" style="min-height:40px;font-size:.88rem">
-      </div>
       <div style="flex:1;min-width:70px">
         <label class="form-label">Stock inicial</label>
         <input class="form-input nuevo-stock" type="number" placeholder="0" min="0" style="min-height:40px;font-size:.88rem">
@@ -129,7 +119,7 @@ function addNuevo(){
     </div>
     <div style="background:rgba(78,203,113,.1);border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;align-items:center;gap:8px">
       <span style="font-size:1.1rem">💡</span>
-      <span class="text-sm c-green">Cuando termines de llenar los campos, toca el botón <strong>"💾 Guardar inventario"</strong> al final de la página para guardar todo.</span>
+      <span class="text-sm c-green">El precio se asigna en <strong>Menú</strong>. Aquí solo controlas stock y alertas.</span>
     </div>
   `;
   c.appendChild(row);
@@ -139,11 +129,10 @@ function addNuevo(){
 async function guardar(){
   const payload = {};
 
-  // Standard items
+  // Standard items (stock y alerta)
   document.querySelectorAll('[data-key]').forEach(el=>{
     const val = el.value;
-    if(val !== '') payload[el.dataset.key] = el.dataset.key.startsWith('stock_') || el.dataset.key.startsWith('alerta_')
-      ? parseInt(val)||0 : parseFloat(val)||0;
+    if(val !== '') payload[el.dataset.key] = parseInt(val)||0;
   });
 
   // Pulpas
@@ -155,15 +144,14 @@ async function guardar(){
   });
   payload.pulpas = pulpas;
 
-  // New items
+  // New items (sin precio — se asigna en Menú)
   const nuevos = [];
   document.querySelectorAll('.nuevo-row').forEach(row=>{
     const nombre = row.querySelector('.nuevo-nombre').value.trim();
-    const precio = parseFloat(row.querySelector('.nuevo-precio').value)||0;
     const stock  = parseInt(row.querySelector('.nuevo-stock').value)||0;
     const alerta = parseInt(row.querySelector('.nuevo-alerta').value)||5;
     const tipo_cat = row.querySelector('.nuevo-tipo').value;
-    if(nombre) nuevos.push({nombre, precio, stock, alerta, tipo_cat});
+    if(nombre) nuevos.push({nombre, stock, alerta, tipo_cat});
   });
   payload.nuevos = nuevos;
 
