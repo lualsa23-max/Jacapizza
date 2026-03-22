@@ -438,13 +438,7 @@ def admin_inventario():
         for nombre, (tipo, _) in inv_std.items():
             stock  = int(data.get(f'stock_{nombre}', 0))
             alerta = int(data.get(f'alerta_{nombre}', 5))
-            precio = data.get(f'precio_{nombre}')
             upsert_inventario(nombre, tipo, stock, alerta)
-            if precio:
-                try:
-                    with _conn() as c:
-                        c.execute("UPDATE catalogo SET precio=? WHERE nombre=?", (float(precio), nombre))
-                except: pass
         hoy = ahora().strftime("%d/%m/%Y")
         with _conn() as c:
             c.execute("DELETE FROM inventario WHERE tipo='pulpa' AND fecha=?", (hoy,))
@@ -454,16 +448,15 @@ def admin_inventario():
         for item in data.get('nuevos', []):
             nombre   = item.get('nombre','').strip()
             tipo_cat = item.get('tipo_cat','bebida')
-            precio   = float(item.get('precio',0) or 0)
             stock    = int(item.get('stock',0) or 0)
             alerta   = int(item.get('alerta',5) or 5)
             if nombre:
                 try:
                     with _conn() as c:
-                        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,1,?,1)",
-                                  (nombre, tipo_cat, precio, alerta))
-                        c.execute("UPDATE catalogo SET precio=?,en_inventario=1,activo=1,alerta_min=? WHERE nombre=?",
-                                  (precio, alerta, nombre))
+                        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,0,1,?,1)",
+                                  (nombre, tipo_cat, alerta))
+                        c.execute("UPDATE catalogo SET en_inventario=1,activo=1,alerta_min=? WHERE nombre=?",
+                                  (alerta, nombre))
                 except: pass
                 upsert_inventario(nombre, 'bebida', stock, alerta)
         return jsonify({'ok': True})
