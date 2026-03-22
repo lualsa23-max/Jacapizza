@@ -82,6 +82,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS inventario (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
             tipo TEXT NOT NULL, stock INTEGER DEFAULT 0,
+            stock_inicial INTEGER DEFAULT 0,
             alerta_min INTEGER DEFAULT 5, fecha TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS cierres_inventario (
@@ -99,7 +100,8 @@ def init_db():
         );
         """)
         for col in ["ALTER TABLE pedidos ADD COLUMN notas TEXT DEFAULT ''",
-                    "ALTER TABLE pedidos ADD COLUMN franja_hora TEXT DEFAULT ''"]:
+                    "ALTER TABLE pedidos ADD COLUMN franja_hora TEXT DEFAULT ''",
+                    "ALTER TABLE inventario ADD COLUMN stock_inicial INTEGER DEFAULT 0"]:
             try: c.execute(col)
             except: pass
 
@@ -286,14 +288,17 @@ def get_stock_dict():
 def upsert_inventario(nombre, tipo, stock, alerta_min=None):
     hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
-        ex = c.execute("SELECT id,alerta_min FROM inventario WHERE nombre=? AND fecha=?", (nombre, hoy)).fetchone()
+        ex = c.execute("SELECT id,alerta_min,stock_inicial FROM inventario WHERE nombre=? AND fecha=?", (nombre, hoy)).fetchone()
         if ex:
             amin = alerta_min if alerta_min is not None else ex["alerta_min"]
-            c.execute("UPDATE inventario SET stock=?,alerta_min=? WHERE id=?", (max(0, stock), amin, ex["id"]))
+            # Si stock_inicial era 0 (nunca se cargó), actualizarlo también
+            si = ex["stock_inicial"] if ex["stock_inicial"] > 0 else stock
+            c.execute("UPDATE inventario SET stock=?,alerta_min=?,stock_inicial=? WHERE id=?",
+                      (max(0, stock), amin, si, ex["id"]))
         else:
             amin = alerta_min if alerta_min is not None else 5
-            c.execute("INSERT INTO inventario (nombre,tipo,stock,alerta_min,fecha) VALUES (?,?,?,?,?)",
-                      (nombre, tipo, max(0, stock), amin, hoy))
+            c.execute("INSERT INTO inventario (nombre,tipo,stock,stock_inicial,alerta_min,fecha) VALUES (?,?,?,?,?,?)",
+                      (nombre, tipo, max(0, stock), max(0, stock), amin, hoy))
 
 def ajustar_stock(nombre, delta):
     hoy = ahora().strftime("%d/%m/%Y")
@@ -491,11 +496,12 @@ def admin_cierre():
         with _conn() as c:
             inv_rows = c.execute("SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (fecha,)).fetchall()
         inv_fecha    = {r["nombre"]: r["stock"] for r in inv_rows}
+        inv_inicial  = {r["nombre"]: (r["stock_inicial"] if r["stock_inicial"] > 0 else r["stock"]) for r in inv_rows}
         vendido_dict = get_vendido_hoy(fecha)
         pizza_vend   = sum(v["cantidad"] for v in vendido_dict.values() if v["tipo"] == "Pizza")
         cierre_items = []
         for nombre, (tipo, _) in get_inv_estandar().items():
-            stock_ini = inv_fecha.get(nombre, 0)
+            stock_ini = inv_inicial.get(nombre, 0)
             if tipo == "pizza":
                 vend = pizza_vend
             else:
@@ -504,12 +510,13 @@ def admin_cierre():
             cierre_items.append({"nombre": nombre, "tipo": tipo,
                                   "stock_inicial": stock_ini, "vendido": vend, "teorico": teorico})
         with _conn() as c:
-            pulpa_rows = c.execute("SELECT nombre, stock FROM inventario WHERE tipo='pulpa' AND fecha=?", (fecha,)).fetchall()
+            pulpa_rows = c.execute("SELECT nombre, stock, stock_inicial FROM inventario WHERE tipo='pulpa' AND fecha=?", (fecha,)).fetchall()
         for r in pulpa_rows:
+            s_ini = r["stock_inicial"] if r["stock_inicial"] > 0 else r["stock"]
             vend = sum(v["cantidad"] for k, v in vendido_dict.items() if k.startswith("Jugo Natural") and r["nombre"] in k)
-            teorico = max(0, r["stock"] - vend)
+            teorico = max(0, s_ini - vend)
             cierre_items.append({"nombre": r["nombre"], "tipo": "pulpa",
-                                  "stock_inicial": r["stock"], "vendido": vend, "teorico": teorico})
+                                  "stock_inicial": s_ini, "vendido": vend, "teorico": teorico})
         with _conn() as c:
             saved = c.execute("SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY nombre", (fecha,)).fetchall()
         saved_dict = {r["nombre"]: dict(r) for r in saved}
