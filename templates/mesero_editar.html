@@ -3,10 +3,25 @@
 {% block content %}
 <h2 class="sec-title">✏ Editando Pedido #{{ pedido.id }} — {{ pedido.mesa }}</h2>
 
-{% if pedido.pago %}
+{% if pedido.pagos %}
 <div class="card mb-12" style="border:1.5px solid var(--green);background:rgba(78,203,113,.08)">
-  <div class="text-sm c-green font-bold">💳 Este pedido ya fue pagado con: {{ pedido.pago }}</div>
-  <div class="text-xs c-gray mt-4">Puedes modificar los ítems — cocina será notificada del cambio.</div>
+  <div class="text-sm c-green font-bold mb-8">💳 Pagos registrados en este pedido</div>
+  {% for pg in pedido.pagos %}
+  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.85rem">
+    <span>{{ pg.metodo }} — {{ pg.cobrado_por }} · {{ pg.hora }}</span>
+    <span class="c-green font-bold">{{ pg.monto | cop }}</span>
+  </div>
+  {% endfor %}
+  <div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:.9rem;font-weight:700">
+    <span>Total pagado</span>
+    <span class="c-green">{{ pedido.total_pagado | cop }}</span>
+  </div>
+  {% if pedido.saldo > 0 %}
+  <div style="display:flex;justify-content:space-between;padding:4px 0 0;font-size:.9rem;font-weight:700">
+    <span class="c-red">Saldo pendiente</span>
+    <span class="c-red">{{ pedido.saldo | cop }}</span>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -71,9 +86,12 @@
     💾 Guardar cambios — Notificar cocina
   </button>
 
-  {% if not pedido.pago %}
+  {% if pedido.saldo > 0 %}
   <div class="card mt-10" style="border:2px solid var(--green);padding:14px">
-    <div class="text-sm font-bold c-green mb-10">💵 ¿El cliente ya pagó? Registra el pago aquí</div>
+    <div class="text-sm font-bold c-green mb-4">💵 Cobrar {% if pedido.total_pagado > 0 %}saldo pendiente{% else %}ahora{% endif %}</div>
+    {% if pedido.total_pagado > 0 %}
+    <div class="text-xs c-gray mb-10">Ya pagó {{ pedido.total_pagado | cop }}. Falta: <strong class="c-red">{{ pedido.saldo | cop }}</strong></div>
+    {% endif %}
     <div class="pay-grid" style="margin-bottom:10px">
       <button class="btn btn-ghost btn-sm" id="pay-Efectivo"     onclick="selPago('Efectivo')"   >💵 Efectivo</button>
       <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"      onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
