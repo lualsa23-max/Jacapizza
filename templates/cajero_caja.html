@@ -31,6 +31,9 @@
     <div style="flex:1">
       <div class="font-bold">#{{ p.id }} — {{ p.mesa }}</div>
       <div class="text-xs c-gray">{{ p.mesero }} · {{ p.hora }}</div>
+      {% if p.cobrado_por %}
+      <div class="text-xs c-accent" style="margin-top:2px">💁 Cobró: {{ p.cobrado_por }}</div>
+      {% endif %}
     </div>
     {% set col_map = {'Efectivo':'c-green','Tarjeta':'c-orange','Nequi':'c-accent','Daviplata':'c-blue','Llave Bre-B':'c-coral'} %}
     <span class="text-sm font-bold {{ col_map.get(p.pago,'c-white') }}">{{ p.pago }}</span>
