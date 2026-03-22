@@ -101,7 +101,8 @@ def init_db():
         """)
         for col in ["ALTER TABLE pedidos ADD COLUMN notas TEXT DEFAULT ''",
                     "ALTER TABLE pedidos ADD COLUMN franja_hora TEXT DEFAULT ''",
-                    "ALTER TABLE inventario ADD COLUMN stock_inicial INTEGER DEFAULT 0"]:
+                    "ALTER TABLE inventario ADD COLUMN stock_inicial INTEGER DEFAULT 0",
+                    "ALTER TABLE pedidos ADD COLUMN cobrado_por TEXT DEFAULT ''"]:
             try: c.execute(col)
             except: pass
 
@@ -179,7 +180,8 @@ def _pedido_from_row(row, prods):
         "id": row["id"], "mesa": row["codigo"], "mesero": row["mesero"],
         "estado": row["estado"], "total": row["total"], "hora": row["hora"],
         "fecha": row["fecha"], "pago": row["pago"], "modificado": bool(row["modificado"]),
-        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "", "productos": prods,
+        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "",
+        "cobrado_por": row["cobrado_por"] or "", "productos": prods,
     }
 
 def _get_items(c, pid):
@@ -211,9 +213,9 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
                       (pid, i["nombre"], i["tipo"], i["cantidad"], i["precio_unit"]))
     return get_pedido(pid)
 
-def cobrar_pedido(pid, metodo):
+def cobrar_pedido(pid, metodo, cobrado_por=""):
     with _conn() as c:
-        c.execute("UPDATE pedidos SET estado='Pagado', pago=? WHERE id=?", (metodo, pid))
+        c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?", (metodo, cobrado_por, pid))
 
 def actualizar_pedido(pid, items, notas=None, franja_hora=None):
     total = sum(i["cantidad"] * i["precio_unit"] for i in items)
@@ -685,7 +687,8 @@ def mesero_nuevo():
         descontar_inventario(items)
         if cobrar_ya:
             with _conn() as c:
-                c.execute("UPDATE pedidos SET pago=? WHERE id=?", (metodo_pago, p['id']))
+                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
+                          (metodo_pago, session['nombre'], p['id']))
             return jsonify({'ok':True,'id':p['id'],'cobrado':True})
         return jsonify({'ok':True,'id':p['id'],'cobrado':False})
     stock  = get_stock_dict()
@@ -711,6 +714,8 @@ def mesero_editar(pid):
         items  = data.get('items',[])
         notas  = data.get('notas', pedido['notas'])
         franja = data.get('franja', pedido['franja_hora'])
+        cobrar_ya   = data.get('cobrar_ya', False)
+        metodo_pago = data.get('metodo_pago', '')
         if not items:
             return jsonify({'error':'El pedido no puede quedar vacío'}), 400
         restaurar_inventario(pedido['productos'])
@@ -719,6 +724,11 @@ def mesero_editar(pid):
         if pedido['estado'] == 'Listo':
             with _conn() as c:
                 c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
+        # Registrar pago si se indicó
+        if cobrar_ya and metodo_pago:
+            with _conn() as c:
+                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
+                          (metodo_pago, session['nombre'], pid))
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
         add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"]*i["precio_unit"] for i in items))
         return jsonify({'ok':True})
@@ -742,7 +752,7 @@ def cajero_cobrar():
 @rol_required('Cajero')
 def cajero_pagar(pid):
     metodo = request.form.get('metodo','Efectivo')
-    cobrar_pedido(pid, metodo)
+    cobrar_pedido(pid, metodo, session['nombre'])
     flash(f'✅ Pedido #{pid} cobrado — {metodo}','success')
     return redirect(url_for('cajero_cobrar'))
 
@@ -750,7 +760,8 @@ def cajero_pagar(pid):
 @rol_required('Cajero')
 def cajero_confirmar_pago(pid):
     with _conn() as c:
-        c.execute("UPDATE pedidos SET estado='Pagado' WHERE id=? AND pago IS NOT NULL", (pid,))
+        c.execute("UPDATE pedidos SET estado='Pagado', cobrado_por=CASE WHEN cobrado_por='' OR cobrado_por IS NULL THEN ? ELSE cobrado_por END WHERE id=? AND pago IS NOT NULL",
+                  (session['nombre'], pid))
     flash(f'✅ Pedido #{pid} confirmado como pagado','success')
     return redirect(url_for('cajero_cobrar'))
 
