@@ -421,9 +421,11 @@ async function confirmarPedido(cobrarYa){
   const notas=document.getElementById('notas-txt').value.trim();
   const total=carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
   const items_txt=carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
+  const soloBebidas = carrito.every(i=>i.tipo!=='Pizza');
+  const destino = soloBebidas ? '→ Directo a cobro (sin cocina)' : '→ Enviar a cocina\nEntrega: '+franja;
   const msg=cobrarYa
     ?'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nPago: '+metodoPagoSel+'\n\n¿Confirmar y cobrar ahora?'
-    :'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nEntrega: '+franja+'\n\n¿Enviar a cocina?';
+    :'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\n'+destino+'\n\n¿Confirmar?';
   if(!confirm(msg)) return;
   try{
     const r=await fetch('/mesero/nuevo',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -431,6 +433,7 @@ async function confirmarPedido(cobrarYa){
     const d=await r.json();
     if(d.ok){
       if(d.cobrado) alert('✅ Pedido #'+d.id+' registrado y cobrado con '+metodoPagoSel+'!');
+      else if(d.solo_bebidas) alert('✅ Pedido #'+d.id+' registrado.\n🥤 Solo bebidas — pasa directo a cobro.');
       else alert('✅ Pedido #'+d.id+' enviado a cocina!\nCódigo: '+codigo+'\nHora: '+franja);
       editarCodigo(); limpiarCarrito();
       switchTab('pizzas', document.querySelectorAll('.order-tab')[0]);
