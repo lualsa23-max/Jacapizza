@@ -459,14 +459,54 @@ def dashboard():
 def admin_resumen():
     hoy   = ahora().strftime("%d/%m/%Y")
     todos = get_pedidos()
-    total_dia  = sum(p["total"] for p in todos if p["fecha"]==hoy and p["estado"]=="Pagado")
-    pagados    = sum(1 for p in todos if p["estado"]=="Pagado")
-    pendientes = sum(1 for p in todos if p["estado"]=="Pendiente")
+    hoy_todos    = [p for p in todos if p["fecha"]==hoy]
+    hoy_pagados  = [p for p in hoy_todos if p["estado"]=="Pagado"]
+    pendientes   = sum(1 for p in hoy_todos if p["estado"]=="Pendiente")
+    listos       = sum(1 for p in hoy_todos if p["estado"]=="Listo")
     cobros_pendientes = sum(1 for p in todos if p["estado"]=="Listo" and p["fecha"]!=hoy)
+
+    # Pizzas vendidas hoy (de pedidos pagados)
+    pizzas_vendidas = 0
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COALESCE(SUM(i.cantidad),0) as total FROM items i "
+            "JOIN pedidos p ON p.id=i.pedido_id "
+            "WHERE i.tipo='Pizza' AND p.fecha=? AND p.estado='Pagado'", (hoy,)).fetchone()
+        pizzas_vendidas = row["total"] if row else 0
+
+    # Masas disponibles
+    stock = get_stock_dict()
+    masas_disponibles = stock.get("Pizza (masa)", 0)
+    masas_iniciales = 0
+    with _conn() as c:
+        row = c.execute("SELECT stock_inicial FROM inventario WHERE nombre='Pizza (masa)' AND fecha=?", (hoy,)).fetchone()
+        if row: masas_iniciales = row["stock_inicial"] if row["stock_inicial"] > 0 else 0
+
+    # Pagos del día desde tabla pagos
+    with _conn() as c:
+        pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=?", (hoy,)).fetchall()
+    total_cobrado  = sum(r["monto"] for r in pagos_hoy)
+    total_cobros   = len(pagos_hoy)
+    metodos_hoy = {}
+    for r in pagos_hoy:
+        metodos_hoy[r["metodo"]] = metodos_hoy.get(r["metodo"], 0) + r["monto"]
+    por_cobrador = {}
+    for r in pagos_hoy:
+        por_cobrador[r["cobrado_por"]] = por_cobrador.get(r["cobrado_por"], 0) + r["monto"]
+
+    # Total pendiente por cobrar (pedidos Listo de hoy)
+    total_por_cobrar = sum(p["saldo"] for p in hoy_todos if p["estado"]=="Listo" and p["saldo"]>0)
+
     return render_template('admin_resumen.html',
-        total_dia=total_dia, total_pedidos=len(todos),
-        pagados=pagados, pendientes=pendientes,
-        cobros_pendientes=cobros_pendientes, ultimos=todos[:10], hoy=hoy)
+        hoy=hoy, total_pedidos_hoy=len(hoy_todos),
+        pagados=len(hoy_pagados), pendientes=pendientes, listos=listos,
+        cobros_pendientes=cobros_pendientes,
+        pizzas_vendidas=pizzas_vendidas, masas_disponibles=masas_disponibles,
+        masas_iniciales=masas_iniciales,
+        total_cobrado=total_cobrado, total_cobros=total_cobros,
+        total_por_cobrar=total_por_cobrar,
+        metodos_hoy=metodos_hoy, por_cobrador=por_cobrador,
+        ultimos=hoy_todos[:10])
 
 @app.route('/admin/inventario', methods=['GET','POST'])
 @rol_required('Administrador')
