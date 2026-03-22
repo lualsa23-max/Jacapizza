@@ -20,7 +20,8 @@ if _db_dir and not os.path.exists(_db_dir):
     except: DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
 
 USUARIOS = {
-    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Luis Sarmiento"},
+    "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Natalia de Sarmiento"},
+    "luis":    {"password": "luis2026",   "rol": "Administrador", "nombre": "Luis Sarmiento"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
@@ -744,10 +745,15 @@ def mesero_nuevo():
             return jsonify({'error': f'Solo quedan {masas} masa(s) de pizza disponibles'}), 400
         p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
         descontar_inventario(items)
+        # Si es solo bebidas (sin pizzas), salta cocina → directo a Listo
+        solo_bebidas = all(i["tipo"] != "Pizza" for i in items)
+        if solo_bebidas and not cobrar_ya:
+            with _conn() as c:
+                c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (p['id'],))
         if cobrar_ya:
             registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'])
-            return jsonify({'ok':True,'id':p['id'],'cobrado':True})
-        return jsonify({'ok':True,'id':p['id'],'cobrado':False})
+            return jsonify({'ok':True,'id':p['id'],'cobrado':True,'solo_bebidas':solo_bebidas})
+        return jsonify({'ok':True,'id':p['id'],'cobrado':False,'solo_bebidas':solo_bebidas})
     stock  = get_stock_dict()
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
