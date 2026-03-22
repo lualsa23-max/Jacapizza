@@ -2,6 +2,27 @@
 {% block title %}— Todos los Pedidos{% endblock %}
 {% block content %}
 <h2 class="sec-title">📋 Todos los Pedidos</h2>
+
+<div class="card mb-12" style="padding:12px">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <a href="{{ url_for('admin_pedidos', fecha=hoy) }}"
+       class="btn btn-sm {% if fecha_filtro==hoy %}btn-primary{% else %}btn-ghost{% endif %}">📅 Hoy</a>
+    <a href="{{ url_for('admin_pedidos', fecha=ayer) }}"
+       class="btn btn-sm {% if fecha_filtro==ayer %}btn-primary{% else %}btn-ghost{% endif %}">⏪ Ayer</a>
+    <a href="{{ url_for('admin_pedidos', fecha='todos') }}"
+       class="btn btn-sm {% if fecha_filtro=='todos' %}btn-primary{% else %}btn-ghost{% endif %}">📋 Todos</a>
+    <form method="get" style="display:flex;gap:6px;align-items:center;margin-left:auto">
+      <input class="form-input" type="text" name="fecha" value="{{ fecha_filtro }}"
+             placeholder="dd/mm/aaaa" style="width:130px;min-height:36px;font-size:.85rem">
+      <button type="submit" class="btn btn-ghost btn-sm" style="min-height:36px">Buscar</button>
+    </form>
+  </div>
+  <div class="text-xs c-gray mt-8">
+    {% if fecha_filtro == 'todos' %}Mostrando todos los pedidos ({{ pedidos|length }})
+    {% else %}Mostrando pedidos del {{ fecha_filtro }} ({{ pedidos|length }}){% endif %}
+  </div>
+</div>
+
 {% if pedidos %}
 <div class="tbl-wrap card" style="padding:0">
   <table>
