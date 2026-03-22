@@ -22,6 +22,7 @@
 
 <div class="nav-tabs">
 {% if session.rol == 'Administrador' %}
+  <a href="{{ url_for('admin_resumen') }}"      class="tab {% if request.endpoint=='admin_resumen' %}active{% endif %}">📊 Resumen</a>
   <a href="{{ url_for('mesero_nuevo') }}"      class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
   <a href="{{ url_for('admin_pedidos') }}"      class="tab {% if request.endpoint=='admin_pedidos' %}active{% endif %}">📋 Pedidos</a>
   <a href="{{ url_for('cocina_pedidos') }}"     class="tab {% if request.endpoint=='cocina_pedidos' %}active{% endif %}">🍳 Cocina</a>
@@ -31,7 +32,7 @@
   <a href="{{ url_for('admin_menu_pizzas') }}"  class="tab {% if request.endpoint in ['admin_menu_pizzas','admin_menu_bebidas'] %}active{% endif %}">🍕 Menú</a>
   <a href="{{ url_for('admin_inventario') }}"   class="tab {% if request.endpoint=='admin_inventario' %}active{% endif %}">📦 Inventario</a>
   <a href="{{ url_for('admin_usuarios') }}"     class="tab {% if request.endpoint=='admin_usuarios' %}active{% endif %}">👥 Usuarios</a>
-  <a href="{{ url_for('admin_reportes') }}"     class="tab {% if request.endpoint in ['admin_reportes','admin_resumen'] %}active{% endif %}">📈 Reportes</a>
+  <a href="{{ url_for('admin_reportes') }}"     class="tab {% if request.endpoint=='admin_reportes' %}active{% endif %}">📈 Reportes</a>
   <a href="{{ url_for('admin_cierre') }}"      class="tab {% if request.endpoint in ['admin_cierre','admin_cierre_historial'] %}active{% endif %}">📦 Cierre</a>
 
 {% elif session.rol == 'Mesero' %}
