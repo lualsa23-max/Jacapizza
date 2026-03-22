@@ -6,7 +6,7 @@
 <div class="tbl-wrap card" style="padding:0">
   <table>
     <thead>
-      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Pago</th><th>Hora</th><th>Fecha</th><th></th></tr>
+      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Pago</th><th>Cobró</th><th>Hora</th><th>Fecha</th><th></th></tr>
     </thead>
     <tbody>
       {% for p in pedidos %}
@@ -23,10 +23,20 @@
             <span class="c-gray">—</span>
           {% endif %}
         </td>
+        <td class="text-sm">
+          {% if p.cobrado_por %}
+            <span class="c-accent font-bold">{{ p.cobrado_por }}</span>
+          {% else %}
+            <span class="c-gray">—</span>
+          {% endif %}
+        </td>
         <td class="text-sm c-gray">{{ p.hora }}</td>
         <td class="text-sm c-gray">{{ p.fecha }}</td>
-        <td>
-          <form method="post" action="/admin/pedido/{{ p.id }}/eliminar"
+        <td style="white-space:nowrap">
+          {% if p.estado != 'Pagado' %}
+          <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm" style="margin-bottom:4px">✏</a>
+          {% endif %}
+          <form method="post" action="/admin/pedido/{{ p.id }}/eliminar" style="display:inline"
                 onsubmit="return confirm('¿Eliminar el pedido #{{ p.id }} de {{ p.mesa }}? Esta acción no se puede deshacer.')">
             <button type="submit" class="btn btn-danger btn-sm">🗑</button>
           </form>
