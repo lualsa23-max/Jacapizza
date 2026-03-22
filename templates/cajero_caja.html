@@ -24,20 +24,39 @@
   </div>
 </div>
 
+{% if por_cobrador %}
+<div class="card mt-12">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase">Recaudado por persona</h3>
+  {% for nombre, monto in por_cobrador.items() %}
+  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.88rem">
+    <span>💁 {{ nombre }}</span>
+    <span class="c-accent font-bold">{{ monto | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <h3 class="sec-title mt-16">Detalle de cobros</h3>
 {% if pedidos %}
   {% for p in pedidos | reverse %}
-  <div class="card mb-8" style="display:flex;align-items:center;gap:10px;padding:12px 14px">
-    <div style="flex:1">
-      <div class="font-bold">#{{ p.id }} — {{ p.mesa }}</div>
-      <div class="text-xs c-gray">{{ p.mesero }} · {{ p.hora }}</div>
-      {% if p.cobrado_por %}
-      <div class="text-xs c-accent" style="margin-top:2px">💁 Cobró: {{ p.cobrado_por }}</div>
-      {% endif %}
+  <div class="card mb-8" style="padding:12px 14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div class="font-bold">#{{ p.id }} — {{ p.mesa }}</div>
+        <div class="text-xs c-gray">{{ p.mesero }} · {{ p.hora }}</div>
+      </div>
+      <span class="font-bold c-green" style="font-size:1rem">{{ p.total | cop }}</span>
     </div>
-    {% set col_map = {'Efectivo':'c-green','Tarjeta':'c-orange','Nequi':'c-accent','Daviplata':'c-blue','Llave Bre-B':'c-coral'} %}
-    <span class="text-sm font-bold {{ col_map.get(p.pago,'c-white') }}">{{ p.pago }}</span>
-    <span class="font-bold c-green" style="font-size:1rem">{{ p.total | cop }}</span>
+    {% if p.pagos %}
+    <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--card2)">
+      {% for pg in p.pagos %}
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;padding:2px 0">
+        <span class="c-gray">{{ pg.metodo }} — 💁 {{ pg.cobrado_por }} · {{ pg.hora }}</span>
+        <span class="c-green">{{ pg.monto | cop }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 {% else %}
