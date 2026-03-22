@@ -1,7 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response
 import sqlite3, os, csv, io, json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
+
+# ── ZONA HORARIA COLOMBIA (UTC-5) ────────────────────
+TZ_COL = timezone(timedelta(hours=-5))
+
+def ahora():
+    """Retorna datetime actual en hora Colombia."""
+    return datetime.now(TZ_COL)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'jacapizza-secret-2024-xK9!')
@@ -190,8 +197,8 @@ def get_pedido(pid):
 
 def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
     total = sum(i["cantidad"] * i["precio_unit"] for i in items)
-    hora  = datetime.now().strftime("%H:%M")
-    fecha = datetime.now().strftime("%d/%m/%Y")
+    hora  = ahora().strftime("%H:%M")
+    fecha = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         cur = c.execute(
             "INSERT INTO pedidos (codigo,mesero,estado,total,hora,fecha,notas,franja_hora) VALUES (?,?,?,?,?,?,?,?)",
@@ -264,20 +271,20 @@ def get_reporte(fecha_ini, fecha_fin):
                 "por_metodo": por_metodo, "por_dia": por_dia, "top_items": top_items}
 
 def get_inventario_hoy():
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         rows = c.execute("SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (hoy,)).fetchall()
         return [{"id": r["id"], "nombre": r["nombre"], "tipo": r["tipo"],
                  "stock": r["stock"], "alerta_min": r["alerta_min"]} for r in rows]
 
 def get_stock_dict():
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         rows = c.execute("SELECT nombre, stock FROM inventario WHERE fecha=?", (hoy,)).fetchall()
         return {r["nombre"]: r["stock"] for r in rows}
 
 def upsert_inventario(nombre, tipo, stock, alerta_min=None):
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         ex = c.execute("SELECT id,alerta_min FROM inventario WHERE nombre=? AND fecha=?", (nombre, hoy)).fetchone()
         if ex:
@@ -289,7 +296,7 @@ def upsert_inventario(nombre, tipo, stock, alerta_min=None):
                       (nombre, tipo, max(0, stock), amin, hoy))
 
 def ajustar_stock(nombre, delta):
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         c.execute("UPDATE inventario SET stock=MAX(0,stock+?) WHERE nombre=? AND fecha=?", (delta, nombre, hoy))
 
@@ -323,7 +330,7 @@ def restaurar_inventario(items):
         if key: ajustar_stock(key, +item["cantidad"])
 
 def get_pulpas_hoy():
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         rows = c.execute(
             "SELECT nombre,stock,alerta_min FROM inventario WHERE tipo='pulpa' AND fecha=? ORDER BY nombre", (hoy,)).fetchall()
@@ -406,7 +413,7 @@ def dashboard():
 @app.route('/admin/resumen')
 @rol_required('Administrador')
 def admin_resumen():
-    hoy   = datetime.now().strftime("%d/%m/%Y")
+    hoy   = ahora().strftime("%d/%m/%Y")
     todos = get_pedidos()
     total_dia  = sum(p["total"] for p in todos if p["fecha"]==hoy and p["estado"]=="Pagado")
     pagados    = sum(1 for p in todos if p["estado"]=="Pagado")
@@ -433,7 +440,7 @@ def admin_inventario():
                     with _conn() as c:
                         c.execute("UPDATE catalogo SET precio=? WHERE nombre=?", (float(precio), nombre))
                 except: pass
-        hoy = datetime.now().strftime("%d/%m/%Y")
+        hoy = ahora().strftime("%d/%m/%Y")
         with _conn() as c:
             c.execute("DELETE FROM inventario WHERE tipo='pulpa' AND fecha=?", (hoy,))
         for p in data.get('pulpas', []):
@@ -463,7 +470,7 @@ def admin_inventario():
 @app.route('/admin/cierre', methods=['GET','POST'])
 @rol_required('Administrador')
 def admin_cierre():
-    hoy   = datetime.now().strftime("%d/%m/%Y")
+    hoy   = ahora().strftime("%d/%m/%Y")
     fecha = request.args.get('fecha', hoy)
     if request.method == 'POST':
         try:
@@ -559,16 +566,16 @@ def admin_eliminar_pedido(pid):
 @app.route('/admin/reportes')
 @rol_required('Administrador')
 def admin_reportes():
-    hoy     = datetime.now().strftime("%d/%m/%Y")
+    hoy     = ahora().strftime("%d/%m/%Y")
     periodo = request.args.get('periodo','hoy')
     fi      = request.args.get('fi', hoy)
     ff      = request.args.get('ff', hoy)
     if periodo == 'hoy':     fi = ff = hoy
     elif periodo == 'semana':
-        now = datetime.now()
+        now = ahora()
         fi  = (now - timedelta(days=now.weekday())).strftime("%d/%m/%Y"); ff = hoy
     elif periodo == 'mes':
-        now = datetime.now(); fi = f"01/{now.month:02d}/{now.year}"; ff = hoy
+        now = ahora(); fi = f"01/{now.month:02d}/{now.year}"; ff = hoy
     data = get_reporte(fi, ff)
     return render_template('admin_reportes.html', data=data, periodo=periodo, fi=fi, ff=ff, hoy=hoy)
 
@@ -724,7 +731,7 @@ def mesero_editar(pid):
 @app.route('/cajero/cobrar')
 @rol_required('Cajero')
 def cajero_cobrar():
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     todos_listos = [p for p in get_pedidos() if p["estado"]=="Listo"]
     pendientes_anteriores = [p for p in todos_listos if p["fecha"]!=hoy]
     de_hoy = [p for p in todos_listos if p["fecha"]==hoy]
@@ -750,7 +757,7 @@ def cajero_confirmar_pago(pid):
 @app.route('/cajero/caja')
 @rol_required('Cajero')
 def cajero_caja():
-    hoy = datetime.now().strftime("%d/%m/%Y")
+    hoy = ahora().strftime("%d/%m/%Y")
     pag = [p for p in get_pedidos() if p["estado"]=="Pagado" and p["fecha"]==hoy]
     total   = sum(p["total"] for p in pag)
     metodos = {}
