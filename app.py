@@ -98,6 +98,15 @@ def init_db():
             precio REAL DEFAULT 0, en_inventario INTEGER DEFAULT 1,
             alerta_min INTEGER DEFAULT 5, activo INTEGER DEFAULT 1
         );
+        CREATE TABLE IF NOT EXISTS pagos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pedido_id INTEGER NOT NULL,
+            monto REAL NOT NULL,
+            metodo TEXT NOT NULL,
+            cobrado_por TEXT NOT NULL,
+            fecha TEXT NOT NULL,
+            hora TEXT NOT NULL
+        );
         """)
         for col in ["ALTER TABLE pedidos ADD COLUMN notas TEXT DEFAULT ''",
                     "ALTER TABLE pedidos ADD COLUMN franja_hora TEXT DEFAULT ''",
@@ -175,13 +184,22 @@ def get_inv_estandar():
     return dict(INV_DEFAULT)
 
 # ── PEDIDOS ───────────────────────────────────────────
-def _pedido_from_row(row, prods):
+def _get_pagos(c, pid):
+    rows = c.execute("SELECT * FROM pagos WHERE pedido_id=? ORDER BY id", (pid,)).fetchall()
+    return [{"id": r["id"], "monto": r["monto"], "metodo": r["metodo"],
+             "cobrado_por": r["cobrado_por"], "fecha": r["fecha"], "hora": r["hora"]} for r in rows]
+
+def _pedido_from_row(row, prods, pagos_list):
+    total_pagado = sum(p["monto"] for p in pagos_list)
+    total = row["total"]
+    saldo = max(0, total - total_pagado)
     return {
         "id": row["id"], "mesa": row["codigo"], "mesero": row["mesero"],
-        "estado": row["estado"], "total": row["total"], "hora": row["hora"],
+        "estado": row["estado"], "total": total, "hora": row["hora"],
         "fecha": row["fecha"], "pago": row["pago"], "modificado": bool(row["modificado"]),
         "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "",
         "cobrado_por": row["cobrado_por"] or "", "productos": prods,
+        "pagos": pagos_list, "total_pagado": total_pagado, "saldo": saldo,
     }
 
 def _get_items(c, pid):
@@ -191,13 +209,13 @@ def _get_items(c, pid):
 def get_pedidos():
     with _conn() as c:
         rows = c.execute("SELECT * FROM pedidos ORDER BY id DESC").fetchall()
-        return [_pedido_from_row(r, _get_items(c, r["id"])) for r in rows]
+        return [_pedido_from_row(r, _get_items(c, r["id"]), _get_pagos(c, r["id"])) for r in rows]
 
 def get_pedido(pid):
     with _conn() as c:
         row = c.execute("SELECT * FROM pedidos WHERE id=?", (pid,)).fetchone()
         if not row: return None
-        return _pedido_from_row(row, _get_items(c, pid))
+        return _pedido_from_row(row, _get_items(c, pid), _get_pagos(c, pid))
 
 def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
     total = sum(i["cantidad"] * i["precio_unit"] for i in items)
@@ -213,9 +231,27 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
                       (pid, i["nombre"], i["tipo"], i["cantidad"], i["precio_unit"]))
     return get_pedido(pid)
 
-def cobrar_pedido(pid, metodo, cobrado_por=""):
+def registrar_pago(pid, monto, metodo, cobrado_por):
+    """Registra un pago parcial o total en la tabla pagos."""
+    fecha = ahora().strftime("%d/%m/%Y")
+    hora  = ahora().strftime("%H:%M")
     with _conn() as c:
-        c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?", (metodo, cobrado_por, pid))
+        c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora) VALUES (?,?,?,?,?,?)",
+                  (pid, monto, metodo, cobrado_por, fecha, hora))
+        # Recalcular: si total_pagado >= total pedido → Pagado
+        total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
+        total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
+        if total_pagado >= total_pedido:
+            c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
+                      (metodo, cobrado_por, pid))
+
+def cobrar_pedido(pid, metodo, cobrado_por=""):
+    """Cobra el saldo pendiente del pedido."""
+    pedido = get_pedido(pid)
+    if not pedido: return
+    saldo = pedido["saldo"]
+    if saldo <= 0: saldo = pedido["total"]  # fallback si no hay pagos previos
+    registrar_pago(pid, saldo, metodo, cobrado_por)
 
 def actualizar_pedido(pid, items, notas=None, franja_hora=None):
     total = sum(i["cantidad"] * i["precio_unit"] for i in items)
@@ -571,9 +607,22 @@ def admin_eliminar_pedido(pid):
     with _conn() as c:
         c.execute("DELETE FROM items WHERE pedido_id=?", (pid,))
         c.execute("DELETE FROM notificaciones WHERE pid=?", (pid,))
+        c.execute("DELETE FROM pagos WHERE pedido_id=?", (pid,))
         c.execute("DELETE FROM pedidos WHERE id=?", (pid,))
     flash(f'🗑 Pedido #{pid} eliminado', 'success')
     return redirect(url_for('admin_pedidos'))
+
+@app.route('/admin/pedido/<int:pid>/reabrir', methods=['POST'])
+@rol_required('Administrador')
+def admin_reabrir_pedido(pid):
+    pedido = get_pedido(pid)
+    if not pedido:
+        flash('Pedido no encontrado', 'error')
+        return redirect(url_for('admin_pedidos'))
+    with _conn() as c:
+        c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
+    flash(f'🔓 Pedido #{pid} reabierto — puedes editarlo y agregar productos', 'success')
+    return redirect(url_for('mesero_editar', pid=pid))
 
 @app.route('/admin/reportes')
 @rol_required('Administrador')
@@ -696,9 +745,7 @@ def mesero_nuevo():
         p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
         descontar_inventario(items)
         if cobrar_ya:
-            with _conn() as c:
-                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
-                          (metodo_pago, session['nombre'], p['id']))
+            registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'])
             return jsonify({'ok':True,'id':p['id'],'cobrado':True})
         return jsonify({'ok':True,'id':p['id'],'cobrado':False})
     stock  = get_stock_dict()
@@ -717,7 +764,7 @@ def mesero_pedidos():
 @rol_required('Mesero')
 def mesero_editar(pid):
     pedido = get_pedido(pid)
-    if not pedido or pedido['estado'] in ['Pagado']:
+    if not pedido:
         return redirect(url_for('mesero_pedidos'))
     if request.method == 'POST':
         data   = request.get_json()
@@ -734,11 +781,12 @@ def mesero_editar(pid):
         if pedido['estado'] == 'Listo':
             with _conn() as c:
                 c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
-        # Registrar pago si se indicó
+        # Registrar pago si se indicó (cobra el saldo pendiente)
         if cobrar_ya and metodo_pago:
-            with _conn() as c:
-                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
-                          (metodo_pago, session['nombre'], pid))
+            pedido_actual = get_pedido(pid)
+            saldo = pedido_actual["saldo"]
+            if saldo > 0:
+                registrar_pago(pid, saldo, metodo_pago, session['nombre'])
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
         add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"]*i["precio_unit"] for i in items))
         return jsonify({'ok':True})
@@ -769,9 +817,11 @@ def cajero_pagar(pid):
 @app.route('/cajero/cobrar/<int:pid>/confirmar_pago', methods=['POST'])
 @rol_required('Cajero')
 def cajero_confirmar_pago(pid):
-    with _conn() as c:
-        c.execute("UPDATE pedidos SET estado='Pagado', cobrado_por=CASE WHEN cobrado_por='' OR cobrado_por IS NULL THEN ? ELSE cobrado_por END WHERE id=? AND pago IS NOT NULL",
-                  (session['nombre'], pid))
+    pedido = get_pedido(pid)
+    if pedido and pedido["saldo"] <= 0 and pedido["total_pagado"] > 0:
+        # Ya está completamente pagado, solo cambiar estado
+        with _conn() as c:
+            c.execute("UPDATE pedidos SET estado='Pagado' WHERE id=?", (pid,))
     flash(f'✅ Pedido #{pid} confirmado como pagado','success')
     return redirect(url_for('cajero_cobrar'))
 
@@ -780,12 +830,21 @@ def cajero_confirmar_pago(pid):
 def cajero_caja():
     hoy = ahora().strftime("%d/%m/%Y")
     pag = [p for p in get_pedidos() if p["estado"]=="Pagado" and p["fecha"]==hoy]
-    total   = sum(p["total"] for p in pag)
+    # Obtener todos los pagos del día para resumen preciso
+    with _conn() as c:
+        pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=? ORDER BY id", (hoy,)).fetchall()
+    total   = sum(r["monto"] for r in pagos_hoy)
     metodos = {}
-    for p in pag:
-        m = p["pago"] or "N/A"
-        metodos[m] = metodos.get(m, 0) + p["total"]
-    return render_template('cajero_caja.html', pedidos=pag, total=total, metodos=metodos, hoy=hoy)
+    for r in pagos_hoy:
+        m = r["metodo"]
+        metodos[m] = metodos.get(m, 0) + r["monto"]
+    # Resumen por cobrador
+    por_cobrador = {}
+    for r in pagos_hoy:
+        cb = r["cobrado_por"]
+        por_cobrador[cb] = por_cobrador.get(cb, 0) + r["monto"]
+    return render_template('cajero_caja.html', pedidos=pag, total=total,
+        metodos=metodos, por_cobrador=por_cobrador, hoy=hoy)
 
 # ── COCINA ────────────────────────────────────────────
 @app.route('/cocina/pedidos')
