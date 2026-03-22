@@ -67,9 +67,25 @@
     <label class="form-label">📝 Notas</label>
     <textarea class="form-textarea" id="notas-txt">{{ pedido.notas }}</textarea>
   </div>
-  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="guardarCambios()">
+  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="guardarCambios(false)">
     💾 Guardar cambios — Notificar cocina
   </button>
+
+  {% if not pedido.pago %}
+  <div class="card mt-10" style="border:2px solid var(--green);padding:14px">
+    <div class="text-sm font-bold c-green mb-10">💵 ¿El cliente ya pagó? Registra el pago aquí</div>
+    <div class="pay-grid" style="margin-bottom:10px">
+      <button class="btn btn-ghost btn-sm" id="pay-Efectivo"     onclick="selPago('Efectivo')"   >💵 Efectivo</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"      onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Nequi"        onclick="selPago('Nequi')"      >📱 Nequi</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Daviplata"    onclick="selPago('Daviplata')"  >📲 Daviplata</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Llave Bre-B"  onclick="selPago('Llave Bre-B')">🔑 Bre-B</button>
+    </div>
+    <div id="pago-sel-txt" class="text-sm c-gray mb-8">Selecciona un método de pago</div>
+    <button class="btn btn-green btn-full btn-lg" onclick="guardarCambios(true)">✅ Guardar cambios y cobrar</button>
+  </div>
+  {% endif %}
+
   <a href="{{ url_for('mesero_pedidos') }}" class="btn btn-ghost btn-full mt-8">Cancelar</a>
 </div>
 {% endblock %}
@@ -79,6 +95,7 @@
 let qty = 1;
 let saboresSel = [];
 let carrito = {{ pedido.productos | tojson }};
+let metodoPagoSel = '';
 
 function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
 
@@ -156,22 +173,36 @@ function renderCart(){
   });
 }
 
-async function guardarCambios(){
+function selPago(metodo){
+  metodoPagoSel=metodo;
+  document.querySelectorAll('[id^="pay-"]').forEach(b=>b.classList.remove('btn-green'));
+  const btn=document.getElementById('pay-'+metodo);
+  if(btn) btn.classList.add('btn-green');
+  document.getElementById('pago-sel-txt').textContent='✅ Método seleccionado: '+metodo;
+  document.getElementById('pago-sel-txt').className='text-sm c-green mb-8';
+}
+
+async function guardarCambios(cobrarYa){
   if(!carrito.length){ alert('El pedido no puede quedar vacío'); return; }
+  if(cobrarYa && !metodoPagoSel){ alert('Selecciona un método de pago primero'); return; }
   const franja = document.getElementById('franja-sel').value;
   const notas  = document.getElementById('notas-txt').value.trim();
   const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
   const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
-  if(!confirm('Guardar cambios?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\n\n⚠ Cocina será notificada del cambio.')) return;
+  const msg = cobrarYa
+    ? 'Guardar cambios y cobrar?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nPago: '+metodoPagoSel+'\n\n⚠ Cocina será notificada del cambio.'
+    : 'Guardar cambios?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\n\n⚠ Cocina será notificada del cambio.';
+  if(!confirm(msg)) return;
   try{
     const r = await fetch('/mesero/pedido/{{ pedido.id }}/editar',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({items:carrito, notas, franja})
+      body: JSON.stringify({items:carrito, notas, franja, cobrar_ya:cobrarYa, metodo_pago:metodoPagoSel})
     });
     const d = await r.json();
     if(d.ok){
-      alert('✅ Cambios guardados.\n🔔 Cocina fue notificada del cambio.');
+      if(cobrarYa) alert('✅ Cambios guardados y pago registrado con '+metodoPagoSel+'.\n🔔 Cocina fue notificada.');
+      else alert('✅ Cambios guardados.\n🔔 Cocina fue notificada del cambio.');
       window.location='/mesero/pedidos';
     } else {
       alert('Error: '+d.error);
