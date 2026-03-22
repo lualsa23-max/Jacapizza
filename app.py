@@ -553,7 +553,17 @@ def admin_cierre_csv():
 @app.route('/admin/pedidos')
 @rol_required('Administrador')
 def admin_pedidos():
-    return render_template('admin_pedidos.html', pedidos=get_pedidos())
+    hoy  = ahora().strftime("%d/%m/%Y")
+    ayer_dt = ahora() - timedelta(days=1)
+    ayer = ayer_dt.strftime("%d/%m/%Y")
+    fecha_filtro = request.args.get('fecha', hoy)
+    todos = get_pedidos()
+    if fecha_filtro == 'todos':
+        pedidos_filtrados = todos
+    else:
+        pedidos_filtrados = [p for p in todos if p["fecha"] == fecha_filtro]
+    return render_template('admin_pedidos.html',
+        pedidos=pedidos_filtrados, fecha_filtro=fecha_filtro, hoy=hoy, ayer=ayer)
 
 @app.route('/admin/pedido/<int:pid>/eliminar', methods=['POST'])
 @rol_required('Administrador')
