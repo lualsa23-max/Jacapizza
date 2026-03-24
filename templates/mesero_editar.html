@@ -232,4 +232,202 @@ async function guardarCambios(cobrarYa){
 
 renderCart();
 </script>
+{% endblock %}<div class="order-tabs">
+  <button class="order-tab active" onclick="switchTab('ep', event)">🍕 Pizzas</button>
+  <button class="order-tab" onclick="switchTab('eb', event)">🥤 Bebidas</button>
+  <button class="order-tab" onclick="switchTab('ec', event)">🛒 Pedido <span class="cart-badge show" id="cart-badge">0</span></button>
+</div>
+
+<!-- PIZZAS -->
+<div class="order-panel active" id="panel-ep">
+  <div class="card">
+    <p class="text-sm c-gray mb-8">Selecciona 1 o 2 sabores</p>
+    <div class="pizza-grid">
+      {% for sabor in sabores %}
+      <button class="pizza-opt" data-sabor="{{ sabor }}" onclick="toggleSabor(this)">{{ sabor }}</button>
+      {% endfor %}
+    </div>
+    <div class="sel-display" id="sel-display">Sin sabor seleccionado</div>
+    <button class="btn btn-primary btn-full mt-8" onclick="agregarPizza()">➕ Agregar pizza</button>
+  </div>
+</div>
+
+<!-- BEBIDAS -->
+<div class="order-panel" id="panel-eb">
+  <div class="card">
+    {% for nombre, precio in bebidas.items() %}
+    <div class="beb-row">
+      <span class="beb-name" style="flex:1">{{ nombre }}</span>
+      <span class="beb-price">{{ precio | cop }}</span>
+      <button class="btn btn-primary btn-sm" onclick="addItem('{{ nombre }}', 'Bebida', {{ precio }})">+</button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- CARRITO -->
+<div class="order-panel" id="panel-ec">
+  <div class="cart-total" id="cart-total">$0</div>
+  <div class="cart-total-lbl">TOTAL DEL PEDIDO</div>
+  <div id="cart-items"></div>
+  <div class="card mt-12">
+    <label class="form-label">⏰ Hora de entrega</label>
+    <select class="form-select mb-12" id="franja-sel">
+      {% for f in franjas %}
+      <option {% if f == pedido.franja_hora %}selected{% endif %}>{{ f }}</option>
+      {% endfor %}
+    </select>
+    <label class="form-label">📝 Notas</label>
+    <textarea class="form-textarea" id="notas-txt">{{ pedido.notas }}</textarea>
+  </div>
+  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="guardarCambios(false)">
+    💾 Guardar cambios — Notificar cocina
+  </button>
+
+  {% if pedido.saldo > 0 %}
+  <div class="card mt-10" style="border:2px solid var(--green);padding:14px">
+    <div class="text-sm font-bold c-green mb-4">💵 Cobrar {% if pedido.total_pagado > 0 %}saldo pendiente{% else %}ahora{% endif %}</div>
+    {% if pedido.total_pagado > 0 %}
+    <div class="text-xs c-gray mb-10">Ya pagó {{ pedido.total_pagado | cop }}. Falta: <strong class="c-red">{{ pedido.saldo | cop }}</strong></div>
+    {% endif %}
+    <div class="pay-grid" style="margin-bottom:10px">
+      <button class="btn btn-ghost btn-sm" id="pay-Efectivo"     onclick="selPago('Efectivo')"   >💵 Efectivo</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"      onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Nequi"        onclick="selPago('Nequi')"      >📱 Nequi</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Daviplata"    onclick="selPago('Daviplata')"  >📲 Daviplata</button>
+      <button class="btn btn-ghost btn-sm" id="pay-Llave Bre-B"  onclick="selPago('Llave Bre-B')">🔑 Bre-B</button>
+    </div>
+    <div id="pago-sel-txt" class="text-sm c-gray mb-8">Selecciona un método de pago</div>
+    <button class="btn btn-green btn-full btn-lg" onclick="guardarCambios(true)">✅ Guardar cambios y cobrar</button>
+  </div>
+  {% endif %}
+
+  <a href="{{ url_for('mesero_pedidos') }}" class="btn btn-ghost btn-full mt-8">Cancelar</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let qty = 1;
+let saboresSel = [];
+let carrito = {{ pedido.productos | tojson }};
+let metodoPagoSel = '';
+
+function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
+
+function switchTab(id, e){
+  document.querySelectorAll('.order-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.order-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  e.target.classList.add('active');
+}
+
+function toggleSabor(btn){
+  const s = btn.dataset.sabor;
+  if(saboresSel.includes(s)){ saboresSel=saboresSel.filter(x=>x!==s); btn.classList.remove('sel'); }
+  else if(saboresSel.length<2){ saboresSel.push(s); btn.classList.add('sel'); }
+  else{ alert('Máximo 2 sabores'); return; }
+  const d=document.getElementById('sel-display');
+  d.textContent=saboresSel.length?saboresSel.join(' + '):'Sin sabor seleccionado';
+  d.classList.toggle('has-val', saboresSel.length>0);
+}
+
+function agregarPizza(){
+  if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
+  addItem(saboresSel.join(' / '), 'Pizza', 20000);
+  saboresSel=[];
+  document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('sel-display').textContent='Sin sabor seleccionado';
+  document.getElementById('sel-display').classList.remove('has-val');
+}
+
+function addItem(nombre, tipo, precio){
+  const ex = carrito.find(i=>i.nombre===nombre);
+  if(ex){ ex.cantidad+=qty; } else { carrito.push({nombre,tipo,cantidad:qty,precio_unit:precio}); }
+  renderCart();
+}
+
+function removeItem(nombre){
+  if(carrito.length <= 1){ alert('El pedido debe tener al menos un ítem'); return; }
+  carrito=carrito.filter(i=>i.nombre!==nombre);
+  renderCart();
+}
+
+function changeCant(nombre, delta){
+  const it=carrito.find(i=>i.nombre===nombre);
+  if(it){
+    const nueva = it.cantidad + delta;
+    if(nueva < 1){ alert('Mínimo 1 unidad. Para eliminar usa el botón ✕'); return; }
+    it.cantidad = nueva;
+    renderCart();
+  }
+}
+
+function renderCart(){
+  const total = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
+  document.getElementById('cart-total').textContent='$'+total.toLocaleString('es-CO').replace(/,/g,'.');
+  const badge=document.getElementById('cart-badge');
+  badge.textContent=carrito.reduce((s,i)=>s+i.cantidad,0);
+  const el=document.getElementById('cart-items');
+  el.innerHTML='';
+  carrito.forEach(item=>{
+    const sub=item.cantidad*item.precio_unit;
+    const d=document.createElement('div');
+    d.className='cart-item';
+    d.innerHTML=
+      '<div style="display:flex;align-items:center;gap:6px">' +
+        '<button class="qty-btn" style="width:26px;height:26px;font-size:.9rem" onclick="changeCant(\''+item.nombre.replace(/'/g,"\\'")+'\', -1)">−</button>' +
+        '<span class="cart-item-qty">'+item.cantidad+'</span>' +
+        '<button class="qty-btn" style="width:26px;height:26px;font-size:.9rem" onclick="changeCant(\''+item.nombre.replace(/'/g,"\\'")+'\', +1)">+</button>' +
+      '</div>' +
+      '<div class="cart-item-info">' +
+        '<div class="cart-item-name">'+item.nombre+'</div>' +
+        '<div class="cart-item-sub">$'+sub.toLocaleString('es-CO').replace(/,/g,'.')+'</div>' +
+      '</div>' +
+      '<span class="cart-remove" onclick="removeItem(\''+item.nombre.replace(/'/g,"\\'")+'\')">✕</span>';
+    el.appendChild(d);
+  });
+}
+
+function selPago(metodo){
+  metodoPagoSel=metodo;
+  document.querySelectorAll('[id^="pay-"]').forEach(b=>b.classList.remove('btn-green'));
+  const btn=document.getElementById('pay-'+metodo);
+  if(btn) btn.classList.add('btn-green');
+  document.getElementById('pago-sel-txt').textContent='✅ Método seleccionado: '+metodo;
+  document.getElementById('pago-sel-txt').className='text-sm c-green mb-8';
+}
+
+async function guardarCambios(cobrarYa){
+  if(!carrito.length){ alert('El pedido no puede quedar vacío'); return; }
+  if(cobrarYa && !metodoPagoSel){ alert('Selecciona un método de pago primero'); return; }
+  const franja = document.getElementById('franja-sel').value;
+  const notas  = document.getElementById('notas-txt').value.trim();
+  const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
+  const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
+  const msg = cobrarYa
+    ? 'Guardar cambios y cobrar?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nPago: '+metodoPagoSel+'\n\n⚠ Cocina será notificada del cambio.'
+    : 'Guardar cambios?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\n\n⚠ Cocina será notificada del cambio.';
+  if(!confirm(msg)) return;
+  try{
+    const r = await fetch('/mesero/pedido/{{ pedido.id }}/editar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({items:carrito, notas, franja, cobrar_ya:cobrarYa, metodo_pago:metodoPagoSel})
+    });
+    const d = await r.json();
+    if(d.ok){
+      if(cobrarYa) alert('✅ Cambios guardados y pago registrado con '+metodoPagoSel+'.\n🔔 Cocina fue notificada.');
+      else alert('✅ Cambios guardados.\n🔔 Cocina fue notificada del cambio.');
+      window.location='/mesero/pedidos';
+    } else {
+      alert('Error: '+d.error);
+    }
+  } catch(e){
+    alert('Error de conexión. Intenta de nuevo.');
+  }
+}
+
+renderCart();
+</script>
 {% endblock %}
