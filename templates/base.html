@@ -76,3 +76,16 @@ function showToast(msg, dur=4000){
 {% block scripts %}{% endblock %}
 </body>
 </html>
+<div id="toast" class="toast"></div>
+
+<script>
+function showToast(msg, dur=4000){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
+}
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
