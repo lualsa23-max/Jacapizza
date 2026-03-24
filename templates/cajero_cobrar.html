@@ -19,7 +19,214 @@
         <div class="cobro-id">#{{ p.id }}</div>
         <div class="cobro-code">{{ p.mesa }}</div>
         <div class="cobro-meta">{{ p.mesero }} · {{ p.hora }}</div>
+      </div>{% extends "base.html" %}
+{% block title %}— Cobrar Pedidos{% endblock %}
+{% block content %}
+<h2 class="sec-title">⏳ Pedidos listos para cobrar</h2>
+
+{% if pendientes_anteriores %}
+<div style="background:rgba(232,93,93,.1);border:2px solid var(--red);border-radius:12px;padding:14px;margin-bottom:20px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span style="font-size:1.3rem">🔴</span>
+    <span style="font-family:var(--fh);font-size:1rem;color:var(--red);font-weight:700">
+      {{ pendientes_anteriores|length }} pago{{ 's' if pendientes_anteriores|length!=1 else '' }} pendiente{{ 's' if pendientes_anteriores|length!=1 else '' }} de días anteriores
+    </span>
+  </div>
+
+  {% for p in pendientes_anteriores %}
+  <div class="cobro-card" style="border-left:4px solid var(--red);margin-bottom:10px">
+    <div class="cobro-head">
+      <div>
+        <div class="cobro-id">#{{ p.id }}</div>
+        <div class="cobro-code">{{ p.mesa }}</div>
+        <div class="cobro-meta">{{ p.mesero }} · {{ p.hora }}</div>
       </div>
+      <div style="text-align:right">
+        <span class="badge" style="background:rgba(232,93,93,.2);color:var(--red);display:block;margin-bottom:4px">⚠ Pendiente</span>
+        <span class="text-xs c-red font-bold">{{ p.fecha }}</span>
+      </div>
+    </div>
+
+    {% if p.franja_hora %}
+    <div class="p-franja">⏰ Hora pactada: {{ p.franja_hora }}</div>
+    {% endif %}
+
+    <div class="p-items mt-8">
+      {% for it in p.productos %}
+      <div class="p-item">
+        <span class="p-item-qty">{{ it.cantidad }}×</span>
+        <span class="p-item-name">{% if it.tipo == 'Pizza' %}🍕{% else %}🥤{% endif %} {{ it.nombre }}</span>
+        <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if p.notas %}
+    <div class="p-notas mt-8"><strong>📝 Notas</strong>{{ p.notas }}</div>
+    {% endif %}
+
+    <div class="cobro-total" style="color:var(--red)">{{ p.total | cop }}</div>
+    <div class="text-xs c-gray text-center">TOTAL PENDIENTE</div>
+
+    {% if p.total_pagado > 0 and p.saldo > 0 %}
+    <div style="text-align:center;margin:6px 0">
+      <span class="text-sm c-green">Pagado: {{ p.total_pagado | cop }}</span>
+      <span class="text-sm c-gray"> · </span>
+      <span class="text-sm c-red font-bold">Falta: {{ p.saldo | cop }}</span>
+    </div>
+    {% endif %}
+    <div style="margin-bottom:12px"></div>
+
+    {% if p.saldo <= 0 and p.total_pagado > 0 %}
+      <div class="card" style="background:rgba(78,203,113,.08);border:1.5px solid var(--green);padding:14px;margin-bottom:8px">
+        <div class="text-sm c-green font-bold mb-8">✅ Completamente pagado</div>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}/confirmar_pago"
+              onsubmit="return confirm('¿Confirmar cierre del pedido #{{ p.id }}?')">
+          <button type="submit" class="btn btn-green btn-full">✅ Confirmar cierre</button>
+        </form>
+      </div>
+    {% else %}
+      {% set monto_cobrar = p.saldo if p.saldo > 0 else p.total %}
+      <p class="text-sm c-gray mb-8 font-bold">Cobrar {% if p.total_pagado > 0 %}saldo de {% endif %}{{ monto_cobrar | cop }}:</p>
+      <div class="pay-grid">
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Efectivo?')">
+          <input type="hidden" name="metodo" value="Efectivo">
+          <button type="submit" class="btn btn-green btn-full">💵 Efectivo</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Tarjeta?')">
+          <input type="hidden" name="metodo" value="Tarjeta">
+          <button type="submit" class="btn btn-ghost btn-full">💳 Tarjeta</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Nequi?')">
+          <input type="hidden" name="metodo" value="Nequi">
+          <button type="submit" class="btn btn-primary btn-full">📱 Nequi</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Daviplata?')">
+          <input type="hidden" name="metodo" value="Daviplata">
+          <button type="submit" class="btn btn-orange btn-full">📲 Daviplata</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Llave Bre-B?')">
+          <input type="hidden" name="metodo" value="Llave Bre-B">
+          <button type="submit" class="btn btn-ghost btn-full">🔑 Bre-B</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if pedidos %}
+  {% if pendientes_anteriores %}
+  <div style="font-family:var(--fh);font-size:.9rem;color:var(--gray2);margin-bottom:12px;padding-top:4px;border-top:1px solid var(--card2)">
+    ✅ Pedidos de hoy
+  </div>
+  {% endif %}
+
+  {% for p in pedidos %}
+  <div class="cobro-card" style="border-left:4px solid {% if p.saldo <= 0 %}var(--green){% else %}var(--accent){% endif %}">
+    <div class="cobro-head">
+      <div>
+        <div class="cobro-id">#{{ p.id }}</div>
+        <div class="cobro-code">{{ p.mesa }}</div>
+        <div class="cobro-meta">{{ p.mesero }} · {{ p.hora }}</div>
+      </div>
+      {% if p.saldo <= 0 and p.total_pagado > 0 %}
+        <span class="badge" style="background:rgba(78,203,113,.2);color:var(--green)">💳 Pagado completo</span>
+      {% elif p.total_pagado > 0 %}
+        <span class="badge" style="background:rgba(245,166,35,.2);color:var(--orange)">⚠ Pago parcial</span>
+      {% else %}
+        <span class="badge b-listo">Listo ✅</span>
+      {% endif %}
+    </div>
+
+    {% if p.franja_hora %}
+    <div class="p-franja">⏰ Hora de entrega: {{ p.franja_hora }}</div>
+    {% endif %}
+
+    <div class="p-items mt-8">
+      {% for it in p.productos %}
+      <div class="p-item">
+        <span class="p-item-qty">{{ it.cantidad }}×</span>
+        <span class="p-item-name">{% if it.tipo == 'Pizza' %}🍕{% else %}🥤{% endif %} {{ it.nombre }}</span>
+        <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if p.notas %}
+    <div class="p-notas mt-8"><strong>📝 Notas</strong>{{ p.notas }}</div>
+    {% endif %}
+
+    {% if p.pagos %}
+    <div class="card mt-8" style="background:rgba(78,203,113,.05);padding:10px 12px">
+      <div class="text-xs c-gray font-bold mb-4">PAGOS REGISTRADOS</div>
+      {% for pg in p.pagos %}
+      <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span>{{ pg.metodo }} — {{ pg.cobrado_por }} · {{ pg.hora }}</span>
+        <span class="c-green font-bold">{{ pg.monto | cop }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="cobro-total">{{ p.total | cop }}</div>
+    <div class="text-xs c-gray text-center">TOTAL DEL PEDIDO</div>
+
+    {% if p.total_pagado > 0 and p.saldo > 0 %}
+    <div style="text-align:center;margin:6px 0">
+      <span class="text-sm c-green">Pagado: {{ p.total_pagado | cop }}</span>
+      <span class="text-sm c-gray"> · </span>
+      <span class="text-sm c-red font-bold">Falta: {{ p.saldo | cop }}</span>
+    </div>
+    {% endif %}
+    <div style="margin-bottom:12px"></div>
+
+    {% if p.saldo <= 0 and p.total_pagado > 0 %}
+      <div class="card" style="background:rgba(78,203,113,.08);border:1.5px solid var(--green);padding:14px">
+        <div class="text-sm c-green font-bold mb-8">✅ Completamente pagado</div>
+        <div class="text-xs c-gray mb-10">Solo confirma para cerrar el pedido.</div>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}/confirmar_pago"
+              onsubmit="return confirm('¿Confirmar cierre del pedido #{{ p.id }}?')">
+          <button type="submit" class="btn btn-green btn-full">✅ Confirmar cierre</button>
+        </form>
+      </div>
+    {% else %}
+      {% set monto_cobrar = p.saldo if p.saldo > 0 else p.total %}
+      <p class="text-sm c-gray mb-8 font-bold">Cobrar {% if p.total_pagado > 0 %}saldo de {% endif %}{{ monto_cobrar | cop }}:</p>
+      <div class="pay-grid">
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Efectivo?')">
+          <input type="hidden" name="metodo" value="Efectivo">
+          <button type="submit" class="btn btn-green btn-full">💵 Efectivo</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Tarjeta?')">
+          <input type="hidden" name="metodo" value="Tarjeta">
+          <button type="submit" class="btn btn-ghost btn-full">💳 Tarjeta</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Nequi?')">
+          <input type="hidden" name="metodo" value="Nequi">
+          <button type="submit" class="btn btn-primary btn-full">📱 Nequi</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Daviplata?')">
+          <input type="hidden" name="metodo" value="Daviplata">
+          <button type="submit" class="btn btn-orange btn-full">📲 Daviplata</button>
+        </form>
+        <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Llave Bre-B?')">
+          <input type="hidden" name="metodo" value="Llave Bre-B">
+          <button type="submit" class="btn btn-ghost btn-full">🔑 Bre-B</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+{% elif not pendientes_anteriores %}
+<div class="empty">
+  <span class="e-ico">🎉</span>
+  No hay pedidos listos para cobrar por ahora
+</div>
+{% endif %}
+{% endblock %}
       <div style="text-align:right">
         <span class="badge" style="background:rgba(232,93,93,.2);color:var(--red);display:block;margin-bottom:4px">⚠ Pendiente</span>
         <span class="text-xs c-red font-bold">{{ p.fecha }}</span>
