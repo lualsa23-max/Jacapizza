@@ -13,6 +13,18 @@ def ahora():
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'jacapizza-secret-2024-xK9!')
 
+# ── ANTI-BLOQUEO: headers y robots.txt ──────────────
+@app.after_request
+def add_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    return response
+
+@app.route('/robots.txt')
+def robots():
+    return Response("User-agent: *\nAllow: /\n", mimetype='text/plain')
+
 DB_PATH = os.environ.get('DB_PATH', '/data/pizza_data.db')
 _db_dir = os.path.dirname(DB_PATH)
 if _db_dir and not os.path.exists(_db_dir):
@@ -38,6 +50,15 @@ BEBIDAS_DEFAULT = {
 PIZZAS_DEFAULT = {
     "Hawaiana":20000,"Pollo con Champiñones":20000,"Mexicana":20000,
     "Pepperoni":20000,"Criolla":20000,"Vegetariana":20000,
+}
+PRECIO_PIZZA = 20000
+TOPPINGS = {
+    "Queso extra": 3000,
+    "Champiñones": 3000,
+    "Pepperoni": 3000,
+    "Tocineta": 4000,
+    "Maíz": 2000,
+    "Jalapeño": 2000,
 }
 INV_DEFAULT = {
     "Pizza (masa)":("pizza",3),"Agua 600ml":("bebida",5),"Gaseosa":("bebida",5),
@@ -497,6 +518,17 @@ def admin_resumen():
     # Total pendiente por cobrar (pedidos Listo de hoy)
     total_por_cobrar = sum(p["saldo"] for p in hoy_todos if p["estado"]=="Listo" and p["saldo"]>0)
 
+    # Top productos vendidos hoy (de pedidos pagados)
+    top_items = []
+    with _conn() as c:
+        pag_ids = [p["id"] for p in hoy_pagados]
+        if pag_ids:
+            ph = ",".join("?" * len(pag_ids))
+            rows = c.execute(
+                f"SELECT nombre, tipo, SUM(cantidad) as tc, SUM(cantidad*precio_unit) as tv "
+                f"FROM items WHERE pedido_id IN ({ph}) GROUP BY nombre ORDER BY tc DESC LIMIT 10", pag_ids).fetchall()
+            top_items = [{"nombre": r["nombre"], "tipo": r["tipo"], "cantidad": r["tc"], "valor": r["tv"]} for r in rows]
+
     return render_template('admin_resumen.html',
         hoy=hoy, total_pedidos_hoy=len(hoy_todos),
         pagados=len(hoy_pagados), pendientes=pendientes, listos=listos,
@@ -506,7 +538,7 @@ def admin_resumen():
         total_cobrado=total_cobrado, total_cobros=total_cobros,
         total_por_cobrar=total_por_cobrar,
         metodos_hoy=metodos_hoy, por_cobrador=por_cobrador,
-        ultimos=hoy_todos[:10])
+        top_items=top_items, ultimos=hoy_todos[:10])
 
 @app.route('/admin/inventario', methods=['GET','POST'])
 @rol_required('Administrador')
@@ -798,7 +830,8 @@ def mesero_nuevo():
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
         sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
-        stock_json=json.dumps(stock), pulpas_json=json.dumps(pulpas))
+        stock_json=json.dumps(stock), pulpas_json=json.dumps(pulpas),
+        toppings=TOPPINGS, precio_pizza=PRECIO_PIZZA)
 
 @app.route('/mesero/pedidos')
 @rol_required('Mesero')
@@ -846,9 +879,18 @@ def mesero_editar(pid):
 @rol_required('Cajero')
 def cajero_cobrar():
     hoy = ahora().strftime("%d/%m/%Y")
-    todos_listos = [p for p in get_pedidos() if p["estado"]=="Listo"]
-    pendientes_anteriores = [p for p in todos_listos if p["fecha"]!=hoy]
-    de_hoy = [p for p in todos_listos if p["fecha"]==hoy]
+    todos = get_pedidos()
+    # Mostrar: estado Listo, O cualquier pedido con saldo>0 que no esté Pagado
+    por_cobrar = [p for p in todos if p["estado"]=="Listo" or (p["estado"]!="Pagado" and p["saldo"]>0 and p["total_pagado"]>0)]
+    # Deduplicar por id
+    vistos = set()
+    unicos = []
+    for p in por_cobrar:
+        if p["id"] not in vistos:
+            vistos.add(p["id"])
+            unicos.append(p)
+    pendientes_anteriores = [p for p in unicos if p["fecha"]!=hoy]
+    de_hoy = [p for p in unicos if p["fecha"]==hoy]
     return render_template('cajero_cobrar.html', pedidos=de_hoy,
         pendientes_anteriores=pendientes_anteriores, hoy=hoy)
 
