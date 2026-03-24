@@ -46,7 +46,17 @@
             <span class="c-gray">—</span>
           {% endif %}
         </td>
-        <td><span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span></td>
+        <td>
+          {% if p.estado == 'Pagado' %}
+            <span class="badge b-pagado">✅ Pagado</span>
+          {% elif p.estado == 'Listo' %}
+            <span class="badge b-listo">🔔 Por cobrar</span>
+          {% elif p.estado == 'Pendiente' %}
+            <span class="badge b-pendiente">🔥 En cocina</span>
+          {% else %}
+            <span class="badge">{{ p.estado }}</span>
+          {% endif %}
+        </td>
         <td class="text-sm c-gray">{{ p.hora }}</td>
         <td class="text-sm c-gray">{{ p.fecha }}</td>
         <td style="white-space:nowrap">
