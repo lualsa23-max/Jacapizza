@@ -207,20 +207,30 @@ def get_inv_estandar():
 
 # ── PEDIDOS ───────────────────────────────────────────
 def _get_pagos(c, pid):
-    rows = c.execute("SELECT * FROM pagos WHERE pedido_id=? ORDER BY id", (pid,)).fetchall()
-    return [{"id": r["id"], "monto": r["monto"], "metodo": r["metodo"],
-             "cobrado_por": r["cobrado_por"], "fecha": r["fecha"], "hora": r["hora"]} for r in rows]
+    try:
+        rows = c.execute("SELECT * FROM pagos WHERE pedido_id=? ORDER BY id", (pid,)).fetchall()
+        return [{"id": r["id"], "monto": r["monto"], "metodo": r["metodo"],
+                 "cobrado_por": r["cobrado_por"], "fecha": r["fecha"], "hora": r["hora"]} for r in rows]
+    except:
+        return []
 
 def _pedido_from_row(row, prods, pagos_list):
     total_pagado = sum(p["monto"] for p in pagos_list)
     total = row["total"]
     saldo = max(0, total - total_pagado)
+    # Acceso defensivo a columnas que pueden no existir en BDs antiguas
+    try: cobrado_por = row["cobrado_por"] or ""
+    except: cobrado_por = ""
+    try: notas = row["notas"] or ""
+    except: notas = ""
+    try: franja_hora = row["franja_hora"] or ""
+    except: franja_hora = ""
     return {
         "id": row["id"], "mesa": row["codigo"], "mesero": row["mesero"],
         "estado": row["estado"], "total": total, "hora": row["hora"],
         "fecha": row["fecha"], "pago": row["pago"], "modificado": bool(row["modificado"]),
-        "notas": row["notas"] or "", "franja_hora": row["franja_hora"] or "",
-        "cobrado_por": row["cobrado_por"] or "", "productos": prods,
+        "notas": notas, "franja_hora": franja_hora,
+        "cobrado_por": cobrado_por, "productos": prods,
         "pagos": pagos_list, "total_pagado": total_pagado, "saldo": saldo,
     }
 
@@ -257,13 +267,19 @@ def registrar_pago(pid, monto, metodo, cobrado_por):
     """Registra un pago parcial o total en la tabla pagos."""
     fecha = ahora().strftime("%d/%m/%Y")
     hora  = ahora().strftime("%H:%M")
-    with _conn() as c:
-        c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora) VALUES (?,?,?,?,?,?)",
-                  (pid, monto, metodo, cobrado_por, fecha, hora))
-        # Recalcular: si total_pagado >= total pedido → Pagado
-        total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
-        total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
-        if total_pagado >= total_pedido:
+    try:
+        with _conn() as c:
+            c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora) VALUES (?,?,?,?,?,?)",
+                      (pid, monto, metodo, cobrado_por, fecha, hora))
+            # Recalcular: si total_pagado >= total pedido → Pagado
+            total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
+            total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
+            if total_pagado >= total_pedido:
+                c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
+                          (metodo, cobrado_por, pid))
+    except:
+        # Fallback: si tabla pagos no existe, usar método antiguo
+        with _conn() as c:
             c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
                       (metodo, cobrado_por, pid))
 
@@ -499,13 +515,18 @@ def admin_resumen():
     stock = get_stock_dict()
     masas_disponibles = stock.get("Pizza (masa)", 0)
     masas_iniciales = 0
-    with _conn() as c:
-        row = c.execute("SELECT stock_inicial FROM inventario WHERE nombre='Pizza (masa)' AND fecha=?", (hoy,)).fetchone()
-        if row: masas_iniciales = row["stock_inicial"] if row["stock_inicial"] > 0 else 0
+    try:
+        with _conn() as c:
+            row = c.execute("SELECT stock_inicial FROM inventario WHERE nombre='Pizza (masa)' AND fecha=?", (hoy,)).fetchone()
+            if row: masas_iniciales = row["stock_inicial"] if row["stock_inicial"] > 0 else 0
+    except: pass
 
     # Pagos del día desde tabla pagos
-    with _conn() as c:
-        pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=?", (hoy,)).fetchall()
+    pagos_hoy = []
+    try:
+        with _conn() as c:
+            pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=?", (hoy,)).fetchall()
+    except: pass
     total_cobrado  = sum(r["monto"] for r in pagos_hoy)
     total_cobros   = len(pagos_hoy)
     metodos_hoy = {}
@@ -514,6 +535,11 @@ def admin_resumen():
     por_cobrador = {}
     for r in pagos_hoy:
         por_cobrador[r["cobrado_por"]] = por_cobrador.get(r["cobrado_por"], 0) + r["monto"]
+
+    # Fallback: si no hay pagos en tabla pagos, usar total de pedidos pagados (BD antigua)
+    if total_cobrado == 0 and hoy_pagados:
+        total_cobrado = sum(p["total"] for p in hoy_pagados)
+        total_cobros = len(hoy_pagados)
 
     # Total pendiente por cobrar (pedidos Listo de hoy)
     total_por_cobrar = sum(p["saldo"] for p in hoy_todos if p["estado"]=="Listo" and p["saldo"]>0)
@@ -919,8 +945,11 @@ def cajero_caja():
     hoy = ahora().strftime("%d/%m/%Y")
     pag = [p for p in get_pedidos() if p["estado"]=="Pagado" and p["fecha"]==hoy]
     # Obtener todos los pagos del día para resumen preciso
-    with _conn() as c:
-        pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=? ORDER BY id", (hoy,)).fetchall()
+    pagos_hoy = []
+    try:
+        with _conn() as c:
+            pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=? ORDER BY id", (hoy,)).fetchall()
+    except: pass
     total   = sum(r["monto"] for r in pagos_hoy)
     metodos = {}
     for r in pagos_hoy:
@@ -931,6 +960,12 @@ def cajero_caja():
     for r in pagos_hoy:
         cb = r["cobrado_por"]
         por_cobrador[cb] = por_cobrador.get(cb, 0) + r["monto"]
+    # Fallback si tabla pagos no tiene datos (BD antigua)
+    if total == 0 and pag:
+        total = sum(p["total"] for p in pag)
+        for p in pag:
+            m = p["pago"] or "N/A"
+            metodos[m] = metodos.get(m, 0) + p["total"]
     return render_template('cajero_caja.html', pedidos=pag, total=total,
         metodos=metodos, por_cobrador=por_cobrador, hoy=hoy)
 
