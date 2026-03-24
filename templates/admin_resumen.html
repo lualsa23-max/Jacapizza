@@ -188,6 +188,93 @@
 </div>
 {% endif %}
 
+<!-- Top productos vendidos -->
+{% if top_items %}
+<div class="card mt-12">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase">Top productos vendidos hoy</h3>
+  {% for it in top_items %}
+  <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--card2);font-size:.85rem">
+    <span style="min-width:22px;text-align:center;font-weight:700;color:var(--gray2)">{{ loop.index }}</span>
+    <span style="flex:1">{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+    <span class="c-accent font-bold" style="white-space:nowrap">{{ it.cantidad }}× — {{ it.valor | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Últimos pedidos -->
+<h3 class="sec-title mt-16">Últimos pedidos de hoy</h3>
+{% if ultimos %}
+<div class="tbl-wrap card" style="padding:0">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in ultimos %}
+      <tr>
+        <td class="c-accent font-bold">#{{ p.id }}</td>
+        <td>{{ p.mesa }}</td>
+        <td>{{ p.mesero }}</td>
+        <td class="c-green font-bold">{{ p.total | cop }}</td>
+        <td><span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span></td>
+        <td class="c-gray text-sm">{{ p.hora }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><span class="e-ico">🍕</span>Sin pedidos registrados hoy</div>
+{% endif %}
+
+<div class="mt-16" style="display:flex;gap:10px;flex-wrap:wrap">
+  <a href="{{ url_for('admin_inventario') }}" class="btn btn-ghost">📦 Inventario</a>
+  <a href="{{ url_for('admin_reportes') }}"   class="btn btn-ghost">📈 Reportes</a>
+  <a href="{{ url_for('admin_pedidos') }}"    class="btn btn-ghost">📋 Todos los pedidos</a>
+  <a href="{{ url_for('admin_cierre') }}"     class="btn btn-ghost">📦 Cierre</a>
+</div>
+{% endblock %}  <div style="background:rgba(232,93,93,.12);border:2px solid var(--red);border-radius:12px;padding:14px;margin-top:16px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.8rem">🔴</span>
+    <div>
+      <div style="font-family:var(--fh);color:var(--red);font-size:1rem;font-weight:700">
+        {{ cobros_pendientes }} cobro{{ 's' if cobros_pendientes!=1 else '' }} pendiente{{ 's' if cobros_pendientes!=1 else '' }} de días anteriores
+      </div>
+      <div class="text-sm c-gray mt-4">Toca aquí para ir a cobrarlos →</div>
+    </div>
+  </div>
+</a>
+{% endif %}
+
+<!-- Métodos de pago del día -->
+{% if metodos_hoy %}
+<div class="card mt-16">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase">Cobros por método</h3>
+  {% for m, v in metodos_hoy.items() %}
+  {% set icons = {'Efectivo':'💵','Tarjeta':'💳','Nequi':'📱','Daviplata':'📲','Llave Bre-B':'🔑'} %}
+  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.88rem">
+    <span>{{ icons.get(m,'💳') }} {{ m }}</span>
+    <span class="c-green font-bold">{{ v | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Quién cobró -->
+{% if por_cobrador %}
+<div class="card mt-12">
+  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase">Recaudado por persona</h3>
+  {% for nombre, monto in por_cobrador.items() %}
+  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.88rem">
+    <span>💁 {{ nombre }}</span>
+    <span class="c-accent font-bold">{{ monto | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- Últimos pedidos -->
 <h3 class="sec-title mt-16">Últimos pedidos de hoy</h3>
 {% if ultimos %}
