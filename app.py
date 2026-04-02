@@ -38,6 +38,7 @@ if _db_dir and not os.path.exists(_db_dir):
 USUARIOS = {
     "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Natalia de Sarmiento"},
     "luis":    {"password": "luis2026",   "rol": "Administrador", "nombre": "Luis Sarmiento"},
+    "daniela":    {"password": "daniela2026",   "rol": "Administrador", "nombre": "daniela Admin"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
     "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
