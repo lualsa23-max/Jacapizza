@@ -278,25 +278,32 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
                       (pid, i["nombre"], i["tipo"], i["cantidad"], i["precio_unit"]))
     return get_pedido(pid)
 
-def registrar_pago(pid, monto, metodo, cobrado_por):
-    """Registra un pago parcial o total en la tabla pagos."""
+def registrar_pago(pid, monto, metodo, cobrado_por, marcar_pagado=True):
+    """Registra un pago. Si marcar_pagado=False, guarda el pago pero no cambia el estado."""
     fecha = ahora().strftime("%d/%m/%Y")
     hora  = ahora().strftime("%H:%M")
     try:
         with _conn() as c:
             c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora) VALUES (?,?,?,?,?,?)",
                       (pid, monto, metodo, cobrado_por, fecha, hora))
-            # Recalcular: si total_pagado >= total pedido → Pagado
-            total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
-            total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
-            if total_pagado >= total_pedido:
-                c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
+            if marcar_pagado:
+                total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
+                total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
+                if total_pagado >= total_pedido:
+                    c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
+                              (metodo, cobrado_por, pid))
+            else:
+                # Solo guardar método de pago en el pedido, mantener estado actual
+                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
                           (metodo, cobrado_por, pid))
     except:
-        # Fallback: si tabla pagos no existe, usar método antiguo
         with _conn() as c:
-            c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
-                      (metodo, cobrado_por, pid))
+            if marcar_pagado:
+                c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
+                          (metodo, cobrado_por, pid))
+            else:
+                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
+                          (metodo, cobrado_por, pid))
 
 def cobrar_pedido(pid, metodo, cobrado_por=""):
     """Cobra el saldo pendiente del pedido."""
@@ -321,6 +328,14 @@ def actualizar_pedido(pid, items, notas=None, franja_hora=None):
 
 def marcar_listo(pid):
     with _conn() as c:
+        pedido = c.execute("SELECT pago, total FROM pedidos WHERE id=?", (pid,)).fetchone()
+        if pedido and pedido["pago"]:
+            # Ya tiene pago registrado → pasar directo a Pagado (era cobro inmediato)
+            total_pagado = c.execute(
+                "SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
+            if total_pagado >= pedido["total"]:
+                c.execute("UPDATE pedidos SET estado='Pagado' WHERE id=?", (pid,))
+                return
         c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (pid,))
 
 def add_notificacion(pid, codigo, detalle, total):
@@ -864,7 +879,8 @@ def mesero_nuevo():
             with _conn() as c:
                 c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (p['id'],))
         if cobrar_ya:
-            registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'])
+            # Registrar pago PERO mantener estado Pendiente → cocina lo verá con badge "ya pagado"
+            registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'], marcar_pagado=False)
             return jsonify({'ok':True,'id':p['id'],'cobrado':True,'solo_bebidas':solo_bebidas})
         return jsonify({'ok':True,'id':p['id'],'cobrado':False,'solo_bebidas':solo_bebidas})
     stock  = get_stock_dict()
@@ -877,8 +893,10 @@ def mesero_nuevo():
 @app.route('/mesero/pedidos')
 @rol_required('Mesero')
 def mesero_pedidos():
-    mis = [p for p in get_pedidos() if p["mesero"]==session['nombre']]
-    return render_template('mesero_pedidos.html', pedidos=mis)
+    hoy  = ahora().strftime("%d/%m/%Y")
+    # Mostrar todos los pedidos del día (ordenados por hora, más recientes primero)
+    todos = [p for p in get_pedidos() if p["fecha"] == hoy]
+    return render_template('mesero_pedidos.html', pedidos=todos)
 
 @app.route('/mesero/pedido/<int:pid>/editar', methods=['GET','POST'])
 @rol_required('Mesero')
