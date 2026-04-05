@@ -27,7 +27,7 @@
 <div class="tbl-wrap card" style="padding:0">
   <table>
     <thead>
-      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Pagado</th><th>Estado</th><th>Hora</th><th>Fecha</th><th></th></tr>
+      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Pagado</th><th>Estado</th><th>Entrega</th><th>Hora</th><th>Fecha</th><th></th></tr>
     </thead>
     <tbody>
       {% for p in pedidos %}
@@ -57,6 +57,7 @@
             <span class="badge">{{ p.estado }}</span>
           {% endif %}
         </td>
+        <td class="text-sm c-accent">{{ p.franja_hora if p.franja_hora else '—' }}</td>
         <td class="text-sm c-gray">{{ p.hora }}</td>
         <td class="text-sm c-gray">{{ p.fecha }}</td>
         <td style="white-space:nowrap">
