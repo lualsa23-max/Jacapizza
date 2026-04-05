@@ -939,27 +939,19 @@ def mesero_editar(pid):
 def cajero_cobrar():
     hoy = ahora().strftime("%d/%m/%Y")
     todos = get_pedidos()
-    filtro = request.args.get('filtro', 'hoy')
-    # Todos los pedidos por cobrar: estado Listo, O con saldo>0 que no estén Pagados
+    # Mostrar: estado Listo, O cualquier pedido con saldo>0 que no esté Pagado
     por_cobrar = [p for p in todos if p["estado"]=="Listo" or (p["estado"]!="Pagado" and p["saldo"]>0 and p["total_pagado"]>0)]
-    # Deduplicar
+    # Deduplicar por id
     vistos = set()
     unicos = []
     for p in por_cobrar:
         if p["id"] not in vistos:
             vistos.add(p["id"])
             unicos.append(p)
+    pendientes_anteriores = [p for p in unicos if p["fecha"]!=hoy]
     de_hoy = [p for p in unicos if p["fecha"]==hoy]
-    anteriores = [p for p in unicos if p["fecha"]!=hoy]
-    # Agrupar anteriores por fecha
-    anteriores_por_fecha = {}
-    for p in anteriores:
-        anteriores_por_fecha.setdefault(p["fecha"], []).append(p)
-    return render_template('cajero_cobrar.html',
-        pedidos=de_hoy, pendientes_anteriores=anteriores,
-        anteriores_por_fecha=anteriores_por_fecha,
-        hoy=hoy, filtro=filtro,
-        count_hoy=len(de_hoy), count_anteriores=len(anteriores))
+    return render_template('cajero_cobrar.html', pedidos=de_hoy,
+        pendientes_anteriores=pendientes_anteriores, hoy=hoy)
 
 @app.route('/cajero/cobrar/<int:pid>', methods=['POST'])
 @rol_required('Cajero')
@@ -1014,7 +1006,8 @@ def cajero_caja():
 @app.route('/cocina/pedidos')
 @rol_required('Cocina')
 def cocina_pedidos():
-    todos   = get_pedidos()
+    hoy   = ahora().strftime("%d/%m/%Y")
+    todos = get_pedidos()
     activos = [p for p in todos if p["estado"]=="Pendiente"]
     for p in activos:
         p["pizzas"]  = [i for i in p["productos"] if i["tipo"]=="Pizza"]
@@ -1025,12 +1018,29 @@ def cocina_pedidos():
         grupos.setdefault(k,[]).append(p)
     franjas_ord = [f for f in FRANJAS_HORA if f in grupos]
     if "Sin hora" in grupos: franjas_ord.append("Sin hora")
-    return render_template('cocina_pedidos.html', activos=activos, grupos=grupos, franjas_ord=franjas_ord)
+    # Despachados hoy: estado Listo o Pagado, del día de hoy
+    despachados = [p for p in todos if p["estado"] in ("Listo","Pagado") and p["fecha"]==hoy]
+    for p in despachados:
+        p["pizzas"]  = [i for i in p["productos"] if i["tipo"]=="Pizza"]
+        p["bebidas"] = [i for i in p["productos"] if i["tipo"]=="Bebida"]
+    return render_template('cocina_pedidos.html',
+        activos=activos, grupos=grupos, franjas_ord=franjas_ord,
+        despachados=despachados, hoy=hoy)
 
 @app.route('/cocina/pedido/<int:pid>/listo', methods=['POST'])
 @rol_required('Cocina')
 def cocina_listo(pid):
     marcar_listo(pid)
+    return redirect(url_for('cocina_pedidos'))
+
+@app.route('/cocina/pedido/<int:pid>/devolver', methods=['POST'])
+@rol_required('Cocina')
+def cocina_devolver(pid):
+    """Devuelve un pedido despachado a estado Pendiente (cocina)."""
+    pedido = get_pedido(pid)
+    if pedido and pedido['estado'] in ('Listo', 'Pendiente'):
+        with _conn() as c:
+            c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
     return redirect(url_for('cocina_pedidos'))
 
 @app.route('/cocina/notificaciones')
