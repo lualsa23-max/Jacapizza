@@ -939,19 +939,27 @@ def mesero_editar(pid):
 def cajero_cobrar():
     hoy = ahora().strftime("%d/%m/%Y")
     todos = get_pedidos()
-    # Mostrar: estado Listo, O cualquier pedido con saldo>0 que no esté Pagado
+    filtro = request.args.get('filtro', 'hoy')
+    # Todos los pedidos por cobrar: estado Listo, O con saldo>0 que no estén Pagados
     por_cobrar = [p for p in todos if p["estado"]=="Listo" or (p["estado"]!="Pagado" and p["saldo"]>0 and p["total_pagado"]>0)]
-    # Deduplicar por id
+    # Deduplicar
     vistos = set()
     unicos = []
     for p in por_cobrar:
         if p["id"] not in vistos:
             vistos.add(p["id"])
             unicos.append(p)
-    pendientes_anteriores = [p for p in unicos if p["fecha"]!=hoy]
     de_hoy = [p for p in unicos if p["fecha"]==hoy]
-    return render_template('cajero_cobrar.html', pedidos=de_hoy,
-        pendientes_anteriores=pendientes_anteriores, hoy=hoy)
+    anteriores = [p for p in unicos if p["fecha"]!=hoy]
+    # Agrupar anteriores por fecha
+    anteriores_por_fecha = {}
+    for p in anteriores:
+        anteriores_por_fecha.setdefault(p["fecha"], []).append(p)
+    return render_template('cajero_cobrar.html',
+        pedidos=de_hoy, pendientes_anteriores=anteriores,
+        anteriores_por_fecha=anteriores_por_fecha,
+        hoy=hoy, filtro=filtro,
+        count_hoy=len(de_hoy), count_anteriores=len(anteriores))
 
 @app.route('/cajero/cobrar/<int:pid>', methods=['POST'])
 @rol_required('Cajero')
