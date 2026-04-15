@@ -1016,7 +1016,11 @@ def mesero_editar(pid):
             pedido_actual = get_pedido(pid)
             saldo = pedido_actual["saldo"]
             if saldo > 0:
-                registrar_pago(pid, saldo, metodo_pago, session['nombre'])
+                # Si el pedido tiene pizzas nuevas por preparar, mantener en Pendiente
+                # (cocina lo marca listo y ahí pasa a Pagado automáticamente)
+                tiene_pizzas_nuevas = any(i["tipo"]=="Pizza" for i in items)
+                marcar = not tiene_pizzas_nuevas  # Solo pasar a Pagado si NO hay pizzas nuevas por preparar
+                registrar_pago(pid, saldo, metodo_pago, session['nombre'], marcar_pagado=marcar)
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
         add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"]*i["precio_unit"] for i in items))
         return jsonify({'ok':True})
