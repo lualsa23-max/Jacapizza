@@ -60,9 +60,98 @@
           <span class="k-franja-tag">{{ p.franja_hora if p.franja_hora else 'Sin hora' }}</span>
         </div>
 
-        {% if p.pizzas %}
-          <div class="k-sec-lbl">🍕 Pizzas</div>
-          {% for it in p.pizzas %}
+        {% if p.tiene_despachados %}
+        <div style="background:rgba(78,203,113,.08);border-left:3px solid var(--green);border-radius:6px;padding:8px 10px;margin-top:10px">
+          <div style="font-size:.7rem;color:var(--green);font-weight:700;letter-spacing:.5px;margin-bottom:4px">
+            ✅ YA ENTREGADO
+          </div>
+          {% for it in p.pizzas_despachadas %}
+          <div style="display:flex;gap:6px;font-size:.82rem;color:var(--gray2);text-decoration:line-through;opacity:.7;padding:2px 0">
+            <span>{{ it.cantidad }}×</span>
+            <span>🍕 {{ it.nombre }}</span>
+          </div>
+          {% endfor %}
+          {% for it in p.bebidas_despachadas %}
+          <div style="display:flex;gap:6px;font-size:.82rem;color:var(--gray2);text-decoration:line-through;opacity:.7;padding:2px 0">
+            <span>{{ it.cantidad }}×</span>
+            <span>🥤 {{ it.nombre }}</span>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div style="margin-top:10px;padding:6px 10px;background:rgba(245,166,35,.12);border-radius:6px;font-size:.72rem;color:var(--orange);font-weight:700;letter-spacing:.5px">
+          ⚠ PEDIDO REABIERTO — PREPARAR LO SIGUIENTE:
+        </div>
+        {% endif %}
+
+        {% if p.pizzas_nuevas %}
+          <div class="k-sec-lbl">🍕 Pizzas{% if p.tiene_despachados %} nuevas{% endif %}</div>
+          {% for it in p.pizzas_nuevas %}
+          <div class="k-item">
+            <span class="k-item-qty">{{ it.cantidad }}×</span>
+            <span class="k-item-name">{{ it.nombre }}</span>
+          </div>
+          {% endfor %}
+        {% endif %}
+
+        {% if p.bebidas_nuevas %}
+          <div class="k-sec-lbl">🥤 Bebidas{% if p.tiene_despachados %} nuevas{% endif %}</div>
+          {% for it in p.bebidas_nuevas %}
+          <div class="k-item">
+            <span class="k-item-qty k-item-bqty">{{ it.cantidad }}×</span>
+            <span class="k-item-name">{{ it.nombre }}</span>
+          </div>
+          {% endfor %}
+        {% endif %}
+
+        {% if p.notas %}
+        <div class="k-notas">
+          <div class="k-notas-lbl">📝 Notas</div>
+          <div class="k-notas-txt">{{ p.notas }}</div>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/cocina/pedido/{{ p.id }}/listo"
+              onsubmit="return confirm('¿Marcar pedido #{{ p.id }} como LISTO?')">
+          <button type="submit" class="btn btn-green btn-full btn-lg mt-12">
+            {% if p.ya_pagado %}
+            ✅ LISTO — Cerrar pedido
+            {% else %}
+            ✅ LISTO — Pasar a cobro
+            {% endif %}
+          </button>
+        </form>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let seconds = 30;
+const cntEl = document.querySelector('#countdown strong');
+async function checkNotifs(){
+  try {
+    const r = await fetch('/cocina/notificaciones');
+    const data = await r.json();
+    data.forEach(function(n){
+      showToast('⚠️ Pedido #' + n.pid + ' fue modificado: ' + n.detalle, 6000);
+    });
+  } catch(e) {}
+}
+const timer = setInterval(function(){
+  seconds--;
+  if(cntEl) cntEl.textContent = seconds;
+  if(seconds <= 0){ clearInterval(timer); window.location.reload(); }
+}, 1000);
+checkNotifs();
+setInterval(checkNotifs, 8000);
+</script>
+{% endblock %}          {% for it in p.pizzas %}
           <div class="k-item">
             <span class="k-item-qty">{{ it.cantidad }}×</span>
             <span class="k-item-name">{{ it.nombre }}</span>
