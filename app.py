@@ -391,6 +391,41 @@ def get_stock_dict():
         rows = c.execute("SELECT nombre, stock FROM inventario WHERE fecha=?", (hoy,)).fetchall()
         return {r["nombre"]: r["stock"] for r in rows}
 
+def get_stock_con_alertas():
+    """Retorna dict: {nombre: {'stock': N, 'alerta_min': M, 'tipo': T}} para el día de hoy."""
+    hoy = ahora().strftime("%d/%m/%Y")
+    with _conn() as c:
+        rows = c.execute("SELECT nombre, tipo, stock, alerta_min FROM inventario WHERE fecha=?", (hoy,)).fetchall()
+        return {r["nombre"]: {"stock": r["stock"], "alerta_min": r["alerta_min"], "tipo": r["tipo"]} for r in rows}
+
+def get_productos_stock_bajo():
+    """Retorna lista de productos con stock <= alerta_min (excluyendo pulpas que son del día)."""
+    hoy = ahora().strftime("%d/%m/%Y")
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT nombre, tipo, stock, alerta_min FROM inventario "
+            "WHERE fecha=? AND alerta_min > 0 AND stock <= alerta_min "
+            "ORDER BY stock ASC, nombre ASC", (hoy,)).fetchall()
+        return [{"nombre": r["nombre"], "tipo": r["tipo"], "stock": r["stock"],
+                 "alerta_min": r["alerta_min"]} for r in rows]
+
+def validar_stock_pedido(items):
+    """Valida que haya stock suficiente para TODOS los items del pedido.
+    Retorna (ok: bool, error_msg: str). Suma cantidades por producto (puede haber duplicados)."""
+    stock = get_stock_dict()
+    # Agrupar cantidades por key de stock
+    requerido = {}
+    for item in items:
+        key = _item_a_stock_key(item["nombre"], item["tipo"])
+        if key:
+            requerido[key] = requerido.get(key, 0) + item["cantidad"]
+    # Validar cada requerimiento contra stock disponible
+    for key, cantidad in requerido.items():
+        disponible = stock.get(key)
+        if disponible is not None and cantidad > disponible:
+            return False, f'Solo quedan {disponible} de "{key}". Pediste {cantidad}.'
+    return True, ""
+
 def upsert_inventario(nombre, tipo, stock, alerta_min=None):
     hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
@@ -585,6 +620,9 @@ def admin_resumen():
                 f"FROM items WHERE pedido_id IN ({ph}) GROUP BY nombre ORDER BY tc DESC LIMIT 10", pag_ids).fetchall()
             top_items = [{"nombre": r["nombre"], "tipo": r["tipo"], "cantidad": r["tc"], "valor": r["tv"]} for r in rows]
 
+    # Productos con stock bajo (alerta para el admin)
+    stock_bajo = get_productos_stock_bajo()
+
     return render_template('admin_resumen.html',
         hoy=hoy, total_pedidos_hoy=len(hoy_todos),
         pagados=len(hoy_pagados), pendientes=pendientes, listos=listos,
@@ -594,7 +632,8 @@ def admin_resumen():
         total_cobrado=total_cobrado, total_cobros=total_cobros,
         total_por_cobrar=total_por_cobrar,
         metodos_hoy=metodos_hoy, por_cobrador=por_cobrador,
-        top_items=top_items, ultimos=hoy_todos[:10])
+        top_items=top_items, ultimos=hoy_todos[:10],
+        stock_bajo=stock_bajo)
 
 @app.route('/admin/inventario', methods=['GET','POST'])
 @rol_required('Administrador')
@@ -866,28 +905,41 @@ def mesero_nuevo():
         metodo_pago= data.get('metodo_pago','Efectivo')
         if not codigo or not items:
             return jsonify({'error':'Datos incompletos'}), 400
-        stock     = get_stock_dict()
-        total_piz = sum(i["cantidad"] for i in items if i["tipo"]=="Pizza")
-        masas     = stock.get("Pizza (masa)")
-        if masas is not None and total_piz > masas:
-            return jsonify({'error': f'Solo quedan {masas} masa(s) de pizza disponibles'}), 400
+        # Validar stock de TODO el pedido (masas + bebidas)
+        ok, error_msg = validar_stock_pedido(items)
+        if not ok:
+            return jsonify({'error': error_msg}), 400
         p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
         descontar_inventario(items)
-        # Si es solo bebidas (sin pizzas), salta cocina → directo a Listo
         solo_bebidas = all(i["tipo"] != "Pizza" for i in items)
-        if solo_bebidas and not cobrar_ya:
-            with _conn() as c:
-                c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (p['id'],))
+        # Flujo simplificado:
+        # - Solo bebidas + pagó → directo a Pagado (no cocina, no cobro)
+        # - Solo bebidas + no pagó → Listo (va a cobro)
+        # - Con pizzas + pagó → Pendiente (cocina, con banner "ya pagado"), al marcar listo → Pagado
+        # - Con pizzas + no pagó → Pendiente (cocina, luego cobro)
         if cobrar_ya:
-            # Registrar pago PERO mantener estado Pendiente → cocina lo verá con badge "ya pagado"
-            registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'], marcar_pagado=False)
+            if solo_bebidas:
+                # Directo a Pagado
+                registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'], marcar_pagado=True)
+            else:
+                # Pago registrado pero sigue en Pendiente para que cocina lo prepare.
+                # Cuando cocina marque listo, marcar_listo() detectará el pago y pasará a Pagado.
+                registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'], marcar_pagado=False)
             return jsonify({'ok':True,'id':p['id'],'cobrado':True,'solo_bebidas':solo_bebidas})
-        return jsonify({'ok':True,'id':p['id'],'cobrado':False,'solo_bebidas':solo_bebidas})
+        else:
+            if solo_bebidas:
+                # Sin pizzas → no pasa por cocina, va directo al cobro
+                with _conn() as c:
+                    c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (p['id'],))
+            # Con pizzas queda en Pendiente (cocina lo ve)
+            return jsonify({'ok':True,'id':p['id'],'cobrado':False,'solo_bebidas':solo_bebidas})
     stock  = get_stock_dict()
+    alertas = {k: v["alerta_min"] for k, v in get_stock_con_alertas().items()}
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
         sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
-        stock_json=json.dumps(stock), pulpas_json=json.dumps(pulpas),
+        stock_json=json.dumps(stock), alertas_json=json.dumps(alertas),
+        pulpas_json=json.dumps(pulpas),
         toppings=TOPPINGS, precio_pizza=PRECIO_PIZZA)
 
 @app.route('/mesero/pedidos')
@@ -913,7 +965,14 @@ def mesero_editar(pid):
         metodo_pago = data.get('metodo_pago', '')
         if not items:
             return jsonify({'error':'El pedido no puede quedar vacío'}), 400
+        # Restaurar inventario de los items actuales antes de validar (para que el nuevo pedido
+        # compita solo contra el stock "libre", no contra sí mismo)
         restaurar_inventario(pedido['productos'])
+        ok, error_msg = validar_stock_pedido(items)
+        if not ok:
+            # Rollback: volver a descontar lo original
+            descontar_inventario(pedido['productos'])
+            return jsonify({'error': error_msg}), 400
         actualizar_pedido(pid, items, notas, franja)
         descontar_inventario(items)
         if pedido['estado'] == 'Listo':
@@ -939,27 +998,19 @@ def mesero_editar(pid):
 def cajero_cobrar():
     hoy = ahora().strftime("%d/%m/%Y")
     todos = get_pedidos()
-    filtro = request.args.get('filtro', 'hoy')
-    # Todos los pedidos por cobrar: estado Listo, O con saldo>0 que no estén Pagados
+    # Mostrar: estado Listo, O cualquier pedido con saldo>0 que no esté Pagado
     por_cobrar = [p for p in todos if p["estado"]=="Listo" or (p["estado"]!="Pagado" and p["saldo"]>0 and p["total_pagado"]>0)]
-    # Deduplicar
+    # Deduplicar por id
     vistos = set()
     unicos = []
     for p in por_cobrar:
         if p["id"] not in vistos:
             vistos.add(p["id"])
             unicos.append(p)
+    pendientes_anteriores = [p for p in unicos if p["fecha"]!=hoy]
     de_hoy = [p for p in unicos if p["fecha"]==hoy]
-    anteriores = [p for p in unicos if p["fecha"]!=hoy]
-    # Agrupar anteriores por fecha
-    anteriores_por_fecha = {}
-    for p in anteriores:
-        anteriores_por_fecha.setdefault(p["fecha"], []).append(p)
-    return render_template('cajero_cobrar.html',
-        pedidos=de_hoy, pendientes_anteriores=anteriores,
-        anteriores_por_fecha=anteriores_por_fecha,
-        hoy=hoy, filtro=filtro,
-        count_hoy=len(de_hoy), count_anteriores=len(anteriores))
+    return render_template('cajero_cobrar.html', pedidos=de_hoy,
+        pendientes_anteriores=pendientes_anteriores, hoy=hoy)
 
 @app.route('/cajero/cobrar/<int:pid>', methods=['POST'])
 @rol_required('Cajero')
@@ -1014,8 +1065,7 @@ def cajero_caja():
 @app.route('/cocina/pedidos')
 @rol_required('Cocina')
 def cocina_pedidos():
-    hoy   = ahora().strftime("%d/%m/%Y")
-    todos = get_pedidos()
+    todos   = get_pedidos()
     activos = [p for p in todos if p["estado"]=="Pendiente"]
     for p in activos:
         p["pizzas"]  = [i for i in p["productos"] if i["tipo"]=="Pizza"]
@@ -1026,29 +1076,12 @@ def cocina_pedidos():
         grupos.setdefault(k,[]).append(p)
     franjas_ord = [f for f in FRANJAS_HORA if f in grupos]
     if "Sin hora" in grupos: franjas_ord.append("Sin hora")
-    # Despachados hoy: estado Listo o Pagado, del día de hoy
-    despachados = [p for p in todos if p["estado"] in ("Listo","Pagado") and p["fecha"]==hoy]
-    for p in despachados:
-        p["pizzas"]  = [i for i in p["productos"] if i["tipo"]=="Pizza"]
-        p["bebidas"] = [i for i in p["productos"] if i["tipo"]=="Bebida"]
-    return render_template('cocina_pedidos.html',
-        activos=activos, grupos=grupos, franjas_ord=franjas_ord,
-        despachados=despachados, hoy=hoy)
+    return render_template('cocina_pedidos.html', activos=activos, grupos=grupos, franjas_ord=franjas_ord)
 
 @app.route('/cocina/pedido/<int:pid>/listo', methods=['POST'])
 @rol_required('Cocina')
 def cocina_listo(pid):
     marcar_listo(pid)
-    return redirect(url_for('cocina_pedidos'))
-
-@app.route('/cocina/pedido/<int:pid>/devolver', methods=['POST'])
-@rol_required('Cocina')
-def cocina_devolver(pid):
-    """Devuelve un pedido despachado a estado Pendiente (cocina)."""
-    pedido = get_pedido(pid)
-    if pedido and pedido['estado'] in ('Listo', 'Pendiente'):
-        with _conn() as c:
-            c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
     return redirect(url_for('cocina_pedidos'))
 
 @app.route('/cocina/notificaciones')
