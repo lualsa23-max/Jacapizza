@@ -1,68 +1,100 @@
 {% extends "base.html" %}
-{% block title %}— Resumen del Día{% endblock %}
+{% block title %}— Resumen{% endblock %}
 {% block content %}
-<h2 class="sec-title" style="margin-bottom:16px">📊 Operación del Día · {{ hoy }}</h2>
+<h2 class="sec-title" style="margin-bottom:16px">📊 Panel de Administrador · {{ hoy }}</h2>
 
-<!-- FILA 1: Dinero -->
 <div class="metrics">
-  <div class="metric" style="grid-column:1/-1">
+  <div class="metric">
     <div class="metric-ico">💰</div>
-    <div class="metric-val c-green" style="font-size:1.6rem">{{ total_cobrado | cop }}</div>
-    <div class="metric-lbl">Total cobrado hoy</div>
+    <div class="metric-val c-green">{{ total_cobrado | cop }}</div>
+    <div class="metric-lbl">Ventas hoy</div>
   </div>
-  <div class="metric">
-    <div class="metric-ico">🧾</div>
-    <div class="metric-val c-accent">{{ total_cobros }}</div>
-    <div class="metric-lbl">Cobros realizados</div>
-  </div>
-  <div class="metric">
-    <div class="metric-ico">⏳</div>
-    <div class="metric-val c-orange">{{ total_por_cobrar | cop }}</div>
-    <div class="metric-lbl">Pendiente por cobrar</div>
-  </div>
-</div>
-
-<!-- FILA 2: Pizzas -->
-<div class="metrics mt-12">
-  <div class="metric">
-    <div class="metric-ico">🍕</div>
-    <div class="metric-val c-accent" style="font-size:1.4rem">{{ pizzas_vendidas }} / {{ masas_iniciales }}</div>
-    <div class="metric-lbl">Pizzas vendidas / cargadas</div>
-  </div>
-  <div class="metric">
-    <div class="metric-ico">🫓</div>
-    <div class="metric-val {% if masas_disponibles <= 3 %}c-red{% else %}c-green{% endif %}">{{ masas_disponibles }}</div>
-    <div class="metric-lbl">Masas disponibles</div>
-  </div>
-</div>
-
-<!-- FILA 3: Estado de pedidos -->
-<div class="metrics mt-12" style="grid-template-columns:repeat(4,1fr)">
   <div class="metric">
     <div class="metric-ico">📋</div>
-    <div class="metric-val c-white">{{ total_pedidos_hoy }}</div>
-    <div class="metric-lbl">Pedidos hoy</div>
-  </div>
-  <div class="metric">
-    <div class="metric-ico">🔥</div>
-    <div class="metric-val c-orange">{{ pendientes }}</div>
-    <div class="metric-lbl">En cocina</div>
+    <div class="metric-val c-accent">{{ total_pedidos_hoy }}</div>
+    <div class="metric-lbl">Total pedidos</div>
   </div>
   <div class="metric">
     <div class="metric-ico">✅</div>
-    <div class="metric-val c-accent">{{ listos }}</div>
-    <div class="metric-lbl">Listos</div>
-  </div>
-  <div class="metric">
-    <div class="metric-ico">💳</div>
     <div class="metric-val c-green">{{ pagados }}</div>
     <div class="metric-lbl">Pagados</div>
   </div>
+  <div class="metric">
+    <div class="metric-ico">⏳</div>
+    <div class="metric-val c-orange">{{ pendientes }}</div>
+    <div class="metric-lbl">Pendientes</div>
+  </div>
 </div>
+
+{% if stock_bajo %}
+<div style="background:rgba(245,166,35,.12);border:2px solid var(--orange);border-radius:12px;padding:14px;margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <span style="font-size:1.6rem">⚠️</span>
+    <div style="font-family:var(--fh);color:var(--orange);font-size:1rem;font-weight:700">
+      {{ stock_bajo|length }} producto{{ 's' if stock_bajo|length!=1 else '' }} con stock bajo
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px">
+    {% for item in stock_bajo %}
+    <span style="background:rgba(245,166,35,.15);color:var(--orange);font-size:.8rem;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,166,35,.3)">
+      {% if item.stock == 0 %}🔴{% else %}🟡{% endif %}
+      {{ item.nombre }}: {{ item.stock }}
+    </span>
+    {% endfor %}
+  </div>
+  <a href="{{ url_for('admin_inventario') }}" style="text-decoration:none">
+    <div class="text-xs c-gray mt-8">Toca para ir a inventario →</div>
+  </a>
+</div>
+{% endif %}
 
 {% if cobros_pendientes %}
 <a href="{{ url_for('cajero_cobrar') }}" style="text-decoration:none">
-  <div style="background:rgba(232,93,93,.12);border:2px solid var(--red);border-radius:12px;padding:14px;margin-top:16px;display:flex;align-items:center;gap:12px">
+  <div style="background:rgba(232,93,93,.12);border:2px solid var(--red);border-radius:12px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.8rem">🔴</span>
+    <div>
+      <div style="font-family:var(--fh);color:var(--red);font-size:1rem;font-weight:700">
+        {{ cobros_pendientes }} cobro{{ 's' if cobros_pendientes!=1 else '' }} pendiente{{ 's' if cobros_pendientes!=1 else '' }} de días anteriores
+      </div>
+      <div class="text-sm c-gray mt-4">Toca aquí para ir a cobrarlos →</div>
+    </div>
+  </div>
+</a>
+{% endif %}
+
+<h3 class="sec-title">Últimos pedidos</h3>
+{% if ultimos %}
+<div class="tbl-wrap card" style="padding:0">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in ultimos %}
+      <tr>
+        <td class="c-accent font-bold">#{{ p.id }}</td>
+        <td>{{ p.mesa }}</td>
+        <td>{{ p.mesero }}</td>
+        <td class="c-green font-bold">{{ p.total | cop }}</td>
+        <td><span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span></td>
+        <td class="c-gray text-sm">{{ p.hora }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><span class="e-ico">🍕</span>Sin pedidos registrados aún</div>
+{% endif %}
+
+<div class="mt-16" style="display:flex;gap:10px;flex-wrap:wrap">
+  <a href="{{ url_for('admin_inventario') }}" class="btn btn-ghost">📦 Ir a inventario</a>
+  <a href="{{ url_for('admin_reportes') }}"   class="btn btn-ghost">📈 Ver reportes</a>
+  <a href="{{ url_for('admin_pedidos') }}"    class="btn btn-ghost">📋 Todos los pedidos</a>
+</div>
+{% endblock %}  <div style="background:rgba(232,93,93,.12);border:2px solid var(--red);border-radius:12px;padding:14px;margin-top:16px;display:flex;align-items:center;gap:12px">
     <span style="font-size:1.8rem">🔴</span>
     <div>
       <div style="font-family:var(--fh);color:var(--red);font-size:1rem;font-weight:700">
