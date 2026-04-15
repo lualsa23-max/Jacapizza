@@ -76,7 +76,7 @@
   </div>
   {% endif %}
   <div class="cart-total" id="cart-total">$0</div>
-  <div class="cart-total-lbl">{% if pedido.productos_despachados %}NUEVO SUBTOTAL{% else %}TOTAL DEL PEDIDO{% endif %}</div>
+  <div class="cart-total-lbl">{% if pedido.productos_despachados %}SUBTOTAL NUEVO{% else %}TOTAL DEL PEDIDO{% endif %}</div>
   <div id="cart-items"></div>
   <div class="card mt-12">
     <label class="form-label">⏰ Hora de entrega</label>
@@ -88,6 +88,32 @@
     <label class="form-label">📝 Notas</label>
     <textarea class="form-textarea" id="notas-txt">{{ pedido.notas }}</textarea>
   </div>
+
+  <!-- OPCIÓN DE COBRAR AHORA -->
+  <div class="card mt-12" style="background:rgba(199,24,126,.06);border:1.5px solid rgba(199,24,126,.25)">
+    <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" id="cobrar-ya-chk" onchange="toggleCobrar()" style="width:20px;height:20px;cursor:pointer">
+      <span style="font-weight:700">💳 Cobrar ahora mismo</span>
+    </label>
+    <div class="text-xs c-gray mt-4" id="cobrar-hint">
+      {% if pedido.productos_despachados %}
+      Marca esto si el cliente va a pagar estos productos nuevos ya mismo.
+      {% else %}
+      Marca esto si el cliente va a pagar al momento de hacer el pedido.
+      {% endif %}
+    </div>
+    <div id="metodo-pago-wrap" style="display:none;margin-top:10px">
+      <label class="form-label">Método de pago:</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Efectivo" onclick="seleccionarMetodo(this)">💵 Efectivo</button>
+        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Nequi" onclick="seleccionarMetodo(this)">📱 Nequi</button>
+        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Daviplata" onclick="seleccionarMetodo(this)">📲 Daviplata</button>
+        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Tarjeta" onclick="seleccionarMetodo(this)">💳 Tarjeta</button>
+        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Llave Bre-B" onclick="seleccionarMetodo(this)" style="grid-column:1/-1">🔑 Llave Bre-B</button>
+      </div>
+    </div>
+  </div>
+
   <button class="btn btn-primary btn-full btn-lg mt-12" onclick="guardarCambios()">
     💾 Guardar cambios — Notificar cocina
   </button>
@@ -100,6 +126,28 @@
 let qty = 1;
 let saboresSel = [];
 let carrito = {{ pedido.productos | tojson }};
+let metodoSel = '';
+
+function toggleCobrar(){
+  const chk = document.getElementById('cobrar-ya-chk');
+  const wrap = document.getElementById('metodo-pago-wrap');
+  wrap.style.display = chk.checked ? 'block' : 'none';
+  if(!chk.checked){
+    metodoSel = '';
+    document.querySelectorAll('.pago-btn').forEach(b=>b.classList.remove('btn-primary'));
+    document.querySelectorAll('.pago-btn').forEach(b=>b.classList.add('btn-ghost'));
+  }
+}
+
+function seleccionarMetodo(btn){
+  metodoSel = btn.dataset.metodo;
+  document.querySelectorAll('.pago-btn').forEach(b=>{
+    b.classList.remove('btn-primary');
+    b.classList.add('btn-ghost');
+  });
+  btn.classList.remove('btn-ghost');
+  btn.classList.add('btn-primary');
+}
 
 function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
 
@@ -181,18 +229,26 @@ async function guardarCambios(){
   if(!carrito.length){ alert('El pedido no puede quedar vacío'); return; }
   const franja = document.getElementById('franja-sel').value;
   const notas  = document.getElementById('notas-txt').value.trim();
+  const cobrarYa = document.getElementById('cobrar-ya-chk').checked;
+  if(cobrarYa && !metodoSel){
+    alert('Selecciona un método de pago');
+    return;
+  }
   const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
   const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
-  if(!confirm('Guardar cambios?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\n\n⚠ Cocina será notificada del cambio.')) return;
+  let msg = 'Guardar cambios?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.');
+  if(cobrarYa){ msg += '\n\n💳 Se cobrará con '+metodoSel; }
+  msg += '\n\n⚠ Cocina será notificada del cambio.';
+  if(!confirm(msg)) return;
   try{
     const r = await fetch('/mesero/pedido/{{ pedido.id }}/editar',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({items:carrito, notas, franja})
+      body: JSON.stringify({items:carrito, notas, franja, cobrar_ya:cobrarYa, metodo_pago:metodoSel})
     });
     const d = await r.json();
     if(d.ok){
-      alert('✅ Cambios guardados.\n🔔 Cocina fue notificada del cambio.');
+      alert('✅ Cambios guardados.' + (cobrarYa ? '\n💳 Pago registrado.' : '') + '\n🔔 Cocina fue notificada.');
       window.location='/mesero/pedidos';
     } else {
       alert('Error: '+d.error);
