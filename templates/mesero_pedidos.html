@@ -35,14 +35,22 @@
     {% endif %}
     <div class="p-foot">
       <span class="p-total">{{ p.total | cop }}</span>
-      {% if p.estado in ['Pendiente', 'Listo'] %}
-      <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm">✏ Editar</a>
-      {% elif p.estado == 'Pagado' and session.get('rol') == 'Administrador' %}
-      <form method="post" action="/admin/pedido/{{ p.id }}/reabrir" style="display:inline"
-            onsubmit="return confirm('¿Reabrir pedido #{{ p.id }}? Podrás agregar productos y cobrar la diferencia.')">
-        <button type="submit" class="btn btn-orange btn-sm">🔓 Reabrir</button>
-      </form>
-      {% endif %}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        {% if p.estado in ['Pendiente', 'Listo'] %}
+        <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm">✏ Editar</a>
+        {% elif p.estado == 'Pagado' and session.get('rol') == 'Administrador' %}
+        <form method="post" action="/admin/pedido/{{ p.id }}/reabrir" style="display:inline"
+              onsubmit="return confirm('¿Reabrir pedido #{{ p.id }}? Podrás agregar productos y cobrar la diferencia.')">
+          <button type="submit" class="btn btn-orange btn-sm">🔓 Reabrir</button>
+        </form>
+        {% endif %}
+        {% if session.get('rol') == 'Administrador' %}
+        <form method="post" action="/admin/pedido/{{ p.id }}/eliminar" style="display:inline"
+              onsubmit="return confirm('¿Eliminar el pedido #{{ p.id }} de {{ p.mesa }}? Esta acción no se puede deshacer.')">
+          <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
   </div>
   {% endfor %}
