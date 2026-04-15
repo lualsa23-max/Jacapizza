@@ -104,6 +104,18 @@
           {% endfor %}
         {% endif %}
 
+        {% if p.tiene_despachados and not p.pizzas_nuevas and not p.bebidas_nuevas %}
+        <div style="margin-top:12px;padding:14px;background:rgba(232,93,93,.1);border:1.5px dashed var(--red);border-radius:8px;text-align:center">
+          <div style="font-size:.85rem;color:var(--red);font-weight:700;margin-bottom:4px">
+            ⚠ Sin items nuevos por preparar
+          </div>
+          <div class="text-xs c-gray">
+            El mesero aún no ha agregado productos al pedido reabierto.<br>
+            Espera a que edite el pedido o confirma con él.
+          </div>
+        </div>
+        {% endif %}
+
         {% if p.notas %}
         <div class="k-notas">
           <div class="k-notas-lbl">📝 Notas</div>
