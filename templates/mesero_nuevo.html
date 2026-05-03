@@ -62,8 +62,6 @@
 <div class="order-panel" id="panel-bebidas">
   <div class="card">
     {% set stock = stock_json | fromjson %}
-    {% set alertas = (alertas_json | fromjson) if alertas_json is defined else {} %}
-    {% set pulpas = pulpas_json | fromjson %}
 
     {% for nombre, precio in bebidas.items() %}
 
@@ -80,9 +78,6 @@
       {% set s_rojos = stock.get('Soda Italiana - Frutos Rojos', 0) %}
       {% set s_amarillos = stock.get('Soda Italiana - Frutos Amarillos', 0) %}
       {% if s_rojos == 0 and s_amarillos == 0 %}{% set agotado = true %}{% endif %}
-
-    {% elif nombre == 'Jugo Natural (agua)' %}
-      {% if pulpas | length == 0 %}{% set agotado = true %}{% endif %}
     {% endif %}
 
     <div class="beb-row">
@@ -108,18 +103,11 @@
               <span class="stock-chip stock-ok">🟡 Amarillos: {{ s_amarillos }}</span>
             {% endif %}
           </div>
-        {% elif nombre == 'Jugo Natural (agua)' %}
-          {% if pulpas | length == 0 %}
-            <span class="stock-chip stock-out">Sin pulpas</span>
-          {% else %}
-            <span class="stock-chip stock-ok">{{ pulpas | length }} pulpa(s) disp.</span>
-          {% endif %}
         {% elif stock_val is not none %}
-          {% set umbral = alertas.get(nombre, 5) %}
           {% if stock_val == 0 %}
             <span class="stock-chip stock-out">Agotado</span>
-          {% elif stock_val <= umbral %}
-            <span class="stock-chip stock-low">⚠ Quedan {{ stock_val }}</span>
+          {% elif stock_val <= 3 %}
+            <span class="stock-chip stock-low">⚠ {{ stock_val }} unid.</span>
           {% else %}
             <span class="stock-chip stock-ok">{{ stock_val }} unid.</span>
           {% endif %}
@@ -131,12 +119,14 @@
       {% if not agotado %}
         {% if nombre == 'Gaseosa' %}
           <button class="btn btn-primary btn-sm" onclick="modalTexto('{{ nombre }}', {{ precio }}, 'Sabor de gaseosa')">+</button>
-        {% elif nombre == 'Jugo Natural (agua)' %}
-          <button class="btn btn-primary btn-sm" onclick="modalPulpas()">+</button>
         {% elif nombre == 'Soda Italiana' %}
           <button class="btn btn-primary btn-sm" onclick="modalSoda({{ precio }})">+</button>
-        {% elif nombre == 'Cerezada' %}
+        {% elif nombre == 'Cerezada' or nombre == 'Limonada de Coco' %}
           <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['en agua','en leche'])">+</button>
+        {% elif nombre.startswith('Jugo Natural') %}
+          <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['en agua','en leche'])">+</button>
+        {% elif nombre.startswith('Cerveza') %}
+          <button class="btn btn-primary btn-sm" onclick="modalCerveza('{{ nombre }}', {{ precio }})">+</button>
         {% else %}
           <button class="btn btn-primary btn-sm" onclick="addBebida('{{ nombre }}', {{ precio }})">+</button>
         {% endif %}
@@ -202,17 +192,7 @@
   </div>
 </div>
 
-<!-- MODAL PULPAS -->
-<div class="overlay" id="modal-pulpas">
-  <div class="sheet">
-    <h3 class="sheet-title">🍹 Elige la pulpa</h3>
-    <div id="pulpas-list"></div>
-    <button class="btn btn-primary btn-full mt-12" onclick="confirmPulpa()">Agregar</button>
-    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-pulpas')">Cancelar</button>
-  </div>
-</div>
-
-<!-- MODAL OPCIONES -->
+<!-- MODAL OPCIONES (agua/leche para jugos, cerezada, etc.) -->
 <div class="overlay" id="modal-opciones">
   <div class="sheet">
     <h3 class="sheet-title" id="modal-opc-titulo">Selecciona</h3>
@@ -225,9 +205,7 @@
 
 {% block scripts %}
 <script>
-const PULPAS = {{ pulpas_json | safe }};
 const STOCK  = {{ stock_json | safe }};
-const JUG_PRECIO = {{ bebidas.get('Jugo Natural (agua)', 7000) }};
 
 let qty = 1;
 let saboresSel = [];
@@ -327,23 +305,24 @@ function confirmSoda(){
   closeModal('modal-soda');
 }
 
-function modalPulpas(){
-  const list=document.getElementById('pulpas-list');
-  list.innerHTML='';
-  const disp=PULPAS.filter(p=>p.stock>0);
-  if(!disp.length){ alert('No hay pulpas disponibles hoy'); return; }
-  disp.forEach((p,i)=>{
-    const info=p.stock<=p.alerta_min?' ⚠ quedan '+p.stock:' ('+p.stock+' disp.)';
-    list.innerHTML+='<div class="sheet-opt '+(i===0?'sel':'')+'" onclick="selectOpt(this,\'pulpa-opts\')">' +
-      '<input type="radio" name="pulpa-opts" value="'+p.nombre+'" '+(i===0?'checked':'')+'>'+
-      '<label>'+p.nombre+info+'</label></div>';
-  });
-  openModal('modal-pulpas');
+function modalCerveza(nombre, precio){
+  modalOpciones(nombre, precio, ['🍺 Normal', '🌶 Michelada (+$2.500)']);
 }
-function confirmPulpa(){
-  const sel=document.querySelector('[name="pulpa-opts"]:checked');
-  if(sel){ addBebida('Jugo Natural — '+sel.value, JUG_PRECIO); }
-  closeModal('modal-pulpas');
+function confirmOpciones(){
+  const sel=document.querySelector('[name="opc-opts"]:checked');
+  if(sel){
+    let val = sel.value;
+    let precio = modalOpcPrecio;
+    let nombre = modalOpcNombre;
+    if(val.includes('Michelada')){
+      nombre += ' — Michelada';
+      precio += 2500;
+    } else if(val !== modalOpcNombre && !val.includes('Normal')){
+      nombre += ' — ' + val;
+    }
+    addBebida(nombre, precio);
+  }
+  closeModal('modal-opciones');
 }
 
 let modalOpcNombre='', modalOpcPrecio=0;
@@ -358,11 +337,6 @@ function modalOpciones(nombre, precio, opciones){
       '<label>'+o+'</label></div>';
   });
   openModal('modal-opciones');
-}
-function confirmOpciones(){
-  const sel=document.querySelector('[name="opc-opts"]:checked');
-  if(sel){ addBebida(modalOpcNombre+' — '+sel.value, modalOpcPrecio); }
-  closeModal('modal-opciones');
 }
 
 function selectOpt(el, name){
