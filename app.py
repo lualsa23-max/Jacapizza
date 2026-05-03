@@ -51,7 +51,12 @@ FRANJAS_HORA = [
 BEBIDAS_DEFAULT = {
     "Gaseosa":4000,"Agua 600ml":4000,"Soda Italiana":5000,
     "Cerveza Águila":4000,"Cerveza Águila Light":4000,"Cerveza Coronita":5000,
-    "Cerveza Poker":4000,"Jugo Natural (agua)":7000,"Limonada de Coco":7000,"Cerezada":7000,
+    "Cerveza Poker":4000,"Limonada de Coco":7000,"Cerezada":7000,
+    "Jugo Natural — Guanábana":7000,"Jugo Natural — Mora":7000,
+    "Jugo Natural — Lulo":7000,"Jugo Natural — Fresa":7000,
+    "Jugo Natural — Tamarindo":7000,"Jugo Natural — Maracumango":7000,
+    "Jugo Natural — Maracuyá":7000,"Jugo Natural — Piña":7000,
+    "Jugo Natural — Piña-Hierbabuena":7000,
 }
 PIZZAS_DEFAULT = {
     "Hawaiana":20000,"Pollo con Champiñones":20000,"Mexicana":20000,
@@ -66,12 +71,21 @@ TOPPINGS = {
     "Maíz": 2000,
     "Jalapeño": 2000,
 }
+JUGOS_SABORES = [
+    "Guanábana","Mora","Lulo","Fresa","Tamarindo",
+    "Maracumango","Maracuyá","Piña","Piña-Hierbabuena",
+]
 INV_DEFAULT = {
     "Pizza (masa)":("pizza",3),"Agua 600ml":("bebida",5),"Gaseosa":("bebida",5),
     "Cerveza Águila":("bebida",5),"Cerveza Águila Light":("bebida",5),
     "Cerveza Coronita":("bebida",5),"Cerveza Poker":("bebida",5),
     "Soda Italiana - Frutos Rojos":("bebida",5),"Soda Italiana - Frutos Amarillos":("bebida",5),
     "Limonada de Coco":("bebida",5),"Cerezada":("bebida",5),
+    "Jugo Natural — Guanábana":("bebida",5),"Jugo Natural — Mora":("bebida",5),
+    "Jugo Natural — Lulo":("bebida",5),"Jugo Natural — Fresa":("bebida",5),
+    "Jugo Natural — Tamarindo":("bebida",5),"Jugo Natural — Maracumango":("bebida",5),
+    "Jugo Natural — Maracuyá":("bebida",5),"Jugo Natural — Piña":("bebida",5),
+    "Jugo Natural — Piña-Hierbabuena":("bebida",5),
 }
 
 @app.template_filter('fromjson')
@@ -537,11 +551,8 @@ def restaurar_inventario(items):
         if key: ajustar_stock(key, +item["cantidad"])
 
 def get_pulpas_hoy():
-    hoy = ahora().strftime("%d/%m/%Y")
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT nombre,stock,alerta_min FROM inventario WHERE tipo='pulpa' AND fecha=? ORDER BY nombre", (hoy,)).fetchall()
-        return [{"nombre": r["nombre"], "stock": r["stock"], "alerta_min": r["alerta_min"]} for r in rows]
+    """DEPRECATED: Los jugos ahora son bebidas normales del catálogo. Retorna lista vacía por compatibilidad."""
+    return []
 
 # ── CIERRE ────────────────────────────────────────────
 def get_vendido_hoy(fecha):
@@ -731,12 +742,6 @@ def admin_inventario():
             stock  = int(data.get(f'stock_{nombre}', 0))
             alerta = int(data.get(f'alerta_{nombre}', 5))
             upsert_inventario(nombre, tipo, stock, alerta)
-        hoy = ahora().strftime("%d/%m/%Y")
-        with _conn() as c:
-            c.execute("DELETE FROM inventario WHERE tipo='pulpa' AND fecha=?", (hoy,))
-        for p in data.get('pulpas', []):
-            if p.get('nombre','').strip():
-                upsert_inventario(p['nombre'].strip(), 'pulpa', int(p.get('stock',0)), 3)
         for item in data.get('nuevos', []):
             nombre   = item.get('nombre','').strip()
             tipo_cat = item.get('tipo_cat','bebida')
