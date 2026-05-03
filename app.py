@@ -173,26 +173,35 @@ def _seed_catalogo():
     try:
         with _conn() as c:
             count = c.execute("SELECT COUNT(*) FROM catalogo").fetchone()[0]
-            if count > 0: return
-            for nombre, precio in PIZZAS_DEFAULT.items():
-                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
-                         (nombre,"pizza",precio))
-            beb_inv = [
-                ("Gaseosa",4000,5),("Agua 600ml",4000,5),
-                ("Cerveza Águila",4000,5),("Cerveza Águila Light",4000,5),
-                ("Cerveza Coronita",5000,5),("Cerveza Poker",4000,5),
-                ("Soda Italiana - Frutos Rojos",5000,5),
-                ("Soda Italiana - Frutos Amarillos",5000,5),
-                ("Limonada de Coco",7000,5),("Cerezada",7000,5),
-            ]
-            for nombre, precio, alerta in beb_inv:
-                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,1,?)",
-                         (nombre,"bebida",precio,alerta))
-            for nombre, precio in [("Jugo Natural (agua)",7000),("Soda Italiana",5000)]:
-                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
-                         (nombre,"bebida_especial",precio))
-            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,0,1,3)",
-                     ("Pizza (masa)","pizza_inv"))
+            if count == 0:
+                for nombre, precio in PIZZAS_DEFAULT.items():
+                    c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
+                             (nombre,"pizza",precio))
+                beb_inv = [
+                    ("Gaseosa",4000,5),("Agua 600ml",4000,5),
+                    ("Cerveza Águila",4000,5),("Cerveza Águila Light",4000,5),
+                    ("Cerveza Coronita",5000,5),("Cerveza Poker",4000,5),
+                    ("Soda Italiana - Frutos Rojos",5000,5),
+                    ("Soda Italiana - Frutos Amarillos",5000,5),
+                    ("Limonada de Coco",7000,5),("Cerezada",7000,5),
+                ]
+                for nombre, precio, alerta in beb_inv:
+                    c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,1,?)",
+                             (nombre,"bebida",precio,alerta))
+                for nombre, precio in [("Soda Italiana",5000)]:
+                    c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
+                             (nombre,"bebida_especial",precio))
+                c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,0,1,3)",
+                         ("Pizza (masa)","pizza_inv"))
+            # SIEMPRE sincronizar jugos y bebidas del BEBIDAS_DEFAULT que falten
+            existentes = {r["nombre"] for r in c.execute("SELECT nombre FROM catalogo").fetchall()}
+            for nombre, precio in BEBIDAS_DEFAULT.items():
+                if nombre not in existentes:
+                    en_inv = 1 if nombre.startswith("Jugo Natural") or nombre in INV_DEFAULT else 0
+                    alerta = INV_DEFAULT.get(nombre, ("bebida", 5))[1] if nombre in INV_DEFAULT else 5
+                    c.execute("INSERT INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,?,?,?,1)",
+                             (nombre, "bebida", precio, en_inv, alerta))
+                    print(f"[BOOT] Nuevo producto en catálogo: {nombre} (${precio})")
     except Exception as e:
         print("Seed error:", e)
 
