@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}— Seleccionar módulo{% endblock %}
+{% block content %}
+<div style="max-width:400px;margin:40px auto;text-align:center">
+  <div style="font-size:2.5rem;margin-bottom:12px">🍕</div>
+  <h2 style="font-family:var(--fh);color:var(--text);margin:0 0 6px">Hola, {{ nombre }}</h2>
+  <p style="color:var(--gray2);font-size:.9rem;margin:0 0 28px">¿Qué vas a hacer?</p>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    {% for rol in roles %}
+    <a href="{{ url_for('cambiar_rol', rol=rol) }}"
+       style="text-decoration:none;display:flex;align-items:center;gap:14px;
+              background:var(--card);border:2px solid var(--card2);border-radius:14px;
+              padding:20px;transition:all .15s;cursor:pointer"
+       onmouseover="this.style.borderColor='var(--accent)';this.style.transform='scale(1.02)'"
+       onmouseout="this.style.borderColor='var(--card2)';this.style.transform='scale(1)'">
+      <span style="font-size:2rem;width:50px;text-align:center">
+        {% if rol == 'Mesero' %}📝{% elif rol == 'Cajero' %}💰{% elif rol == 'Cocina' %}🍳{% elif rol == 'Administrador' %}⚙️{% endif %}
+      </span>
+      <div style="text-align:left">
+        <div style="font-family:var(--fh);font-size:1.1rem;color:var(--text);font-weight:700">
+          {% if rol == 'Mesero' %}Tomar pedidos
+          {% elif rol == 'Cajero' %}Cobrar pedidos
+          {% elif rol == 'Cocina' %}Cocina
+          {% elif rol == 'Administrador' %}Administrar
+          {% endif %}
+        </div>
+        <div style="font-size:.8rem;color:var(--gray2);margin-top:2px">
+          {% if rol == 'Mesero' %}Crear y editar pedidos de clientes
+          {% elif rol == 'Cajero' %}Ver pedidos listos y registrar cobros
+          {% elif rol == 'Cocina' %}Ver pedidos pendientes por preparar
+          {% elif rol == 'Administrador' %}Dashboard, inventario, reportes
+          {% endif %}
+        </div>
+      </div>
+      <span style="margin-left:auto;color:var(--gray2);font-size:1.2rem">→</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <a href="{{ url_for('logout') }}" class="btn btn-ghost mt-20" style="font-size:.85rem">Cerrar sesión</a>
+</div>
+{% endblock %}
