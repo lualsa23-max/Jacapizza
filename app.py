@@ -608,18 +608,32 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-@app.route('/cambiar_rol', methods=['POST'])
+@app.route('/cambiar_rol/<rol>')
 @login_required
-def cambiar_rol():
-    nuevo_rol = request.form.get('rol','')
+def cambiar_rol(rol):
     roles_disponibles = session.get('roles', [session.get('rol')])
-    if nuevo_rol in roles_disponibles:
-        session['rol'] = nuevo_rol
+    if rol in roles_disponibles:
+        session['rol'] = rol
+        session['rol_elegido'] = True  # Ya eligió, no volver a mostrar selector
+    return redirect(url_for('dashboard'))
+
+@app.route('/elegir_rol')
+@login_required
+def elegir_rol():
+    """Muestra la pantalla de selección de rol (resetea la elección)."""
+    roles = session.get('roles', [session.get('rol')])
+    if len(roles) > 1:
+        session['rol_elegido'] = False
+        return render_template('selector_rol.html', roles=roles, nombre=session['nombre'])
     return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    roles = session.get('roles', [session.get('rol')])
+    # Si tiene multi-rol y aún no eligió, mostrar selector
+    if len(roles) > 1 and not session.get('rol_elegido'):
+        return render_template('selector_rol.html', roles=roles, nombre=session['nombre'])
     rol = session['rol']
     if   rol == 'Administrador': return redirect(url_for('admin_resumen'))
     elif rol == 'Mesero':        return redirect(url_for('mesero_nuevo'))
