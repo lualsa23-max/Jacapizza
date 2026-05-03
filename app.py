@@ -40,7 +40,8 @@ USUARIOS = {
     "luis":    {"password": "luis2026",   "rol": "Administrador", "nombre": "Luis Sarmiento"},
     "daniela":    {"password": "daniela2026",   "rol": "Administrador", "nombre": "daniela Admin"},
     "mesero1": {"password": "mesero123", "rol": "Mesero",        "nombre": "Daniela Suárez"},
-    "cajero1": {"password": "cajero123", "rol": "Cajero",        "nombre": "Caren Muñetón"},
+    "cajero1": {"password": "cajero123", "rol": "Mesero",        "nombre": "Caren Muñetón",
+                "roles": ["Mesero", "Cajero"]},
     "cocina1": {"password": "cocina123", "rol": "Cocina",        "nombre": "Chef y Chefa"},
 }
 FRANJAS_HORA = [
@@ -567,6 +568,8 @@ def login():
             session['usuario'] = u
             session['rol']     = USUARIOS[u]['rol']
             session['nombre']  = USUARIOS[u]['nombre']
+            # Multi-rol: guardar lista de roles disponibles
+            session['roles']   = USUARIOS[u].get('roles', [USUARIOS[u]['rol']])
             return redirect(url_for('dashboard'))
         error = "Usuario o contraseña incorrectos"
     return render_template('login.html', error=error)
@@ -575,6 +578,15 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/cambiar_rol', methods=['POST'])
+@login_required
+def cambiar_rol():
+    nuevo_rol = request.form.get('rol','')
+    roles_disponibles = session.get('roles', [session.get('rol')])
+    if nuevo_rol in roles_disponibles:
+        session['rol'] = nuevo_rol
+    return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
 @login_required
