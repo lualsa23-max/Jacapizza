@@ -414,13 +414,39 @@ def get_inventario_hoy():
     hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         rows = c.execute("SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (hoy,)).fetchall()
+        if rows:
+            return [{"id": r["id"], "nombre": r["nombre"], "tipo": r["tipo"],
+                     "stock": r["stock"], "stock_inicial": r["stock_inicial"] if "stock_inicial" in r.keys() else 0,
+                     "alerta_min": r["alerta_min"]} for r in rows]
+        # No hay inventario hoy → copiar el stock final del último día registrado
+        ultimo_dia = c.execute(
+            "SELECT DISTINCT fecha FROM inventario WHERE fecha!=? ORDER BY rowid DESC LIMIT 1",
+            (hoy,)).fetchone()
+        if not ultimo_dia:
+            return []
+        fecha_ant = ultimo_dia["fecha"]
+        rows_ant = c.execute(
+            "SELECT nombre, tipo, stock, alerta_min FROM inventario WHERE fecha=? AND tipo!='pulpa'",
+            (fecha_ant,)).fetchall()
+        # Crear registros de hoy con el stock final de ayer
+        for r in rows_ant:
+            c.execute(
+                "INSERT INTO inventario (nombre,tipo,stock,stock_inicial,alerta_min,fecha) VALUES (?,?,?,?,?,?)",
+                (r["nombre"], r["tipo"], r["stock"], r["stock"], r["alerta_min"], hoy))
+        # Leer los recién creados
+        rows = c.execute("SELECT * FROM inventario WHERE fecha=? ORDER BY tipo,nombre", (hoy,)).fetchall()
         return [{"id": r["id"], "nombre": r["nombre"], "tipo": r["tipo"],
-                 "stock": r["stock"], "alerta_min": r["alerta_min"]} for r in rows]
+                 "stock": r["stock"], "stock_inicial": r["stock_inicial"] if "stock_inicial" in r.keys() else 0,
+                 "alerta_min": r["alerta_min"]} for r in rows]
 
 def get_stock_dict():
     hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         rows = c.execute("SELECT nombre, stock FROM inventario WHERE fecha=?", (hoy,)).fetchall()
+        if not rows:
+            # Forzar arrastre del día anterior
+            get_inventario_hoy()
+            rows = c.execute("SELECT nombre, stock FROM inventario WHERE fecha=?", (hoy,)).fetchall()
         return {r["nombre"]: r["stock"] for r in rows}
 
 def get_stock_con_alertas():
@@ -428,6 +454,9 @@ def get_stock_con_alertas():
     hoy = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
         rows = c.execute("SELECT nombre, tipo, stock, alerta_min FROM inventario WHERE fecha=?", (hoy,)).fetchall()
+        if not rows:
+            get_inventario_hoy()
+            rows = c.execute("SELECT nombre, tipo, stock, alerta_min FROM inventario WHERE fecha=?", (hoy,)).fetchall()
         return {r["nombre"]: {"stock": r["stock"], "alerta_min": r["alerta_min"], "tipo": r["tipo"]} for r in rows}
 
 def get_productos_stock_bajo():
