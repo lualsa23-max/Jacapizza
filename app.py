@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response
-import sqlite3, os, csv, io, json, sys, traceback
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response, send_from_directory
+import sqlite3, os, csv, io, json, sys, traceback, uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from werkzeug.utils import secure_filename
 
 print(f"[BOOT] Python {sys.version}", flush=True)
 print(f"[BOOT] CWD: {os.getcwd()}", flush=True)
@@ -87,6 +88,10 @@ INV_DEFAULT = {
     "Jugo Natural — Maracuyá":("bebida",5),"Jugo Natural — Piña":("bebida",5),
     "Jugo Natural — Piña-Hierbabuena":("bebida",5),
 }
+CATEGORIAS_GASTO = [
+    "Insumos cocina", "Bebidas", "Empaques", "Servicios",
+    "Mantenimiento y locativos", "Transporte/mandados", "Jornales", "Otros",
+]
 
 @app.template_filter('fromjson')
 def fromjson_filter(v):
@@ -149,6 +154,15 @@ def init_db():
                 cobrado_por TEXT NOT NULL,
                 fecha TEXT NOT NULL,
                 hora TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS gastos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha TEXT NOT NULL, hora TEXT NOT NULL,
+                categoria TEXT NOT NULL, proveedor TEXT DEFAULT '',
+                descripcion TEXT DEFAULT '', monto REAL NOT NULL,
+                metodo_pago TEXT DEFAULT 'Efectivo',
+                factura_path TEXT DEFAULT '',
+                registrado_por TEXT NOT NULL
             );
             """)
             for col in ["ALTER TABLE pedidos ADD COLUMN notas TEXT DEFAULT ''",
@@ -582,6 +596,63 @@ def get_cierre_fechas():
             "SELECT DISTINCT fecha FROM cierres_inventario ORDER BY fecha DESC").fetchall()
         return [r["fecha"] for r in rows]
 
+# ── GASTOS ────────────────────────────────────────────
+UPLOAD_FOLDER = os.path.join(os.path.dirname(DB_PATH) if os.path.dirname(DB_PATH) else '.', 'facturas')
+try: os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except:
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'facturas')
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+ALLOWED_FACTURA_EXT = {'png','jpg','jpeg','pdf','webp','heic'}
+def _allowed_factura(fn):
+    return '.' in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_FACTURA_EXT
+
+def _fecha_a_iso(fecha_str):
+    try:
+        d, m, y = fecha_str.split("/")
+        return f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+    except: return "9999-99-99"
+
+def crear_gasto(categoria, proveedor, descripcion, monto, metodo_pago, registrado_por, factura_path=""):
+    fecha = ahora().strftime("%d/%m/%Y")
+    hora  = ahora().strftime("%H:%M")
+    with _conn() as c:
+        c.execute("INSERT INTO gastos (fecha,hora,categoria,proveedor,descripcion,monto,metodo_pago,factura_path,registrado_por) VALUES (?,?,?,?,?,?,?,?,?)",
+                  (fecha, hora, categoria, proveedor, descripcion, monto, metodo_pago, factura_path, registrado_por))
+
+def get_gastos(fecha_filtro=None):
+    hoy = ahora().strftime("%d/%m/%Y")
+    with _conn() as c:
+        if fecha_filtro == 'todos':
+            rows = c.execute("SELECT * FROM gastos ORDER BY id DESC").fetchall()
+        else:
+            filtro = fecha_filtro or hoy
+            rows = c.execute("SELECT * FROM gastos WHERE fecha=? ORDER BY id DESC", (filtro,)).fetchall()
+        return [dict(r) for r in rows]
+
+def get_gastos_rango(fecha_ini, fecha_fin):
+    fi_iso = _fecha_a_iso(fecha_ini)
+    ff_iso = _fecha_a_iso(fecha_fin)
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM gastos").fetchall()
+    return [dict(r) for r in rows if fi_iso <= _fecha_a_iso(r["fecha"]) <= ff_iso]
+
+def get_total_gastos_hoy():
+    hoy = ahora().strftime("%d/%m/%Y")
+    with _conn() as c:
+        row = c.execute("SELECT COALESCE(SUM(monto),0) as total FROM gastos WHERE fecha=?", (hoy,)).fetchone()
+        return row["total"] if row else 0
+
+def eliminar_gasto(gid):
+    with _conn() as c:
+        row = c.execute("SELECT factura_path FROM gastos WHERE id=?", (gid,)).fetchone()
+        if row and row["factura_path"]:
+            try:
+                fp = os.path.join(UPLOAD_FOLDER, os.path.basename(row["factura_path"]))
+                if os.path.exists(fp): os.remove(fp)
+            except: pass
+        c.execute("DELETE FROM gastos WHERE id=?", (gid,))
+
 # ── AUTH ──────────────────────────────────────────────
 def login_required(f):
     @wraps(f)
@@ -600,6 +671,15 @@ def rol_required(*roles):
             return f(*args, **kwargs)
         return decorated
     return decorator
+
+def solo_luis(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'usuario' not in session: return redirect(url_for('login'))
+        if session.get('usuario') != 'luis':
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated
 
 # ── ROUTES ────────────────────────────────────────────
 @app.route('/')
@@ -729,6 +809,11 @@ def admin_resumen():
     # Productos con stock bajo (alerta para el admin)
     stock_bajo = get_productos_stock_bajo()
 
+    # Gastos del día (solo para luis)
+    es_luis = session.get('usuario') == 'luis'
+    total_gastos_hoy = get_total_gastos_hoy() if es_luis else 0
+    utilidad_hoy = total_cobrado - total_gastos_hoy if es_luis else 0
+
     return render_template('admin_resumen.html',
         hoy=hoy, total_pedidos_hoy=len(hoy_todos),
         pagados=len(hoy_pagados), pendientes=pendientes, listos=listos,
@@ -739,7 +824,8 @@ def admin_resumen():
         total_por_cobrar=total_por_cobrar,
         metodos_hoy=metodos_hoy, por_cobrador=por_cobrador,
         top_items=top_items, ultimos=hoy_todos[:10],
-        stock_bajo=stock_bajo)
+        stock_bajo=stock_bajo,
+        es_luis=es_luis, total_gastos_hoy=total_gastos_hoy, utilidad_hoy=utilidad_hoy)
 
 @app.route('/admin/inventario', methods=['GET','POST'])
 @rol_required('Administrador')
@@ -923,6 +1009,66 @@ def admin_csv():
     w.writerow(["ID","Código","Mesero","Estado","Total","Hora","Fecha","Pago","Ítem","Tipo","Cantidad","Precio"])
     for r in rows: w.writerow(list(r))
     return Response(out.getvalue(), mimetype='text/csv', headers={"Content-Disposition":f"attachment;filename=reporte_{fi}_{ff}.csv"})
+
+# ── GASTOS (solo Luis) ────────────────────────────────
+@app.route('/admin/gastos', methods=['GET','POST'])
+@solo_luis
+def admin_gastos():
+    if request.method == 'POST':
+        categoria = request.form.get('categoria','').strip()
+        proveedor = request.form.get('proveedor','').strip()
+        descripcion = request.form.get('descripcion','').strip()
+        monto_str = request.form.get('monto','0').strip().replace('.','').replace(',','')
+        metodo_pago = request.form.get('metodo_pago','Efectivo').strip()
+        try: monto = float(monto_str)
+        except: monto = 0
+        if not categoria or monto <= 0:
+            flash('Completa al menos categoría y monto', 'error')
+            return redirect(url_for('admin_gastos'))
+        factura_path = ''
+        archivo = request.files.get('factura')
+        if archivo and archivo.filename:
+            if _allowed_factura(archivo.filename):
+                ext = archivo.filename.rsplit('.',1)[1].lower()
+                safe_name = secure_filename(f"factura_{uuid.uuid4().hex[:12]}.{ext}")
+                try:
+                    archivo.save(os.path.join(UPLOAD_FOLDER, safe_name))
+                    factura_path = safe_name
+                except Exception as e:
+                    flash(f'No se pudo guardar la factura: {e}', 'error')
+            else:
+                flash('Formato no soportado (usa jpg, png, pdf, webp)', 'error')
+        crear_gasto(categoria, proveedor, descripcion, monto, metodo_pago, session['nombre'], factura_path)
+        flash(f'✅ Gasto registrado: {categoria} — ${monto:,.0f}'.replace(',','.'), 'success')
+        return redirect(url_for('admin_gastos'))
+    hoy = ahora().strftime("%d/%m/%Y")
+    ayer = (ahora() - timedelta(days=1)).strftime("%d/%m/%Y")
+    filtro = request.args.get('filtro', 'hoy')
+    if filtro == 'hoy': gastos = get_gastos(hoy); titulo = f"Hoy · {hoy}"
+    elif filtro == 'ayer': gastos = get_gastos(ayer); titulo = f"Ayer · {ayer}"
+    elif filtro == 'mes':
+        now = ahora(); fi = f"01/{now.month:02d}/{now.year}"
+        gastos = get_gastos_rango(fi, hoy); titulo = f"Mes actual"
+    elif filtro == 'todos': gastos = get_gastos('todos'); titulo = "Todos"
+    else: gastos = get_gastos(filtro); titulo = f"Fecha · {filtro}"
+    por_cat = {}
+    for g in gastos: por_cat[g['categoria']] = por_cat.get(g['categoria'], 0) + g['monto']
+    total_periodo = sum(g['monto'] for g in gastos)
+    return render_template('admin_gastos.html',
+        gastos=gastos, categorias=CATEGORIAS_GASTO, total_periodo=total_periodo,
+        por_categoria=por_cat, filtro=filtro, titulo_filtro=titulo, hoy=hoy, ayer=ayer)
+
+@app.route('/admin/gasto/<int:gid>/eliminar', methods=['POST'])
+@solo_luis
+def admin_eliminar_gasto(gid):
+    eliminar_gasto(gid)
+    flash('🗑 Gasto eliminado', 'success')
+    return redirect(url_for('admin_gastos', filtro=request.form.get('filtro','hoy')))
+
+@app.route('/admin/gastos/factura/<path:filename>')
+@solo_luis
+def admin_ver_factura(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 @app.route('/admin/usuarios', methods=['GET','POST'])
 @rol_required('Administrador')
