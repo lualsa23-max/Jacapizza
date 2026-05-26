@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}— Gastos{% endblock %}
+{% block content %}
+<h2 class="sec-title">💸 Gastos</h2>
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div style="background:rgba(78,203,113,.1);border:1.5px solid var(--green);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.9rem;color:var(--green)">
+  {% for m in messages %}{{ m }}{% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="card mb-16" style="padding:16px">
+  <h3 style="font-family:var(--fh);font-size:1rem;color:var(--accent);margin:0 0 12px">➕ Registrar gasto</h3>
+  <form method="post" action="{{ url_for('admin_gastos') }}" enctype="multipart/form-data">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label class="form-label">Categoría *</label>
+        <select class="form-select" name="categoria" required>
+          <option value="">— Seleccionar —</option>
+          {% for cat in categorias %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Monto *</label>
+        <input class="form-input" type="text" name="monto" inputmode="numeric" placeholder="Ej: 50000" required oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <div>
+        <label class="form-label">Proveedor</label>
+        <input class="form-input" type="text" name="proveedor" placeholder="Ej: Makro, Juan quesos">
+      </div>
+      <div>
+        <label class="form-label">Método de pago</label>
+        <select class="form-select" name="metodo_pago">
+          <option value="Efectivo">Efectivo</option>
+          <option value="Nequi">Nequi</option>
+          <option value="Daviplata">Daviplata</option>
+          <option value="Tarjeta">Tarjeta</option>
+          <option value="Transferencia">Transferencia</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <label class="form-label">Descripción</label>
+      <input class="form-input" type="text" name="descripcion" placeholder="Ej: 2 bultos harina + 5kg queso">
+    </div>
+    <div style="margin-top:10px">
+      <label class="form-label">📸 Factura (opcional)</label>
+      <input class="form-input" type="file" name="factura" accept="image/*,.pdf">
+    </div>
+    <button type="submit" class="btn btn-primary btn-full mt-12">💾 Registrar gasto</button>
+  </form>
+</div>
+
+<div class="card mb-12" style="padding:12px">
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <a href="{{ url_for('admin_gastos', filtro='hoy') }}" class="btn btn-sm {% if filtro=='hoy' %}btn-primary{% else %}btn-ghost{% endif %}">📅 Hoy</a>
+    <a href="{{ url_for('admin_gastos', filtro='ayer') }}" class="btn btn-sm {% if filtro=='ayer' %}btn-primary{% else %}btn-ghost{% endif %}">⏪ Ayer</a>
+    <a href="{{ url_for('admin_gastos', filtro='mes') }}" class="btn btn-sm {% if filtro=='mes' %}btn-primary{% else %}btn-ghost{% endif %}">📆 Mes</a>
+    <a href="{{ url_for('admin_gastos', filtro='todos') }}" class="btn btn-sm {% if filtro=='todos' %}btn-primary{% else %}btn-ghost{% endif %}">📋 Todos</a>
+  </div>
+  <div class="text-xs c-gray mt-8">{{ titulo_filtro }} — {{ gastos|length }} gasto{{ 's' if gastos|length!=1 else '' }}</div>
+</div>
+
+{% if gastos %}
+<div class="card mb-12" style="padding:14px;background:rgba(232,93,93,.06);border:1.5px solid rgba(232,93,93,.25)">
+  <div style="font-family:var(--fh);font-size:1.8rem;color:var(--red);font-weight:800">{{ total_periodo | cop }}</div>
+  <div style="font-size:.8rem;color:var(--red);font-weight:700;margin-bottom:10px">TOTAL GASTOS DEL PERÍODO</div>
+  {% for cat, monto in por_categoria.items() %}
+  <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+    <span>{{ cat }}</span>
+    <span class="c-red font-bold">{{ monto | cop }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% for g in gastos %}
+<div class="card mb-8" style="padding:12px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="background:rgba(199,24,126,.15);color:var(--accent);font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px">{{ g.categoria }}</span>
+        <span class="text-xs c-gray">{{ g.fecha }} · {{ g.hora }}</span>
+      </div>
+      {% if g.proveedor %}<div style="font-size:.95rem;font-weight:700">{{ g.proveedor }}</div>{% endif %}
+      {% if g.descripcion %}<div class="text-sm c-gray mt-4">{{ g.descripcion }}</div>{% endif %}
+      <div class="text-xs c-gray mt-4">💳 {{ g.metodo_pago }} · {{ g.registrado_por }}</div>
+      {% if g.factura_path %}
+      <a href="{{ url_for('admin_ver_factura', filename=g.factura_path) }}" target="_blank" class="btn btn-ghost btn-sm mt-8">📸 Ver factura</a>
+      {% endif %}
+    </div>
+    <div style="text-align:right">
+      <div class="c-red font-bold" style="font-size:1.1rem;font-family:var(--fh)">{{ g.monto | cop }}</div>
+      <form method="post" action="{{ url_for('admin_eliminar_gasto', gid=g.id) }}" style="margin-top:8px"
+            onsubmit="return confirm('¿Eliminar este gasto?')">
+        <input type="hidden" name="filtro" value="{{ filtro }}">
+        <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="empty"><span class="e-ico">💸</span>No hay gastos en este período</div>
+{% endif %}
+{% endblock %}
