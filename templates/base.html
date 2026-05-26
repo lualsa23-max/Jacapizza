@@ -17,12 +17,7 @@
     <span class="nav-user">{{ session.nombre }}</span>
     <span class="role-badge role-{{ session.rol | lower }}">{{ session.rol }}</span>
   </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    {% if session.get('roles') and session.roles|length > 1 %}
-    <a href="{{ url_for('elegir_rol') }}" style="text-decoration:none;background:rgba(199,24,126,.2);color:var(--accent);border:1.5px solid var(--accent);border-radius:999px;padding:4px 10px;font-size:.7rem;font-weight:700">🔄 Cambiar</a>
-    {% endif %}
-    <a href="{{ url_for('logout') }}" class="nav-logout">Salir</a>
-  </div>
+  <a href="{{ url_for('logout') }}" class="nav-logout">Salir</a>
 </nav>
 
 <div class="nav-tabs">
@@ -38,6 +33,9 @@
   <a href="{{ url_for('admin_usuarios') }}"     class="tab {% if request.endpoint=='admin_usuarios' %}active{% endif %}">👥 Usuarios</a>
   <a href="{{ url_for('admin_reportes') }}"     class="tab {% if request.endpoint in ['admin_reportes','admin_resumen'] %}active{% endif %}">📈 Reportes</a>
   <a href="{{ url_for('admin_cierre') }}"      class="tab {% if request.endpoint in ['admin_cierre','admin_cierre_historial'] %}active{% endif %}">📦 Cierre</a>
+  {% if session.get('usuario') == 'luis' %}
+  <a href="{{ url_for('admin_gastos') }}"      class="tab {% if request.endpoint in ['admin_gastos'] %}active{% endif %}">💸 Gastos</a>
+  {% endif %}
 
 {% elif session.rol == 'Mesero' %}
   <a href="{{ url_for('mesero_nuevo') }}"   class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
