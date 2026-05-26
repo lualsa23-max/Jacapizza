@@ -26,6 +26,24 @@
   </div>
 </div>
 
+{% if es_luis is defined and es_luis %}
+<div class="card mb-12" style="padding:14px;background:rgba(78,203,113,.04);border:1.5px solid rgba(78,203,113,.2)">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div>
+      <div class="text-xs c-gray font-bold" style="letter-spacing:.5px">💸 GASTOS HOY</div>
+      <div style="font-family:var(--fh);font-size:1.3rem;color:var(--red);font-weight:800">{{ total_gastos_hoy | cop }}</div>
+    </div>
+    <div>
+      <div class="text-xs c-gray font-bold" style="letter-spacing:.5px">📊 UTILIDAD HOY</div>
+      <div style="font-family:var(--fh);font-size:1.3rem;font-weight:800;color:{% if utilidad_hoy >= 0 %}var(--green){% else %}var(--red){% endif %}">
+        {{ utilidad_hoy | cop }}
+      </div>
+    </div>
+    <a href="{{ url_for('admin_gastos') }}" class="btn btn-ghost btn-sm">💸 Ver gastos</a>
+  </div>
+</div>
+{% endif %}
+
 {% if stock_bajo is defined and stock_bajo %}
 <div style="background:rgba(245,166,35,.12);border:2px solid var(--orange);border-radius:12px;padding:14px;margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -37,8 +55,7 @@
   <div style="display:flex;flex-wrap:wrap;gap:6px">
     {% for item in stock_bajo %}
     <span style="background:rgba(245,166,35,.15);color:var(--orange);font-size:.8rem;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,166,35,.3)">
-      {% if item.stock == 0 %}🔴{% else %}🟡{% endif %}
-      {{ item.nombre }}: {{ item.stock }}
+      {% if item.stock == 0 %}🔴{% else %}🟡{% endif %} {{ item.nombre }}: {{ item.stock }}
     </span>
     {% endfor %}
   </div>
@@ -48,7 +65,7 @@
 </div>
 {% endif %}
 
-{% if cobros_pendientes %}
+{% if cobros_pendientes is defined and cobros_pendientes %}
 <a href="{{ url_for('cajero_cobrar') }}" style="text-decoration:none">
   <div style="background:rgba(232,93,93,.12);border:2px solid var(--red);border-radius:12px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
     <span style="font-size:1.8rem">🔴</span>
@@ -63,13 +80,11 @@
 {% endif %}
 
 <h3 class="sec-title">Últimos pedidos</h3>
-{% if ultimos %}
+{% if ultimos is defined and ultimos %}
 <div class="tbl-wrap card" style="padding:0">
   <table>
     <thead>
-      <tr>
-        <th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th>
-      </tr>
+      <tr><th>#</th><th>Código</th><th>Mesero</th><th>Total</th><th>Estado</th><th>Hora</th></tr>
     </thead>
     <tbody>
       {% for p in ultimos %}
@@ -90,8 +105,11 @@
 {% endif %}
 
 <div class="mt-16" style="display:flex;gap:10px;flex-wrap:wrap">
-  <a href="{{ url_for('admin_inventario') }}" class="btn btn-ghost">📦 Ir a inventario</a>
-  <a href="{{ url_for('admin_reportes') }}"   class="btn btn-ghost">📈 Ver reportes</a>
-  <a href="{{ url_for('admin_pedidos') }}"    class="btn btn-ghost">📋 Todos los pedidos</a>
+  <a href="{{ url_for('admin_inventario') }}" class="btn btn-ghost">📦 Inventario</a>
+  <a href="{{ url_for('admin_reportes') }}" class="btn btn-ghost">📈 Reportes</a>
+  <a href="{{ url_for('admin_pedidos') }}" class="btn btn-ghost">📋 Pedidos</a>
+  {% if es_luis is defined and es_luis %}
+  <a href="{{ url_for('admin_gastos') }}" class="btn btn-ghost">💸 Gastos</a>
+  {% endif %}
 </div>
 {% endblock %}
