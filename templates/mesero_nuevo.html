@@ -78,16 +78,19 @@
          data-s="{{ s if s is not none else -1 }}">
       <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
         <span class="ped-bebida-n">{{ nombre }}</span>
-        <span class="ped-bebida-p num">{{ precio | cop }}</span>
-        {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
-        {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
-        {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+        <span class="ped-bebida-meta">
+          <span class="ped-bebida-p num">{{ precio | cop }}</span>
+          {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+          {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+          {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+        </span>
       </button>
       <div class="ped-paso" style="display:none">
         <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
         <span class="ped-paso-n num">0</span>
         <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
       </div>
+      <button type="button" class="ped-mas" onclick="tocarBebida(this.closest('.ped-bebida'))">+</button>
     </div>
     {% endfor %}
   </div>
@@ -304,6 +307,8 @@ function pintarContadores() {
     var paso = tile.querySelector('.ped-paso');
     paso.style.display = q > 0 ? '' : 'none';
     paso.querySelector('.ped-paso-n').textContent = q;
+    var mas = tile.querySelector('.ped-mas');
+    if (mas) mas.style.display = q > 0 ? 'none' : '';
     tile.classList.toggle('con-cantidad', q > 0);
   });
 }

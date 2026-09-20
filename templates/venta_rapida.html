@@ -10,25 +10,45 @@
 
 {% set stock = stock_json | fromjson %}
 
-<div class="vr-grid">
-{% for nombre, precio in bebidas.items() %}
-  {% set s = stock.get(nombre) %}
-  {# El contador NO bloquea la venta: la nevera es la verdad, no el numero.
-     Si dice 0 y hay cerveza fisica, tiene que poder venderse. Avisa y ya. #}
-  <button type="button" class="vr-item {% if s == 0 %}vr-sin-registro{% endif %}"
-          onclick="agregar('{{ nombre | replace("'", "\\'") }}', {{ precio | int }}, {{ s if s is not none else -1 }})">
-    <span class="vr-nombre">{{ nombre }}</span>
-    <span class="vr-precio num">{{ precio | cop }}</span>
-    {% if s == 0 %}
-      <span class="stock-chip stock-out">sin registro</span>
-    {% elif s is not none and s <= 3 %}
-      <span class="stock-chip stock-low">quedan {{ s }}</span>
-    {% elif s is not none %}
-      <span class="stock-chip stock-ok">{{ s }}</span>
-    {% endif %}
-  </button>
-{% endfor %}
+{# Misma diagramacion que Nuevo pedido: filtros + filas de ancho completo.
+   Si una pantalla se maneja de una forma y la otra de otra, se confunde a
+   quien no es tecnico. #}
+<div class="cat-filtros">
+  <button type="button" class="cat-chip activo" data-c="" onclick="filtrar(this)">Todas</button>
+  {% for cat in grupos %}
+  <button type="button" class="cat-chip" data-c="{{ cat }}" onclick="filtrar(this)">{{ cat }}</button>
+  {% endfor %}
 </div>
+
+{% for cat, lista in grupos.items() %}
+<div class="cat-bloque" data-c="{{ cat }}">
+  <div class="cat-titulo">{{ cat }} <span class="cat-n num">{{ lista | length }}</span></div>
+  <div class="ped-bebidas">
+    {% for nombre, precio in lista.items() %}
+    {% set s = stock.get(nombre) %}
+    <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
+         data-n="{{ nombre }}" data-p="{{ precio | int }}"
+         data-s="{{ s if s is not none else -1 }}">
+      <button type="button" class="ped-bebida-tap" onclick="tocar(this.parentNode)">
+        <span class="ped-bebida-n">{{ nombre }}</span>
+        <span class="ped-bebida-meta">
+          <span class="ped-bebida-p num">{{ precio | cop }}</span>
+          {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+          {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+          {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+        </span>
+      </button>
+      <div class="ped-paso" style="display:none">
+        <button type="button" onclick="paso(this.closest('.ped-bebida'), -1)">−</button>
+        <span class="ped-paso-n num">0</span>
+        <button type="button" onclick="paso(this.closest('.ped-bebida'), 1)">+</button>
+      </div>
+      <button type="button" class="ped-mas" onclick="tocar(this.closest('.ped-bebida'))">+</button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
 
 <div class="card mt-16" id="carrito-card" style="display:none">
   <div id="carrito"></div>
@@ -75,18 +95,53 @@ var carrito = [], metodo = null, cuenta = null, buscando = null;
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
 
 var avisados = {};
-function agregar(nombre, precio, stock) {
-  // El contador de inventario avisa, no prohibe: se avisa UNA vez y se deja
-  // seguir. Bloquear la venta porque un numero dice 0 es peor que vender
-  // algo que si esta en la nevera.
-  if (stock === 0 && !avisados[nombre]) {
-    avisados[nombre] = true;
-    if (!confirm('El inventario dice que no queda ' + nombre + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
+
+function filtrar(chip) {
+  var cat = chip.dataset.c;
+  document.querySelectorAll('.cat-chip').forEach(function (c) {
+    c.classList.toggle('activo', c === chip);
+  });
+  document.querySelectorAll('.cat-bloque').forEach(function (b) {
+    b.style.display = (!cat || b.dataset.c === cat) ? '' : 'none';
+  });
+  document.querySelectorAll('.cat-titulo').forEach(function (h) {
+    h.style.display = cat ? 'none' : '';
+  });
+}
+
+function tocar(tile) {
+  var n = tile.dataset.n, p = parseInt(tile.dataset.p, 10), s = parseInt(tile.dataset.s, 10);
+  // El contador avisa, no prohibe: la nevera es la verdad, no el numero.
+  if (s === 0 && !avisados[n]) {
+    avisados[n] = true;
+    if (!confirm('El inventario dice que no queda ' + n + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
   }
-  var e = carrito.find(function (x) { return x.nombre === nombre; });
+  var e = carrito.find(function (x) { return x.nombre === n; });
   if (e) e.cantidad++;
-  else carrito.push({ nombre: nombre, tipo: 'Bebida', cantidad: 1, precio_unit: precio });
+  else carrito.push({ nombre: n, tipo: 'Bebida', cantidad: 1, precio_unit: p });
   pinta();
+}
+
+function paso(tile, d) {
+  var i = carrito.findIndex(function (x) { return x.nombre === tile.dataset.n; });
+  if (d > 0) { tocar(tile); return; }
+  if (i < 0) return;
+  carrito[i].cantidad--;
+  if (carrito[i].cantidad <= 0) carrito.splice(i, 1);
+  pinta();
+}
+
+function pintarContadores() {
+  document.querySelectorAll('.ped-bebida').forEach(function (tile) {
+    var e = carrito.find(function (x) { return x.nombre === tile.dataset.n; });
+    var q = e ? e.cantidad : 0;
+    var paso = tile.querySelector('.ped-paso');
+    var mas = tile.querySelector('.ped-mas');
+    paso.style.display = q > 0 ? '' : 'none';
+    paso.querySelector('.ped-paso-n').textContent = q;
+    if (mas) mas.style.display = q > 0 ? 'none' : '';
+    tile.classList.toggle('con-cantidad', q > 0);
+  });
 }
 
 function quitar(i) { carrito.splice(i, 1); pinta(); }
@@ -106,6 +161,7 @@ function pinta() {
   });
   document.getElementById('carrito').innerHTML = html;
   document.getElementById('total').textContent = fmt(total);
+  pintarContadores();
 }
 
 // Comprobar el código mientras se escribe: ver a dónde va ANTES de confirmar

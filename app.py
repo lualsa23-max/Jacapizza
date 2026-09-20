@@ -1334,7 +1334,7 @@ except:
 
 ALLOWED_FACTURA_EXT = {'png','jpg','jpeg','pdf','webp','heic'}
 def _allowed_factura(fn):
-    return '.'in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_FACTURA_EXT
+    return '.' in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_FACTURA_EXT
 
 def _fecha_a_iso(fecha_str):
     """Alias historico de fecha_a_iso(). Se mantiene el '9999-99-99'de antes
@@ -1387,7 +1387,7 @@ def eliminar_gasto(gid):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario'not in session: return redirect(url_for('login'))
+        if 'usuario' not in session: return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -1396,7 +1396,7 @@ def admin_required(f):
     Es lo unico reservado; todo lo operativo lo hace cualquiera del equipo."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario'not in session:
+        if 'usuario' not in session:
             return redirect(url_for('login'))
         if session.get('rol') != ROL_ADMIN:
             flash('Esa sección es solo para administradores', 'error')
@@ -1418,7 +1418,7 @@ def rol_required(*roles):
 def solo_luis(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario'not in session: return redirect(url_for('login'))
+        if 'usuario' not in session: return redirect(url_for('login'))
         if session.get('usuario') != 'luis':
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
@@ -1427,7 +1427,7 @@ def solo_luis(f):
 # ── ROUTES ────────────────────────────────────────────
 @app.route('/')
 def index():
-    if 'usuario'in session: return redirect(url_for('dashboard'))
+    if 'usuario' in session: return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET','POST'])
@@ -1452,10 +1452,56 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+def construir_avisos():
+    """Lo que necesita atención ahora mismo, para la campana de arriba.
+
+    Antes esto ocupaba dos tarjetas en el inicio. Sacarlo a la campana libera
+    esa pantalla y hace que los avisos se vean desde CUALQUIER sitio, no solo
+    al entrar.
+    """
+    avisos = []
+    try:
+        abiertas = [x for x in listar_pedidos(estado_cuenta="Abierta") if x["total"] > 0]
+    except Exception:
+        abiertas = []
+    j = jornada_actual()
+    viejas = [x for x in abiertas if x["jornada"] and x["jornada"] < j]
+    hoy_ab = [x for x in abiertas if x not in viejas]
+    if viejas:
+        avisos.append({"tipo": "urgente", "icono": "cobrar",
+                       "titulo": f"{len(viejas)} cuenta{'s' if len(viejas) != 1 else ''} de días anteriores",
+                       "detalle": f"{fmt_cop(sum(x['saldo'] for x in viejas))} sin cobrar",
+                       "url": url_for('cajero_cobrar', filtro='anteriores')})
+    if hoy_ab:
+        avisos.append({"tipo": "aviso", "icono": "cobrar",
+                       "titulo": f"{len(hoy_ab)} cuenta{'s' if len(hoy_ab) != 1 else ''} abierta{'s' if len(hoy_ab) != 1 else ''} hoy",
+                       "detalle": f"{fmt_cop(sum(x['saldo'] for x in hoy_ab))} por cobrar",
+                       "url": url_for('cajero_cobrar')})
+    try:
+        bajo = get_productos_stock_bajo()
+    except Exception:
+        bajo = []
+    if bajo:
+        avisos.append({"tipo": "aviso", "icono": "inventario",
+                       "titulo": f"{len(bajo)} producto{'s' if len(bajo) != 1 else ''} por acabarse",
+                       "detalle": ", ".join(b["nombre"] for b in bajo[:3])
+                                  + (f" y {len(bajo) - 3} más" if len(bajo) > 3 else ""),
+                       "url": url_for('admin_inventario')})
+    try:
+        k = len(listar_estacion("Pizza")) + len(listar_estacion("Bebida"))
+    except Exception:
+        k = 0
+    if k:
+        avisos.append({"tipo": "info", "icono": "cocina",
+                       "titulo": f"{k} comanda{'s' if k != 1 else ''} en cocina",
+                       "detalle": "por preparar", "url": url_for('estacion_pizzas')})
+    return avisos
+
+
 @app.context_processor
 def _datos_barra():
     """Lo que la barra inferior necesita en cualquier pantalla."""
-    if 'usuario'not in session:
+    if 'usuario' not in session:
         return {}
     try:
         n = len([p for p in listar_pedidos(estado_cuenta="Abierta") if p["total"] > 0])
@@ -1465,7 +1511,12 @@ def _datos_barra():
         k = len(listar_estacion("Pizza")) + len(listar_estacion("Bebida"))
     except Exception:
         k = 0
-    return {"nav_por_cobrar": n, "nav_cocina": k}
+    try:
+        avisos = construir_avisos()
+    except Exception:
+        avisos = []
+    return {"nav_por_cobrar": n, "nav_cocina": k, "avisos": avisos,
+            "n_urgentes": sum(1 for a in avisos if a["tipo"] == "urgente")}
 
 
 @app.route('/dashboard')
@@ -1845,7 +1896,7 @@ def admin_usuarios():
         accion = request.form.get('action')
         uid    = request.form.get('id', '').strip()
 
-        if accion == 'update'and uid:
+        if accion == 'update' and uid:
             nombre = request.form.get('nombre', '').strip()
             rol    = request.form.get('rol', ROL_OPERADOR)
             pwd    = request.form.get('password', '').strip()
@@ -1872,7 +1923,7 @@ def admin_usuarios():
             flash(f'@{actual["usuario"]} actualizado'
                   + (' (contraseña nueva)' if pwd else ''), 'success')
 
-        elif accion == 'delete'and uid:
+        elif accion == 'delete' and uid:
             with _conn() as c:
                 row = c.execute("SELECT usuario,rol FROM usuarios WHERE id=?", (uid,)).fetchone()
                 if not row:
@@ -1948,7 +1999,7 @@ def _handle_menu(form, tipo_catalogo):
                 return ('No se encontro ese producto.', 'error')
             if form.get('en_inventario') is not None:
                 c.execute("UPDATE catalogo SET en_inventario=?, alerta_min=? WHERE id=?",
-                          (1 if form.get('en_inventario') == '1'else 0,
+                          (1 if form.get('en_inventario') == '1' else 0,
                            int(form.get('alerta_min', 5) or 5), cid))
             if form.get('categoria') in CATEGORIAS_BEBIDA:
                 c.execute("UPDATE catalogo SET categoria=? WHERE id=?",
@@ -1970,7 +2021,7 @@ def _handle_menu(form, tipo_catalogo):
     if action == 'add':
         nombre = form.get('name', '').strip()
         precio = float(form.get('precio', 0) or 0)
-        en_inv = 1 if form.get('en_inventario') == '1'else 0
+        en_inv = 1 if form.get('en_inventario') == '1' else 0
         alerta = int(form.get('alerta_min', 5) or 5)
         if not nombre:
             return ('Escribe un nombre.', 'error')
@@ -2401,7 +2452,7 @@ def venta_rapida():
                         'a_cuenta': a_cuenta, 'metodo': metodo})
 
     return render_template('venta_rapida.html',
-                           bebidas=get_catalogo_bebidas(),
+                           grupos=get_bebidas_por_categoria(),
                            stock_json=json.dumps(get_stock_dict()),
                            metodos=METODOS_PAGO)
 

@@ -18,7 +18,11 @@
     <span class="nav-user">{{ session.nombre }}</span>
     <span class="role-badge role-{{ session.rol | lower }}">{{ session.rol }}</span>
   </div>
-  <a href="{{ url_for('logout') }}" class="nav-logout">Salir</a>
+  <button type="button" class="nav-campana" onclick="document.getElementById('hoja-avisos').classList.add('open')">
+    {{ icono('campana', 22) }}
+    {% if avisos %}<span class="nav-punto {% if n_urgentes %}nav-punto-rojo{% endif %}">{{ avisos | length }}</span>{% endif %}
+  </button>
+  <a href="{{ url_for('logout') }}" class="nav-logout">{{ icono('salir', 20) }}</a>
 </nav>
 
 {# Sin pestañas con scroll horizontal: con 14 destinos el admin veía cuatro
@@ -48,6 +52,31 @@
     {{ icono('mas', 26) }}<span class="barra-txt">Más</span>
   </button>
 </nav>
+
+<div class="overlay" id="hoja-avisos" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="sheet">
+    <div class="sheet-titulo">Avisos</div>
+    {% if avisos %}
+    {% for a in avisos %}
+    <a href="{{ a.url }}" class="aviso-fila aviso-{{ a.tipo }}">
+      {{ icono(a.icono, 22) }}
+      <div class="aviso-txt">
+        <div class="aviso-titulo">{{ a.titulo }}</div>
+        <div class="aviso-detalle">{{ a.detalle }}</div>
+      </div>
+      {{ icono('flecha', 18) }}
+    </a>
+    {% endfor %}
+    {% else %}
+    <div class="empty" style="padding:32px">
+      <span class="e-ico">{{ icono('check', 40) }}</span>
+      <div>Todo al día</div>
+    </div>
+    {% endif %}
+    <button type="button" class="btn btn-ghost btn-full mt-12"
+            onclick="document.getElementById('hoja-avisos').classList.remove('open')">Cerrar</button>
+  </div>
+</div>
 
 <div class="overlay" id="hoja-mas" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="sheet">

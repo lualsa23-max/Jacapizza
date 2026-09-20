@@ -1,5 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{% endblock %}
+{% block title %}</div>
+
+{# Boton flotante: la accion mas frecuente, siempre al alcance del pulgar
+   y sin competir con los accesos de la rejilla. #}
+<a href="{{ url_for('mesero_nuevo') }}" class="fab">
+  {{ icono('pedido', 30) }}
+  <span>Nuevo pedido</span>
+</a>
+{% endblock %}
 
 {% block content %}
 <div class="ini-saludo">
@@ -7,33 +15,7 @@
   <div class="ini-fecha">{{ hoy }}</div>
 </div>
 
-{% if por_cobrar or stock_bajo %}
-<div class="ini-alertas">
-  {% if por_cobrar %}
-  <a href="{{ url_for('cajero_cobrar') }}" class="ini-alerta">
-    {{ icono('alerta', 18) }}
-    <span><strong class="num">{{ por_cobrar }}</strong>
-      cuenta{{ 's' if por_cobrar != 1 }} sin cobrar · {{ deuda | cop }}</span>
-    {{ icono('flecha', 16) }}
-  </a>
-  {% endif %}
-  {% if stock_bajo %}
-  <a href="{{ url_for('admin_inventario') }}" class="ini-alerta ini-alerta-suave">
-    {{ icono('inventario', 18) }}
-    <span><strong class="num">{{ stock_bajo }}</strong>
-      producto{{ 's' if stock_bajo != 1 }} por acabarse</span>
-    {{ icono('flecha', 16) }}
-  </a>
-  {% endif %}
-</div>
-{% endif %}
-
 <div class="ini-grid">
-
-  <a href="{{ url_for('mesero_nuevo') }}" class="ini-tile ini-ancho ini-principal">
-    {{ icono('pedido', 38) }}
-    <span class="ini-txt">Nuevo pedido</span>
-  </a>
 
   <a href="{{ url_for('venta_rapida') }}" class="ini-tile">
     {{ icono('rapido', 34) }}
@@ -85,4 +67,11 @@
   {% endif %}
 
 </div>
+
+{# Boton flotante: la accion mas frecuente, siempre al alcance del pulgar
+   y sin competir con los accesos de la rejilla. #}
+<a href="{{ url_for('mesero_nuevo') }}" class="fab">
+  {{ icono('pedido', 30) }}
+  <span>Nuevo pedido</span>
+</a>
 {% endblock %}
