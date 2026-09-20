@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{% endblock %}
+
+{% block content %}
+<div class="ini-saludo">
+  <div class="ini-nombre">Hola, {{ session.nombre.split()[0] }}</div>
+  <div class="ini-fecha">{{ hoy }}</div>
+</div>
+
+{% if por_cobrar or stock_bajo %}
+<div class="ini-alertas">
+  {% if por_cobrar %}
+  <a href="{{ url_for('cajero_cobrar') }}" class="ini-alerta">
+    {{ icono('alerta', 18) }}
+    <span><strong class="num">{{ por_cobrar }}</strong>
+      cuenta{{ 's' if por_cobrar != 1 }} sin cobrar · {{ deuda | cop }}</span>
+    {{ icono('flecha', 16) }}
+  </a>
+  {% endif %}
+  {% if stock_bajo %}
+  <a href="{{ url_for('admin_inventario') }}" class="ini-alerta ini-alerta-suave">
+    {{ icono('inventario', 18) }}
+    <span><strong class="num">{{ stock_bajo }}</strong>
+      producto{{ 's' if stock_bajo != 1 }} por acabarse</span>
+    {{ icono('flecha', 16) }}
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="ini-grid">
+
+  <a href="{{ url_for('mesero_nuevo') }}" class="ini-tile ini-ancho ini-principal">
+    {{ icono('pedido', 38) }}
+    <span class="ini-txt">Nuevo pedido</span>
+  </a>
+
+  <a href="{{ url_for('venta_rapida') }}" class="ini-tile">
+    {{ icono('rapido', 34) }}
+    <span class="ini-txt">Venta rápida</span>
+    <span class="ini-sub">una bebida suelta</span>
+  </a>
+
+  <a href="{{ url_for('estacion_pizzas') }}" class="ini-tile">
+    {{ icono('cocina', 34) }}
+    <span class="ini-txt">Cocina</span>
+    {% if cocina %}<span class="ini-badge num">{{ cocina }}</span>{% endif %}
+    <span class="ini-sub">{{ cocina }} por preparar</span>
+  </a>
+
+  <a href="{{ url_for('cajero_cobrar') }}" class="ini-tile">
+    {{ icono('cobrar', 34) }}
+    <span class="ini-txt">Cobrar</span>
+    {% if por_cobrar %}<span class="ini-badge ini-badge-rojo num">{{ por_cobrar }}</span>{% endif %}
+  </a>
+
+  <a href="{{ url_for('cajero_caja') }}" class="ini-tile">
+    {{ icono('caja', 34) }}
+    <span class="ini-txt">Mi caja</span>
+    {% if mi_efectivo %}<span class="ini-sub num">{{ mi_efectivo | cop }} a entregar</span>{% endif %}
+  </a>
+
+  <a href="{{ url_for('mesero_pedidos') }}" class="ini-tile">
+    {{ icono('buscar', 34) }}
+    <span class="ini-txt">Reservas</span>
+    <span class="ini-sub">buscar y agregar</span>
+  </a>
+
+  <a href="{{ url_for('admin_inventario') }}" class="ini-tile">
+    {{ icono('inventario', 34) }}
+    <span class="ini-txt">Inventario</span>
+  </a>
+
+  <a href="{{ url_for('admin_menu_pizzas') }}" class="ini-tile">
+    {{ icono('menu', 34) }}
+    <span class="ini-txt">Menú</span>
+  </a>
+
+  {% if es_admin %}
+  <a href="{{ url_for('admin_resumen') }}" class="ini-tile ini-ancho ini-negocio">
+    {{ icono('negocio', 34) }}
+    <span class="ini-txt">Negocio</span>
+    <span class="ini-sub">reportes, cierre y gastos</span>
+  </a>
+  {% endif %}
+
+</div>
+{% endblock %}

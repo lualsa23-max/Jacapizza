@@ -682,48 +682,6 @@ tbody tr:hover td     { background: var(--card2); }
 .vr-aviso-ok    { background: rgba(78,203,113,.14); color: var(--green); }
 .vr-aviso-nuevo { background: rgba(245,166,35,.14); color: var(--orange); }
 
-/* ── F6: INICIO ────────────────────────────────────── */
-.home-saludo { padding: var(--s2) 0 var(--s4); }
-.home-nombre { font-size: var(--t-lg); font-weight: 700; }
-.home-fecha  { font-size: var(--t-sm); color: var(--gray2); }
-
-.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
-@media (min-width: 640px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
-
-.tile {
-  position: relative;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: var(--s1);
-  min-height: 108px; padding: var(--s4) var(--s3);
-  background: var(--card); border-radius: var(--r-md);
-  color: var(--white); text-decoration: none; text-align: center;
-  transition: transform .15s ease, background .15s ease;
-}
-.tile:active { transform: scale(.97); background: var(--card2); }
-.tile-ancho  { grid-column: 1 / -1; }
-
-.tile-ico { font-size: 2rem; line-height: 1; }
-/* La PALABRA pesa mas que el dibujo: un icono solo se malinterpreta,
-   un icono con su palabra debajo no. */
-.tile-txt { font-size: var(--t-sm); font-weight: 700; letter-spacing: .02em; }
-.tile-sub { font-size: var(--t-xs); color: var(--gray2); font-weight: 400; }
-
-.tile-principal { background: var(--accent); min-height: 120px; }
-.tile-principal:active { background: var(--acc2); }
-.tile-principal .tile-ico { font-size: 2.4rem; }
-.tile-principal .tile-txt { font-size: var(--t-md); }
-.tile-negocio { background: var(--panel); }
-
-.tile-badge {
-  position: absolute; top: var(--s2); right: var(--s2);
-  min-width: 26px; padding: 2px 8px;
-  background: var(--orange); color: #111;
-  border-radius: var(--r-full);
-  font-size: var(--t-xs); font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.tile-badge-alerta { background: var(--red); color: #fff; }
-
 /* ── F3: BARRA INFERIOR ────────────────────────────── */
 /* Cuatro destinos fijos, siempre visibles, al alcance del pulgar.
    Reemplaza a las 14 pestañas con scroll horizontal, donde lo que no
@@ -875,3 +833,110 @@ input, select, textarea { font-size: 16px; }
 }
 .ped-paso button:active { transform: scale(.9); }
 .ped-paso-n { font-size: 1.1rem; font-weight: 700; }
+
+/* ── HOJA "MÁS" ────────────────────────────────────── */
+/* Faltaba por completo: sin estas reglas los enlaces salian con el azul
+   por defecto del navegador, ilegible sobre el fondo oscuro. */
+.mas-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2);
+  margin-top: var(--s3);
+}
+@media (min-width: 520px) { .mas-grid { grid-template-columns: repeat(3, 1fr); } }
+.mas-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s2); min-height: 84px; padding: var(--s3);
+  background: var(--card); border-radius: var(--r-md);
+  color: var(--white);            /* <- lo que faltaba */
+  text-decoration: none; text-align: center;
+}
+.mas-item span { font-size: var(--t-xs); font-weight: 600; line-height: 1.2; }
+.mas-item:active { background: var(--card2); transform: scale(.97); }
+.mas-salir { color: var(--red); }
+
+/* El nombre de la app es un enlace: que no se vea como enlace de navegador */
+a.nav-brand { text-decoration: none; }
+a.nav-brand:active { opacity: .7; }
+
+/* ── DETALLE DESPLEGABLE DEL PEDIDO ────────────────── */
+.ped-panel {
+  position: fixed; left: 0; right: 0; z-index: 240;
+  bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  max-height: 0; overflow: hidden;
+  background: var(--panel);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  transition: max-height .22s ease;
+}
+.ped-panel.abierto {
+  max-height: 55vh; overflow-y: auto;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+}
+.ped-panel-cab {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--card2);
+  font-weight: 700; position: sticky; top: 0; background: var(--panel);
+}
+.ped-panel-x {
+  background: none; border: none; color: var(--gray2);
+  padding: var(--s1); cursor: pointer; min-height: var(--tap-min);
+}
+.ped-panel-lista { padding: 0 var(--s4) var(--s3); }
+
+/* La zona del total es tocable: abre y cierra el detalle */
+.ped-barra-info {
+  flex: 1; min-width: 0; text-align: left;
+  background: none; border: none; color: inherit;
+  font-family: inherit; cursor: pointer; padding: var(--s1) 0;
+}
+.ped-barra-n { display: flex; align-items: baseline; gap: var(--s2); }
+.ped-barra-ver {
+  font-size: var(--t-xs); color: var(--brand-text); font-weight: 600;
+}
+
+/* ── PANTALLA DE INICIO ────────────────────────────── */
+.ini-saludo { padding: var(--s3) 0 var(--s4); }
+.ini-nombre { font-size: var(--t-xl); font-weight: 700; letter-spacing: -.02em; }
+.ini-fecha  { font-size: var(--t-sm); color: var(--gray2); text-transform: capitalize; }
+
+/* Lo que necesita atencion, visible al entrar */
+.ini-alertas { display: flex; flex-direction: column; gap: var(--s2); margin-bottom: var(--s4); }
+.ini-alerta {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s3); border-radius: var(--r-sm);
+  background: rgba(236,111,111,.12); color: var(--red);
+  text-decoration: none; font-size: var(--t-sm); font-weight: 600;
+  min-height: var(--tap-min);
+}
+.ini-alerta span { flex: 1; }
+.ini-alerta-suave { background: rgba(245,166,35,.12); color: var(--orange); }
+
+.ini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+@media (min-width: 640px) { .ini-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.ini-tile {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s2); min-height: 118px; padding: var(--s4) var(--s3);
+  background: var(--card); border-radius: var(--r-md);
+  color: var(--white); text-decoration: none; text-align: center;
+  transition: background .15s ease, transform .15s ease;
+}
+.ini-tile:active { background: var(--card2); transform: scale(.97); }
+.ini-ancho { grid-column: 1 / -1; flex-direction: row; gap: var(--s3); min-height: 84px; }
+
+/* La palabra pesa mas que el dibujo: un icono solo se malinterpreta */
+.ini-txt { font-size: var(--t-sm); font-weight: 700; line-height: 1.2; }
+.ini-sub { font-size: var(--t-xs); color: var(--gray2); font-weight: 400; }
+
+.ini-principal { background: var(--accent); }
+.ini-principal:active { background: var(--acc2); }
+.ini-principal .ini-txt { font-size: var(--t-lg); }
+.ini-negocio { background: var(--panel); }
+
+.ini-badge {
+  position: absolute; top: var(--s2); right: var(--s2);
+  min-width: 24px; padding: 2px 7px;
+  background: var(--orange); color: #111;
+  border-radius: var(--r-full); font-size: var(--t-xs); font-weight: 700;
+}
+.ini-badge-rojo { background: var(--red); color: #fff; }

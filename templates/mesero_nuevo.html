@@ -110,13 +110,25 @@
   </button>
 </div>
 
-{# Barra fija: el total y el boton de enviar siempre a la vista, sin tener
-   que hacer scroll hasta abajo para saber cuanto va. #}
-<div class="ped-barra" id="ped-barra" style="display:none">
-  <div class="ped-barra-info">
-    <div class="ped-barra-n" id="barra-n">0 productos</div>
-    <div class="ped-barra-t num" id="barra-t">$0</div>
+{# Barra fija con el total siempre a la vista. Tocando la parte del total se
+   despliega hacia arriba el detalle: se revisa el pedido sin perder de vista
+   el boton de enviar ni tener que subir la pagina. #}
+<div class="ped-panel" id="ped-panel">
+  <div class="ped-panel-cab">
+    <span>El pedido</span>
+    <button type="button" class="ped-panel-x" onclick="verPanel(false)">
+      {{ icono('cerrar', 20) }}
+    </button>
   </div>
+  <div class="ped-panel-lista" id="panel-lista"></div>
+</div>
+
+<div class="ped-barra" id="ped-barra" style="display:none">
+  <button type="button" class="ped-barra-info" onclick="verPanel()">
+    <div class="ped-barra-n"><span id="barra-n">0 productos</span>
+      <span class="ped-barra-ver" id="barra-ver">ver detalle</span></div>
+    <div class="ped-barra-t num" id="barra-t">$0</div>
+  </button>
   <button class="btn btn-green btn-lg" id="btn-enviar" onclick="enviar()">
     {{ icono('check', 22) }} <span id="txt-enviar">Enviar</span>
   </button>
@@ -298,8 +310,10 @@ function pinta() {
           + '<button type="button" onclick="cambiar(' + i + ',1)">+</button>'
           + '</div></div>';
   });
-  document.getElementById('carrito').innerHTML =
-    html || '<div class="ped-vacio">Todavía no has agregado nada</div>';
+  var vacio = '<div class="ped-vacio">Todavía no has agregado nada</div>';
+  document.getElementById('carrito').innerHTML = html || vacio;
+  document.getElementById('panel-lista').innerHTML = html || vacio;
+  if (!carrito.length) verPanel(false);
   document.getElementById('barra-n').textContent = uds + (uds === 1 ? ' producto' : ' productos');
   document.getElementById('barra-t').textContent = fmt(total);
   document.getElementById('ped-barra').style.display = carrito.length ? '' : 'none';
@@ -309,6 +323,14 @@ function pinta() {
 function limpiar() {
   if (carrito.length && !confirm('¿Vaciar el pedido?')) return;
   carrito = []; pinta();
+}
+
+/* ── Detalle desplegable ──────────────────────────────────────── */
+function verPanel(abrir) {
+  var p = document.getElementById('ped-panel');
+  var on = (abrir === undefined) ? !p.classList.contains('abierto') : abrir;
+  p.classList.toggle('abierto', on);
+  document.getElementById('barra-ver').textContent = on ? 'ocultar' : 'ver detalle';
 }
 
 /* ── Cobro ────────────────────────────────────────────────────── */

@@ -21,6 +21,17 @@ def ahora():
 # archivaria a las 00:01.
 JORNADA_CORTE_H = 5
 
+_DIAS  = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"]
+_MESES = ["enero","febrero","marzo","abril","mayo","junio","julio",
+          "agosto","septiembre","octubre","noviembre","diciembre"]
+
+
+def _fecha_larga():
+    """'viernes 20 de septiembre' — se lee mejor que 20/09/2026 al entrar."""
+    d = ahora()
+    return f"{_DIAS[d.weekday()]} {d.day} de {_MESES[d.month - 1]}"
+
+
 def jornada_actual():
     """Fecha de NEGOCIO en formato ISO ordenable ('YYYY-MM-DD').
     Convive con `fecha` ('%d/%m/%Y'), que se conserva para no mover reportes."""
@@ -1397,13 +1408,34 @@ def _datos_barra():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Se entra DIRECTO a trabajar.
+    """Pantalla de inicio: lo mas usado a un toque, y lo que necesita atencion.
 
-    Antes habia una pantalla de mosaicos en medio: un paso mas antes de hacer
-    lo primero que hace todo el mundo al llegar, que es tomar un pedido. Lo
-    demas queda a un toque, en la barra de abajo.
+    No es solo un menu. Arriba avisa de lo que esta pendiente -- cuentas sin
+    cobrar, productos por acabarse -- para que se vea al entrar, sin tener que
+    ir a buscarlo.
     """
-    return redirect(url_for('mesero_nuevo'))
+    j = jornada_actual()
+    try:
+        abiertas = [p for p in listar_pedidos(estado_cuenta="Abierta") if p["total"] > 0]
+    except Exception:
+        abiertas = []
+    try:
+        cocina = len(listar_estacion("Pizza")) + len(listar_estacion("Bebida"))
+    except Exception:
+        cocina = 0
+    try:
+        bajo = len(get_productos_stock_bajo())
+    except Exception:
+        bajo = 0
+    try:
+        efectivo = resumen_caja(j, session['nombre'])["efectivo"]
+    except Exception:
+        efectivo = 0
+    return render_template('home.html',
+        hoy=_fecha_larga(), cocina=cocina, stock_bajo=bajo,
+        por_cobrar=len(abiertas), deuda=sum(p["saldo"] for p in abiertas),
+        mi_efectivo=efectivo,
+        es_admin=(session.get('rol') == ROL_ADMIN))
 
 
 # ── ADMIN ─────────────────────────────────────────────

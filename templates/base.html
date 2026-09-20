@@ -13,7 +13,7 @@
 
 {% if session.get('usuario') %}
 <nav class="navbar">
-  <span class="nav-brand">JacaPizza</span>
+  <a href="{{ url_for('dashboard') }}" class="nav-brand">JacaPizza</a>
   <div class="nav-info">
     <span class="nav-user">{{ session.nombre }}</span>
     <span class="role-badge role-{{ session.rol | lower }}">{{ session.rol }}</span>
@@ -30,6 +30,9 @@
   {# Cinco destinos con icono de trazo. Lo demas vive en "Mas", que abre una
      hoja desde abajo: no hace falta pasar por una pantalla de menu para
      empezar a trabajar. #}
+  <a href="{{ url_for('dashboard') }}" class="barra-item {% if request.endpoint=='dashboard' %}activo{% endif %}">
+    {{ icono('inicio', 26) }}<span class="barra-txt">Inicio</span>
+  </a>
   <a href="{{ url_for('mesero_nuevo') }}" class="barra-item {% if request.endpoint in ['mesero_nuevo','mesero_editar'] %}activo{% endif %}">
     {{ icono('pedido', 26) }}<span class="barra-txt">Pedido</span>
   </a>
@@ -41,9 +44,6 @@
     {{ icono('cobrar', 26) }}<span class="barra-txt">Cobrar</span>
     {% if nav_por_cobrar %}<span class="barra-badge">{{ nav_por_cobrar }}</span>{% endif %}
   </a>
-  <a href="{{ url_for('cajero_caja') }}" class="barra-item {% if request.endpoint=='cajero_caja' %}activo{% endif %}">
-    {{ icono('caja', 26) }}<span class="barra-txt">Caja</span>
-  </a>
   <button type="button" class="barra-item" onclick="document.getElementById('hoja-mas').classList.add('open')">
     {{ icono('mas', 26) }}<span class="barra-txt">Más</span>
   </button>
@@ -53,6 +53,7 @@
   <div class="sheet">
     <div class="sheet-titulo">Todo lo demás</div>
     <div class="mas-grid">
+      <a href="{{ url_for('cajero_caja') }}" class="mas-item">{{ icono('caja', 28) }}<span>Mi caja</span></a>
       <a href="{{ url_for('venta_rapida') }}" class="mas-item">{{ icono('rapido', 28) }}<span>Venta rápida</span></a>
       <a href="{{ url_for('mesero_pedidos') }}" class="mas-item">{{ icono('buscar', 28) }}<span>Buscar reserva</span></a>
       <a href="{{ url_for('admin_inventario') }}" class="mas-item">{{ icono('inventario', 28) }}<span>Inventario</span></a>
