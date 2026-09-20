@@ -1110,3 +1110,5 @@ a.nav-brand:active { opacity: .7; }
 .rep-barra-doble .rep-barra-fill { border-radius: 0; }
 .rep-barra-doble .rep-barra-fill:first-child { border-radius: var(--r-full) 0 0 var(--r-full); }
 .rep-barra-doble .rep-barra-fill:last-child { border-radius: 0 var(--r-full) var(--r-full) 0; }
+
+.rep-masas-fila { display: flex; align-items: baseline; gap: var(--s2); }

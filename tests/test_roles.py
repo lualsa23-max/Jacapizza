@@ -24,7 +24,7 @@ OPERATIVAS = ['/mesero/nuevo', '/mesero/pedidos', '/cocina/pedidos', '/estacion/
               '/admin/menu/pizzas', '/admin/menu/bebidas',
               '/admin/cierre', '/admin/cierre/historial']
 # Cifras del negocio: solo administradores
-DE_NEGOCIO = ['/admin/reportes', '/admin/resumen', '/admin/usuarios', '/admin/pedidos']
+DE_NEGOCIO = ['/admin/reportes', '/admin/usuarios', '/admin/pedidos']
 
 
 def check(cond, msg):

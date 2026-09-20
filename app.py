@@ -762,7 +762,7 @@ def barrer_jornada():
 
 
 _ENDPOINTS_BARRIDO = {"estacion_pizzas", "estacion_bebidas", "cocina_pedidos",
-                      "cajero_cobrar", "mesero_nuevo", "mesero_pedidos", "admin_resumen"}
+                      "cajero_cobrar", "mesero_nuevo", "mesero_pedidos", "admin_reportes"}
 
 
 @app.before_request
@@ -1660,87 +1660,11 @@ def dashboard():
 @app.route('/admin/resumen')
 @rol_required('Administrador')
 def admin_resumen():
-    hoy   = ahora().strftime("%d/%m/%Y")
-    todos = get_pedidos()
-    hoy_todos    = [p for p in todos if p["fecha"]==hoy]
-    hoy_pagados  = [p for p in hoy_todos if p["estado"]=="Pagado"]
-    pendientes   = sum(1 for p in hoy_todos if p["estado"]=="Pendiente")
-    listos       = sum(1 for p in hoy_todos if p["estado"]=="Listo")
-    cobros_pendientes = sum(1 for p in todos if p["estado"]=="Listo" and p["fecha"]!=hoy)
+    """Enlace historico. El resumen del dia ERA Reportes con el periodo 'Hoy'
+    mas unos datos que ahora estan en la campana de avisos, asi que se fusiono
+    con Reportes en vez de mantener dos pantallas diciendo lo mismo."""
+    return redirect(url_for('admin_reportes', periodo='hoy'))
 
-    # Pizzas vendidas hoy (de pedidos pagados)
-    pizzas_vendidas = 0
-    with _conn() as c:
-        row = c.execute(
-            "SELECT COALESCE(SUM(i.cantidad),0) as total FROM items i "
-            "JOIN pedidos p ON p.id=i.pedido_id "
-            "WHERE i.tipo='Pizza' AND p.fecha=? AND p.estado='Pagado'", (hoy,)).fetchone()
-        pizzas_vendidas = row["total"] if row else 0
-
-    # Masas disponibles
-    stock = get_stock_dict()
-    masas_disponibles = stock.get("Pizza (masa)", 0)
-    masas_iniciales = 0
-    try:
-        with _conn() as c:
-            row = c.execute("SELECT stock_inicial FROM inventario WHERE nombre='Pizza (masa)' AND fecha=?", (hoy,)).fetchone()
-            if row: masas_iniciales = row["stock_inicial"] if row["stock_inicial"] > 0 else 0
-    except: pass
-
-    # Pagos del día desde tabla pagos
-    pagos_hoy = []
-    try:
-        with _conn() as c:
-            pagos_hoy = c.execute("SELECT * FROM pagos WHERE fecha=?", (hoy,)).fetchall()
-    except: pass
-    total_cobrado  = sum(r["monto"] for r in pagos_hoy)
-    total_cobros   = len(pagos_hoy)
-    metodos_hoy = {}
-    for r in pagos_hoy:
-        metodos_hoy[r["metodo"]] = metodos_hoy.get(r["metodo"], 0) + r["monto"]
-    por_cobrador = {}
-    for r in pagos_hoy:
-        por_cobrador[r["cobrado_por"]] = por_cobrador.get(r["cobrado_por"], 0) + r["monto"]
-
-    # Fallback: si no hay pagos en tabla pagos, usar total de pedidos pagados (BD antigua)
-    if total_cobrado == 0 and hoy_pagados:
-        total_cobrado = sum(p["total"] for p in hoy_pagados)
-        total_cobros = len(hoy_pagados)
-
-    # Total pendiente por cobrar (pedidos Listo de hoy)
-    total_por_cobrar = sum(p["saldo"] for p in hoy_todos if p["estado"]=="Listo" and p["saldo"]>0)
-
-    # Top productos vendidos hoy (de pedidos pagados)
-    top_items = []
-    with _conn() as c:
-        pag_ids = [p["id"] for p in hoy_pagados]
-        if pag_ids:
-            ph = ",".join("?" * len(pag_ids))
-            rows = c.execute(
-                f"SELECT nombre, tipo, SUM(cantidad) as tc, SUM(cantidad*precio_unit) as tv "
-                f"FROM items WHERE pedido_id IN ({ph}) GROUP BY nombre ORDER BY tc DESC LIMIT 10", pag_ids).fetchall()
-            top_items = [{"nombre": r["nombre"], "tipo": r["tipo"], "cantidad": r["tc"], "valor": r["tv"]} for r in rows]
-
-    # Productos con stock bajo (alerta para el admin)
-    stock_bajo = get_productos_stock_bajo()
-
-    # Gastos del día (solo para luis)
-    es_luis = session.get('usuario') == 'luis'
-    total_gastos_hoy = get_total_gastos_hoy() if es_luis else 0
-    utilidad_hoy = total_cobrado - total_gastos_hoy if es_luis else 0
-
-    return render_template('admin_resumen.html',
-        hoy=hoy, total_pedidos_hoy=len(hoy_todos),
-        pagados=len(hoy_pagados), pendientes=pendientes, listos=listos,
-        cobros_pendientes=cobros_pendientes,
-        pizzas_vendidas=pizzas_vendidas, masas_disponibles=masas_disponibles,
-        masas_iniciales=masas_iniciales,
-        total_cobrado=total_cobrado, total_cobros=total_cobros,
-        total_por_cobrar=total_por_cobrar,
-        metodos_hoy=metodos_hoy, por_cobrador=por_cobrador,
-        top_items=top_items, ultimos=hoy_todos[:10],
-        stock_bajo=stock_bajo,
-        es_luis=es_luis, total_gastos_hoy=total_gastos_hoy, utilidad_hoy=utilidad_hoy)
 
 @app.route('/admin/inventario', methods=['GET','POST'])
 @login_required   # trabajo diario: cargar stock
@@ -1924,9 +1848,21 @@ def admin_reportes():
         fi = ff = hoy
         titulo = f"Hoy, {now.day} de {_MESES[now.month - 1]}"
 
+    masas = None
+    if periodo == 'hoy':
+        # Dato operativo del dia: cuantas masas quedan de las que se cargaron
+        try:
+            with _conn() as c:
+                r = c.execute("SELECT stock, stock_inicial FROM inventario "
+                              "WHERE nombre='Pizza (masa)' AND fecha=?", (hoy,)).fetchone()
+            if r:
+                masas = {"quedan": r["stock"], "inicial": r["stock_inicial"] or 0}
+        except Exception:
+            pass
+
     return render_template('admin_reportes.html',
         data=get_reporte(fi, ff), periodo=periodo, fi=fi, ff=ff, hoy=hoy,
-        titulo_rango=titulo, metodos=METODOS_PAGO,
+        titulo_rango=titulo, metodos=METODOS_PAGO, masas=masas,
         d1=fecha_a_iso(fi, ""), d2=fecha_a_iso(ff, ""))
 
 

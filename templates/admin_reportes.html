@@ -61,6 +61,19 @@
   {% endif %}
 </div>
 
+{% if masas %}
+<div class="rep-tarjeta rep-masas">
+  <div class="rep-etiqueta">{{ icono('inventario', 16) }} Masas de hoy</div>
+  <div class="rep-masas-fila">
+    <span class="rep-medio num">{{ masas.quedan }}</span>
+    <span class="rep-sub">
+      quedan{% if masas.inicial %} de {{ masas.inicial }} cargadas
+      · {{ masas.inicial - masas.quedan }} usadas{% endif %}
+    </span>
+  </div>
+</div>
+{% endif %}
+
 {# ── Qué se vendió ─────────────────────────────────────────────── #}
 <div class="rep-duo">
   <div class="rep-tarjeta">

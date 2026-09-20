@@ -89,7 +89,7 @@
       <a href="{{ url_for('admin_menu_pizzas') }}" class="mas-item">{{ icono('menu', 28) }}<span>Menú</span></a>
       <a href="{{ url_for('admin_cierre') }}" class="mas-item">{{ icono('check', 28) }}<span>Cierre</span></a>
       {% if session.rol == 'Administrador' %}
-      <a href="{{ url_for('admin_resumen') }}" class="mas-item">{{ icono('negocio', 28) }}<span>Reportes</span></a>
+      <a href="{{ url_for('admin_reportes') }}" class="mas-item">{{ icono('negocio', 28) }}<span>Reportes</span></a>
       <a href="{{ url_for('admin_pedidos') }}" class="mas-item">{{ icono('caja', 28) }}<span>Historial</span></a>
       <a href="{{ url_for('admin_usuarios') }}" class="mas-item">{{ icono('usuario', 28) }}<span>Usuarios</span></a>
       {% endif %}
