@@ -1,0 +1,26 @@
+# Entorno local
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Base de datos local de pruebas (la de produccion vive en DB_PATH)
+*.db
+*.db-wal
+*.db-shm
+
+# Copias de seguridad de la base
+backups/
+
+# Facturas subidas en local
+facturas/
+
+# Sistema
+.DS_Store
+
+# Ajustes locales de Claude Code
+.claude/settings.local.json

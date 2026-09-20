@@ -1,75 +1,82 @@
 {% extends "base.html" %}
 {% block title %}— Usuarios{% endblock %}
 {% block content %}
-<h2 class="sec-title">👥 Usuarios del sistema</h2>
+<h2 class="sec-title">👥 Usuarios</h2>
 
-{% for username, d in usuarios.items() %}
-<div class="card mb-12">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-    <span style="font-size:1.4rem">{{ '👑' if d.rol=='Administrador' else ('🧑‍🍳' if d.rol=='Mesero' else ('💳' if d.rol=='Cajero' else '👨‍🍳')) }}</span>
-    <div>
-      <div class="font-bold c-accent">@{{ username }}</div>
-      <span class="role-badge role-{{ d.rol | lower }}">{{ d.rol }}</span>
-    </div>
+<div class="card mb-12" style="border-left:3px solid var(--blue)">
+  <div style="font-size:.88rem;line-height:1.6">
+    <strong>Operador</strong> — toma pedidos, cobra, cocina, carga inventario y edita el menú.<br>
+    <strong>Administrador</strong> — todo lo anterior, más reportes, cierre y gastos.
   </div>
-  <form method="post">
+</div>
+
+{% for u in usuarios %}
+<div class="card mb-8" {% if not u.activo %}style="opacity:.5"{% endif %}>
+  <form method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
     <input type="hidden" name="action" value="update">
-    <input type="hidden" name="username" value="{{ username }}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Nombre</label>
-        <input class="form-input" type="text" name="nombre" value="{{ d.nombre }}" style="min-height:40px;font-size:.88rem">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Contraseña</label>
-        <input class="form-input" type="text" name="password" value="{{ d.password }}" style="min-height:40px;font-size:.88rem">
-      </div>
+    <input type="hidden" name="id" value="{{ u.id }}">
+
+    <div style="flex:2;min-width:150px">
+      <label class="form-label">Nombre <span class="c-gray">@{{ u.usuario }}</span></label>
+      <input class="form-input" type="text" name="nombre" value="{{ u.nombre }}"
+             style="min-height:40px;font-size:.88rem">
     </div>
-    <div class="form-group mt-8" style="margin-bottom:10px">
+
+    <div style="min-width:140px">
       <label class="form-label">Rol</label>
       <select class="form-select" name="rol" style="min-height:40px;font-size:.88rem">
         {% for r in roles %}
-        <option value="{{ r }}" {% if d.rol==r %}selected{% endif %}>{{ r }}</option>
+        <option value="{{ r }}" {% if u.rol == r %}selected{% endif %}>{{ r }}</option>
         {% endfor %}
       </select>
     </div>
-    <div style="display:flex;gap:8px">
-      <button type="submit" class="btn btn-primary btn-sm" style="flex:1">💾 Guardar</button>
-      {% if username != 'admin' %}
-      <button type="submit" name="action" value="delete"
-              class="btn btn-danger btn-sm"
-              onclick="return confirm('¿Eliminar @{{ username }}?')">🗑 Eliminar</button>
+
+    <div style="min-width:140px">
+      <label class="form-label">Contraseña nueva</label>
+      <input class="form-input" type="text" name="password" placeholder="dejar vacío = sin cambio"
+             style="min-height:40px;font-size:.88rem">
+    </div>
+
+    <div style="display:flex;gap:6px">
+      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">💾 Guardar</button>
+      {% if u.usuario != session.get('usuario') %}
+      <button type="submit" name="action" value="delete" class="btn btn-danger btn-sm" style="min-height:40px"
+              onclick="return confirm('¿Desactivar a {{ u.nombre }}?\n\nSus pedidos y cobros anteriores no se tocan.')">🗑</button>
       {% endif %}
     </div>
   </form>
+  {% if u.creado %}<div class="text-xs c-gray mt-4">Creado el {{ u.creado }}</div>{% endif %}
 </div>
 {% endfor %}
 
 <div class="card mt-16">
-  <h3 class="sec-title" style="font-size:.95rem">➕ Agregar usuario</h3>
+  <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">➕ Agregar persona</h3>
   <form method="post">
     <input type="hidden" name="action" value="create">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="form-group" style="margin-bottom:10px">
-        <label class="form-label">Usuario (login)</label>
-        <input class="form-input" type="text" name="new_username" placeholder="ej: mesero2" style="min-height:40px;font-size:.88rem">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:120px">
+        <label class="form-label">Usuario</label>
+        <input class="form-input" type="text" name="new_username" required placeholder="sin espacios"
+               style="min-height:40px;font-size:.88rem">
       </div>
-      <div class="form-group" style="margin-bottom:10px">
+      <div style="flex:2;min-width:150px">
         <label class="form-label">Nombre completo</label>
-        <input class="form-input" type="text" name="new_nombre" placeholder="ej: Laura Torres" style="min-height:40px;font-size:.88rem">
+        <input class="form-input" type="text" name="new_nombre" required
+               style="min-height:40px;font-size:.88rem">
       </div>
-      <div class="form-group" style="margin-bottom:10px">
+      <div style="flex:1;min-width:120px">
         <label class="form-label">Contraseña</label>
-        <input class="form-input" type="text" name="new_password" placeholder="mínimo 6 caracteres" style="min-height:40px;font-size:.88rem">
+        <input class="form-input" type="text" name="new_password" required
+               style="min-height:40px;font-size:.88rem">
       </div>
-      <div class="form-group" style="margin-bottom:10px">
+      <div style="min-width:140px">
         <label class="form-label">Rol</label>
         <select class="form-select" name="new_rol" style="min-height:40px;font-size:.88rem">
-          {% for r in roles %}<option>{{ r }}</option>{% endfor %}
+          {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
         </select>
       </div>
+      <button type="submit" class="btn btn-green" style="min-height:40px">➕ Agregar</button>
     </div>
-    <button type="submit" class="btn btn-green btn-full">➕ Crear usuario</button>
   </form>
 </div>
 {% endblock %}

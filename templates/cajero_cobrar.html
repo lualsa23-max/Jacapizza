@@ -1,181 +1,214 @@
 {% extends "base.html" %}
-{% block title %}— Cobrar Pedidos{% endblock %}
-{% block content %}
-<h2 class="sec-title">⏳ Cobrar Pedidos</h2>
+{% block title %}— Cobrar{% endblock %}
 
-<!-- TABS DE FILTRO -->
-<div style="display:flex;gap:8px;margin-bottom:16px">
-  <a href="{{ url_for('cajero_cobrar', filtro='hoy') }}"
-     class="btn btn-sm {% if filtro=='hoy' %}btn-primary{% else %}btn-ghost{% endif %}">
-    📅 Hoy <span style="opacity:.7">({{ count_hoy }})</span>
-  </a>
-  <a href="{{ url_for('cajero_cobrar', filtro='anteriores') }}"
-     class="btn btn-sm {% if filtro=='anteriores' %}btn-primary{% else %}btn-ghost{% endif %}">
-    ⏪ Anteriores <span style="opacity:.7">({{ count_anteriores }})</span>
-  </a>
-  <a href="{{ url_for('cajero_cobrar', filtro='todos') }}"
-     class="btn btn-sm {% if filtro=='todos' %}btn-primary{% else %}btn-ghost{% endif %}">
-    📋 Todos <span style="opacity:.7">({{ count_hoy + count_anteriores }})</span>
-  </a>
-</div>
+{% macro tarjeta(p, mostrar_fecha=false) %}
+<div class="cobro-card" style="border-left-color:{{ 'var(--red)' if mostrar_fecha else 'var(--accent)' }}">
 
-{% macro render_cobro_card(p, show_fecha=false) %}
-<div class="cobro-card" style="border-left:4px solid {% if p.saldo <= 0 and p.total_pagado > 0 %}var(--green){% elif p.fecha != hoy %}var(--red){% else %}var(--accent){% endif %};margin-bottom:10px">
   <div class="cobro-head">
-    <div>
-      <div class="cobro-id">#{{ p.id }}</div>
-      <div class="cobro-code">{{ p.mesa }}</div>
-      <div class="cobro-meta">{{ p.mesero }} · {{ p.hora }}{% if show_fecha %} · {{ p.fecha }}{% endif %}</div>
+    <div style="min-width:0">
+      <div class="cobro-codigo">{{ p.mesa }}</div>
+      <div class="cobro-meta">
+        {% if p.mesa_num %}<span class="chip">Mesa {{ p.mesa_num }}</span>{% endif %}
+        <span class="text-xs c-gray2">#{{ p.id }} · {{ p.mesero }} · {{ p.hora }}</span>
+        {% if mostrar_fecha %}<span class="chip" style="background:rgba(232,93,93,.2);color:var(--red)">{{ p.fecha }}</span>{% endif %}
+      </div>
+      {# Semáforo: informa, pero NO bloquea el cobro. Que cocina no haya
+         marcado nada ya no impide cerrar la cuenta. #}
+      <div class="cobro-semaforo">
+        <span class="sem {{ 'sem-ok' if p.estado_cocina == 'Entregado' else 'sem-esp' }}">
+          🍕 {{ 'Entregado' if p.estado_cocina == 'Entregado' else 'En cocina' }}
+        </span>
+        <span class="sem {{ 'sem-ok' if p.estado_barra == 'Entregado' else 'sem-esp' }}">
+          🥤 {{ 'Entregado' if p.estado_barra == 'Entregado' else 'Pendiente' }}
+        </span>
+      </div>
     </div>
-    <div style="text-align:right">
-      {% if p.saldo <= 0 and p.total_pagado > 0 %}
-        <span class="badge" style="background:rgba(78,203,113,.2);color:var(--green)">💳 Pagado completo</span>
-      {% elif p.total_pagado > 0 %}
-        <span class="badge" style="background:rgba(245,166,35,.2);color:var(--orange)">⚠ Pago parcial</span>
-      {% elif p.fecha != hoy %}
-        <span class="badge" style="background:rgba(232,93,93,.2);color:var(--red)">⚠ Pendiente</span>
-      {% else %}
-        <span class="badge b-listo">Listo ✅</span>
+    <div style="text-align:right;flex-shrink:0">
+      <div class="cobro-total num">{{ p.saldo | cop }}</div>
+      {% if p.total_pagado > 0 %}
+      <div class="text-xs" style="color:var(--green)">ya pagó {{ p.total_pagado | cop }}</div>
+      <div class="text-xs c-gray2">de {{ p.total | cop }}</div>
       {% endif %}
     </div>
   </div>
 
-  {% if p.franja_hora %}
-  <div class="p-franja">⏰ Entrega: {{ p.franja_hora }}</div>
-  {% endif %}
-
-  <div class="p-items mt-8">
+  <div class="cobro-items">
     {% for it in p.productos %}
     <div class="p-item">
-      <span class="p-item-qty">{{ it.cantidad }}×</span>
-      <span class="p-item-name">{% if it.tipo == 'Pizza' %}🍕{% else %}🥤{% endif %} {{ it.nombre }}</span>
-      <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
+      <span class="p-item-qty num">{{ it.cantidad }}×</span>
+      <span class="p-item-name">{{ '🍕' if it.tipo == 'Pizza' else '🥤' }} {{ it.nombre }}</span>
+      <span class="p-item-price num">{{ (it.cantidad * it.precio_unit) | cop }}</span>
     </div>
     {% endfor %}
   </div>
-
-  {% if p.notas %}
-  <div class="p-notas mt-8"><strong>📝 Notas</strong>{{ p.notas }}</div>
-  {% endif %}
 
   {% if p.pagos %}
-  <div class="card mt-8" style="background:rgba(78,203,113,.05);padding:10px 12px">
-    <div class="text-xs c-gray font-bold mb-4">PAGOS REGISTRADOS</div>
+  <div class="cobro-pagos">
     {% for pg in p.pagos %}
-    <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-      <span>{{ pg.metodo }} — {{ pg.cobrado_por }} · {{ pg.hora }}</span>
-      <span class="c-green font-bold">{{ pg.monto | cop }}</span>
-    </div>
+    <div class="text-xs c-gray2">↳ {{ pg.monto | cop }} en {{ pg.metodo }} · {{ pg.cobrado_por }} · {{ pg.hora }}</div>
     {% endfor %}
   </div>
   {% endif %}
 
-  <div class="cobro-total">{{ p.total | cop }}</div>
-  <div class="text-xs c-gray text-center">TOTAL DEL PEDIDO</div>
-
-  {% if p.total_pagado > 0 and p.saldo > 0 %}
-  <div style="text-align:center;margin:6px 0">
-    <span class="text-sm c-green">Pagado: {{ p.total_pagado | cop }}</span>
-    <span class="text-sm c-gray"> · </span>
-    <span class="text-sm c-red font-bold">Falta: {{ p.saldo | cop }}</span>
+  <div class="pay-grid">
+    {% for m, icono in metodos.items() %}
+    <form method="post" action="{{ url_for('cajero_pagar', pid=p.id) }}">
+      <input type="hidden" name="metodo" value="{{ m }}">
+      <button type="submit" class="btn btn-green btn-full">{{ icono }} {{ m }}</button>
+    </form>
+    {% endfor %}
   </div>
-  {% endif %}
-  <div style="margin-bottom:12px"></div>
 
-  {% if p.saldo <= 0 and p.total_pagado > 0 %}
-    <div class="card" style="background:rgba(78,203,113,.08);border:1.5px solid var(--green);padding:14px">
-      <div class="text-sm c-green font-bold mb-8">✅ Completamente pagado</div>
-      <form method="post" action="/cajero/cobrar/{{ p.id }}/confirmar_pago"
-            onsubmit="return confirm('¿Confirmar cierre del pedido #{{ p.id }}?')">
-        <button type="submit" class="btn btn-green btn-full">✅ Confirmar cierre</button>
-      </form>
-    </div>
-  {% else %}
-    {% set monto_cobrar = p.saldo if p.saldo > 0 else p.total %}
-    <p class="text-sm c-gray mb-8 font-bold">Cobrar {% if p.total_pagado > 0 %}saldo de {% endif %}{{ monto_cobrar | cop }}:</p>
-    <div class="pay-grid">
-      <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Efectivo?')">
-        <input type="hidden" name="metodo" value="Efectivo">
-        <button type="submit" class="btn btn-green btn-full">💵 Efectivo</button>
-      </form>
-      <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Tarjeta?')">
-        <input type="hidden" name="metodo" value="Tarjeta">
-        <button type="submit" class="btn btn-ghost btn-full">💳 Tarjeta</button>
-      </form>
-      <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Nequi?')">
-        <input type="hidden" name="metodo" value="Nequi">
-        <button type="submit" class="btn btn-primary btn-full">📱 Nequi</button>
-      </form>
-      <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Daviplata?')">
-        <input type="hidden" name="metodo" value="Daviplata">
-        <button type="submit" class="btn btn-orange btn-full">📲 Daviplata</button>
-      </form>
-      <form method="post" action="/cajero/cobrar/{{ p.id }}" onsubmit="return confirm('¿Cobrar {{ monto_cobrar | cop }} con Llave Bre-B?')">
-        <input type="hidden" name="metodo" value="Llave Bre-B">
-        <button type="submit" class="btn btn-ghost btn-full">🔑 Bre-B</button>
-      </form>
-    </div>
-  {% endif %}
+  <div style="display:flex;gap:6px;margin-top:8px">
+    <button class="btn btn-ghost btn-sm" style="flex:1"
+            onclick="abrirParcial({{ p.id }}, {{ p.saldo | int }}, '{{ p.mesa | replace("'", "") }}')">
+      💰 Otro monto
+    </button>
+    <button class="btn btn-ghost btn-sm" style="flex:1"
+            onclick="abrirCortesia({{ p.id }}, '{{ p.mesa | replace("'", "") }}')">
+      🎁 Sin cobrar
+    </button>
+  </div>
 </div>
 {% endmacro %}
 
-<!-- CONTENIDO SEGÚN FILTRO -->
+{% block content %}
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <a href="{{ url_for('cajero_cobrar', filtro='hoy') }}"
+     class="btn btn-sm {{ 'btn-primary' if filtro != 'anteriores' else 'btn-ghost' }}">
+    Hoy {% if count_hoy %}({{ count_hoy }}){% endif %}
+  </a>
+  <a href="{{ url_for('cajero_cobrar', filtro='anteriores') }}"
+     class="btn btn-sm {{ 'btn-primary' if filtro == 'anteriores' else 'btn-ghost' }}">
+    Días anteriores {% if count_anteriores %}({{ count_anteriores }}){% endif %}
+  </a>
+</div>
 
-{% if filtro == 'hoy' or filtro == 'todos' %}
-  {% if pedidos %}
-  <div style="font-family:var(--fh);font-size:.95rem;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:8px">
-    <span>📅</span> Hoy · {{ hoy }} — {{ pedidos|length }} pedido{{ 's' if pedidos|length!=1 else '' }}
-  </div>
-  {% for p in pedidos %}
-    {{ render_cobro_card(p) }}
-  {% endfor %}
-  {% elif filtro == 'hoy' %}
-  <div class="empty" style="padding:40px 20px">
-    <span class="e-ico">🎉</span>
-    <div>No hay pedidos por cobrar de hoy</div>
-    {% if count_anteriores > 0 %}
-    <a href="{{ url_for('cajero_cobrar', filtro='anteriores') }}" class="btn btn-ghost btn-sm mt-12">
-      ⏪ Ver {{ count_anteriores }} pendiente{{ 's' if count_anteriores!=1 else '' }} de días anteriores
-    </a>
-    {% endif %}
-  </div>
-  {% endif %}
-{% endif %}
-
-{% if filtro == 'anteriores' or filtro == 'todos' %}
-  {% if pendientes_anteriores %}
-    {% if filtro == 'todos' and pedidos %}
-    <hr style="border:none;border-top:2px solid var(--red);margin:24px 0 16px;opacity:.3">
-    {% endif %}
-
-    <div style="font-family:var(--fh);font-size:.95rem;color:var(--red);margin-bottom:12px;display:flex;align-items:center;gap:8px">
-      <span>🔴</span> Pendientes de días anteriores — {{ pendientes_anteriores|length }} pedido{{ 's' if pendientes_anteriores|length!=1 else '' }}
-    </div>
-
-    {% for fecha, lista in anteriores_por_fecha.items() %}
-    <div style="background:rgba(232,93,93,.06);border-radius:10px;padding:12px;margin-bottom:16px">
-      <div style="font-family:var(--fh);font-size:.85rem;color:var(--red);font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-        📆 {{ fecha }} — {{ lista|length }} pedido{{ 's' if lista|length!=1 else '' }}
-      </div>
-      {% for p in lista %}
-        {{ render_cobro_card(p, show_fecha=true) }}
-      {% endfor %}
-    </div>
-    {% endfor %}
-
-  {% elif filtro == 'anteriores' %}
-  <div class="empty" style="padding:40px 20px">
-    <span class="e-ico">✅</span>
-    <div>No hay cobros pendientes de días anteriores</div>
-  </div>
-  {% endif %}
-{% endif %}
-
-{% if count_hoy == 0 and count_anteriores == 0 %}
-<div class="empty" style="padding:40px 20px">
-  <span class="e-ico">🎉</span>
-  <div>¡Todo cobrado! No hay pedidos pendientes.</div>
+{% if count_anteriores and filtro != 'anteriores' %}
+<div class="flash flash-error mb-12">
+  ⚠ Hay <strong>{{ count_anteriores }}</strong> cuenta{{ 's' if count_anteriores != 1 }} de días anteriores
+  sin cobrar, por <strong>{{ deuda_anterior | cop }}</strong>.
+  <a href="{{ url_for('cajero_cobrar', filtro='anteriores') }}" style="color:inherit;text-decoration:underline">Verlas</a>
 </div>
 {% endif %}
 
+{% if filtro == 'anteriores' %}
+  {% if anteriores_por_fecha %}
+    {% for fecha, lista in anteriores_por_fecha.items() %}
+    <div class="k-group-header k-gh-red" style="margin-top:14px">
+      <span>📅 {{ fecha }}</span>
+      <span style="font-size:.85rem;font-weight:500">{{ lista | length }} cuenta{{ 's' if lista|length != 1 }}</span>
+    </div>
+    {% for p in lista %}{{ tarjeta(p, true) }}{% endfor %}
+    {% endfor %}
+  {% else %}
+    <div class="empty"><span class="e-ico">✅</span>Nada pendiente de días anteriores</div>
+  {% endif %}
+{% else %}
+  {% if pedidos %}
+    {% for p in pedidos %}{{ tarjeta(p) }}{% endfor %}
+  {% else %}
+    <div class="empty" style="padding:60px 20px">
+      <span class="e-ico" style="font-size:3.5rem">🎉</span>
+      <div style="font-size:1.2rem;font-weight:700">Todo cobrado</div>
+      <div class="c-gray2">Ninguna cuenta abierta hoy</div>
+    </div>
+  {% endif %}
+{% endif %}
+
+{# ── Hoja para cobro parcial ──────────────────────────────── #}
+<div class="overlay" id="ov-parcial" onclick="if(event.target===this)cerrar('ov-parcial')">
+  <div class="sheet">
+    <div class="sheet-titulo" id="parcial-titulo">Cobrar otro monto</div>
+    <form method="post" id="form-parcial">
+      <div class="monto-display num" id="monto-display">0</div>
+      <div class="text-xs c-gray2 mb-8" id="parcial-saldo"></div>
+      <input type="hidden" name="monto" id="monto-input">
+      <input type="hidden" name="metodo" id="metodo-input" value="Efectivo">
+
+      <div class="numpad">
+        {% for d in ['1','2','3','4','5','6','7','8','9','000','0','←'] %}
+        <button type="button" class="numpad-btn" onclick="tecla('{{ d }}')">{{ d }}</button>
+        {% endfor %}
+      </div>
+
+      <div class="form-label mt-12">¿Cómo paga?</div>
+      <div class="pay-grid">
+        {% for m, icono in metodos.items() %}
+        <button type="button" class="btn btn-ghost btn-full metodo-op" data-m="{{ m }}"
+                onclick="elegirMetodo(this)">{{ icono }} {{ m }}</button>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn-green btn-full btn-lg mt-12">✅ Cobrar</button>
+      <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrar('ov-parcial')">Cancelar</button>
+    </form>
+  </div>
+</div>
+
+{# ── Hoja para cerrar sin cobrar ──────────────────────────── #}
+<div class="overlay" id="ov-cortesia" onclick="if(event.target===this)cerrar('ov-cortesia')">
+  <div class="sheet">
+    <div class="sheet-titulo">Cerrar sin cobrar</div>
+    <div class="text-xs c-gray2 mb-8" id="cortesia-sub"></div>
+    <form method="post" id="form-cortesia">
+      <label class="form-label">¿Por qué? (queda registrado)</label>
+      <input class="form-input" type="text" name="motivo" required
+             placeholder="Ej: cortesía de la casa, descuento acordado">
+      <button type="submit" class="btn btn-orange btn-full btn-lg mt-12">Cerrar sin cobro</button>
+      <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrar('ov-cortesia')">Cancelar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var monto = '';
+
+function cerrar(id) { document.getElementById(id).classList.remove('open'); }
+
+function abrirParcial(pid, saldo, mesa) {
+  monto = '';
+  document.getElementById('form-parcial').action = '/cajero/cobrar/' + pid;
+  document.getElementById('parcial-titulo').textContent = mesa;
+  document.getElementById('parcial-saldo').textContent = 'Debe ' + fmt(saldo) + ' — escribe cuánto va a pagar';
+  document.getElementById('form-parcial').dataset.max = saldo;
+  pinta();
+  document.getElementById('ov-parcial').classList.add('open');
+}
+
+function abrirCortesia(pid, mesa) {
+  document.getElementById('form-cortesia').action = '/cajero/cuenta/' + pid + '/cerrar_manual';
+  document.getElementById('cortesia-sub').textContent = mesa + ' — la cuenta se cierra sin registrar cobro';
+  document.getElementById('ov-cortesia').classList.add('open');
+}
+
+function tecla(d) {
+  if (d === '←') monto = monto.slice(0, -1);
+  else if (monto.length < 9) monto += d;
+  pinta();
+}
+
+function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
+
+function pinta() {
+  var n = parseInt(monto || '0', 10);
+  var max = parseInt(document.getElementById('form-parcial').dataset.max || '0', 10);
+  var d = document.getElementById('monto-display');
+  d.textContent = fmt(n);
+  // Avisar antes de enviar, en vez de que lo rechace el servidor
+  d.style.color = (n > max) ? 'var(--red)' : 'var(--white)';
+  document.getElementById('monto-input').value = monto;
+}
+
+function elegirMetodo(btn) {
+  document.querySelectorAll('.metodo-op').forEach(function (b) {
+    b.classList.remove('btn-primary'); b.classList.add('btn-ghost');
+  });
+  btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+  document.getElementById('metodo-input').value = btn.dataset.m;
+}
+document.querySelector('.metodo-op') && elegirMetodo(document.querySelector('.metodo-op'));
+</script>
 {% endblock %}

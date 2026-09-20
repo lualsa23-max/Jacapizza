@@ -1,23 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
+/* Solo DM Sans. Syne se elimino: era una familia entera descargada para el
+   logo, y el logo ahora usa Verdana, que ya esta en todos los aparatos. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
 
 :root {
-  --bg:     #292723;
-  --panel:  #353432;
-  --card:   #2e2c2a;
-  --card2:  #3d3b39;
-  --accent: #c7187e;
+  /* ── Superficies: la elevacion se hace con el FONDO, no con bordes.
+        Los bordes de colores son lo que daba el aire casero. ────── */
+  --bg:     #292723;   /* fondo */
+  --panel:  #353432;   /* elevado: barras, hojas */
+  --card:   #2e2c2a;   /* tarjeta */
+  --card2:  #3d3b39;   /* control, campo */
+
+  /* ── Marca: un solo magenta, dos usos ──────────────────────────
+     #c7187e sobre el fondo da 2.7:1 — por debajo del minimo legible
+     (3:1 para texto grande). Asi que cuando el magenta hace de TEXTO
+     se usa una version apenas mas clara, que da 3.7:1. */
+  --accent: #c7187e;   /* rellenos, con texto blanco encima (5.5:1) */
+  --brand-text: #e0389a;  /* magenta COMO texto sobre el fondo (3.7:1) */
   --acc2:   #a01268;
+
+  /* ── Texto ─────────────────────────────────────────────────────
+     --gray daba 3.3:1 sobre el fondo y era el color de casi todo el
+     texto secundario. Ahora solo sirve para bordes y deshabilitados;
+     el texto secundario usa --gray2, que da 5.3:1. */
   --white:  #f0ede8;
-  --gray:   #7a7572;
-  --gray2:  #9e9a97;
+  --gray2:  #9e9a97;   /* texto secundario (5.3:1) */
+  --gray:   #7a7572;   /* SOLO bordes y deshabilitados — no para texto */
+
+  /* ── Estado ────────────────────────────────────────────────────
+     --coral se elimino: era un duplicado casi exacto de --red. */
   --green:  #4ecb71;
-  --coral:  #e86259;
-  --red:    #e85d5d;
+  --red:    #ec6f6f;
+  --coral:  #ec6f6f;   /* alias historico, se retira al fusionar cierre */
   --orange: #f5a623;
   --blue:   #4fc3f7;
-  --fh: 'Syne', sans-serif;
+
+  /* ── Escalas: una sola, en vez de valores sueltos ────────────── */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px;
+
+  --r-sm: 8px; --r-md: 14px; --r-full: 999px;
+
+  --t-xs: .75rem;  --t-sm: .875rem; --t-md: 1rem;
+  --t-lg: 1.25rem; --t-xl: 1.75rem; --t-2xl: 2.5rem;
+
+  /* ── Tactil: 44px es el minimo; 56px la accion principal ─────── */
+  --tap-min: 44px; --tap: 48px; --tap-lg: 56px;
+
   --fb: 'DM Sans', sans-serif;
+  --fh: 'DM Sans', sans-serif;   /* alias: lo que usaba Syne */
 }
+
+/* Numeros que no bailan de ancho al cambiar de valor. Va en todo lo que
+   sea dinero, contador o cronometro. */
+.num { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -38,15 +73,21 @@ body {
   background: var(--panel);
   padding: 10px 14px;
   gap: 10px;
-  border-bottom: 2px solid var(--accent);
+  border-bottom: 1px solid var(--card2);
   position: sticky; top: 0; z-index: 200;
 }
 .nav-brand {
-  font-family: var(--fh);
+  /* Verdana es fuente de sistema: no se descarga, se ve igual en todo
+     aparato y funciona aunque la tablet pierda internet.
+     Solo existe en Regular y Bold — no tiene peso intermedio, asi que
+     pedir 600 hace que cada navegador lo resuelva distinto. Va en 700 y
+     el aire "semigrueso" lo da el tamaño con el letter-spacing. */
+  font-family: Verdana, Geneva, sans-serif;
+  font-weight: 700;
   font-size: 1.15rem;
-  color: var(--accent);
+  letter-spacing: -.02em;
+  color: var(--brand-text);
   flex: 1;
-  letter-spacing: -0.3px;
 }
 .nav-info { display: flex; align-items: center; gap: 7px; }
 .nav-user { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
@@ -54,31 +95,21 @@ body {
   font-size: 0.68rem; font-weight: 700; padding: 2px 8px;
   border-radius: 999px; white-space: nowrap;
 }
+/* Dos roles. Los viejos (.role-mesero/.role-cajero/.role-cocina) se
+   conservan un tiempo por si alguna sesion abierta todavia los usa. */
 .role-administrador { background: var(--accent); color: #fff; }
+.role-operador      { background: var(--green);  color: #111; }
 .role-mesero        { background: var(--green);  color: #111; }
-.role-cajero        { background: var(--orange); color: #111; }
-.role-cocina        { background: var(--blue);   color: #111; }
+.role-cajero        { background: var(--green);  color: #111; }
+.role-cocina        { background: var(--green);  color: #111; }
 .nav-logout {
-  color: var(--gray); text-decoration: none; font-size: 0.82rem;
+  color: var(--gray2); text-decoration: none; font-size: 0.82rem;
   padding: 6px 10px; background: var(--card); border-radius: 7px;
 }
 
-/* ── TABS ────────────────────────────────── */
-.nav-tabs {
-  display: flex; background: var(--panel);
-  border-bottom: 1px solid var(--card2);
-  overflow-x: auto; -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.nav-tabs::-webkit-scrollbar { display: none; }
-.tab {
-  padding: 10px 15px; white-space: nowrap;
-  text-decoration: none; color: var(--gray2);
-  font-size: 0.82rem; font-weight: 500;
-  border-bottom: 2px solid transparent;
-  transition: color .15s, border-color .15s;
-}
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+/* Las pestañas con scroll horizontal (.nav-tabs/.tab) se eliminaron:
+   con 14 destinos el usuario veía cuatro y nada le indicaba que hubiera
+   más. Las reemplaza la barra inferior fija de 4 + el inicio con mosaicos. */
 
 /* ── FLASH ───────────────────────────────── */
 .flash-wrap { padding: 8px 14px; }
@@ -120,7 +151,7 @@ body {
 .c-blue   { color: var(--blue); }
 .c-coral  { color: var(--coral); }
 .c-white  { color: var(--white); }
-.c-gray   { color: var(--gray); }
+.c-gray   { color: var(--gray2); }
 
 /* ── SECTION TITLE ───────────────────────── */
 .sec-title {
@@ -198,7 +229,7 @@ tbody tr:hover td     { background: var(--card2); }
 .p-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
 .p-id   { font-family: var(--fh); font-size: 1.05rem; color: var(--accent); }
 .p-mesa { font-weight: 600; font-size: 0.95rem; }
-.p-meta { font-size: 0.75rem; color: var(--gray); margin-top: 1px; }
+.p-meta { font-size: 0.75rem; color: var(--gray2); margin-top: 1px; }
 .p-items { margin: 8px 0; }
 .p-item {
   display: flex; align-items: center; gap: 7px;
@@ -362,7 +393,7 @@ tbody tr:hover td     { background: var(--card2); }
 .cart-item-qty  { font-weight: 700; color: var(--accent); min-width: 24px; font-size: 0.9rem; }
 .cart-remove    { color: var(--red); cursor: pointer; padding: 4px; font-size: 1rem; }
 .cart-total     { font-family: var(--fh); font-size: 2rem; color: var(--accent); text-align: center; padding: 10px 0 2px; }
-.cart-total-lbl { font-size: 0.7rem; color: var(--gray); text-align: center; margin-bottom: 14px; }
+.cart-total-lbl { font-size: 0.7rem; color: var(--gray2); text-align: center; margin-bottom: 14px; }
 
 /* ── INVENTARIO ──────────────────────────── */
 .inv-row {
@@ -424,11 +455,9 @@ tbody tr:hover td     { background: var(--card2); }
 }
 .cobro-id   { font-family: var(--fh); font-size: 1.25rem; color: var(--accent); }
 .cobro-code { font-size: 1rem; font-weight: 700; }
-.cobro-meta { font-size: 0.75rem; color: var(--gray); margin-top: 1px; }
+.cobro-meta { font-size: 0.75rem; color: var(--gray2); margin-top: 1px; }
 .cobro-total { font-family: var(--fh); font-size: 2rem; color: var(--accent); margin: 12px 0 4px; }
-.pay-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;
-}
+/* .pay-grid se define una sola vez, en el bloque de COBRAR */
 
 /* ── LOGIN ───────────────────────────────── */
 .login-wrap {
@@ -443,7 +472,7 @@ tbody tr:hover td     { background: var(--card2); }
   font-family: var(--fh); font-size: 2.2rem; color: var(--accent);
   letter-spacing: -1px; line-height: 1;
 }
-.login-logo p { color: var(--gray); font-size: 0.82rem; margin-top: 5px; }
+.login-logo p { color: var(--gray2); font-size: 0.82rem; margin-top: 5px; }
 .login-card { background: var(--card); border-radius: 16px; padding: 24px; }
 .login-err {
   background: rgba(232,93,93,.12); color: var(--red);
@@ -453,7 +482,7 @@ tbody tr:hover td     { background: var(--card2); }
 }
 .login-hint {
   text-align: center; margin-top: 16px;
-  font-size: 0.72rem; color: var(--gray);
+  font-size: 0.72rem; color: var(--gray2);
   line-height: 1.6;
 }
 
@@ -472,7 +501,7 @@ tbody tr:hover td     { background: var(--card2); }
 
 /* ── UTILS ───────────────────────────────── */
 .divider { border: none; border-top: 1px solid var(--card2); margin: 14px 0; }
-.empty   { text-align: center; padding: 40px 20px; color: var(--gray); }
+.empty   { text-align: center; padding: 40px 20px; color: var(--gray2); }
 .empty .e-ico { font-size: 2.8rem; display: block; margin-bottom: 8px; }
 .mt-4  { margin-top: 4px; }
 .mt-8  { margin-top: 8px; }
@@ -519,3 +548,210 @@ tbody tr:hover td     { background: var(--card2); }
 }
 .toast.show { display: block; animation: toastIn .3s ease; }
 @keyframes toastIn { from { opacity:0; transform: translateX(-50%) translateY(10px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+
+/* ── F7: PANTALLAS DE ESTACION ─────────────────────── */
+.est-head {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card); border-top: 3px solid; border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 10px;
+}
+.est-titulo   { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+.est-contador { font-size: 2rem; font-weight: 700; line-height: 1; }
+
+.est-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+.est-tab {
+  flex: 1; text-align: center; padding: 12px; border-radius: 10px;
+  background: var(--card); border: 2px solid transparent;
+  color: var(--gray2); text-decoration: none; font-weight: 700; font-size: .95rem;
+  min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.est-tab.activa { background: var(--panel); }
+.est-badge {
+  background: var(--red); color: #fff; border-radius: 999px;
+  padding: 1px 7px; font-size: .72rem; font-weight: 700;
+}
+
+.est-card { padding-top: 12px; }
+.est-codigo {
+  font-size: 1.4rem; font-weight: 700; line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.est-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+
+.chip {
+  background: var(--card2); color: var(--white);
+  font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+}
+.chip-ronda { background: rgba(245,166,35,.2); color: var(--orange); }
+
+/* Numeros que no bailan de ancho al cambiar de valor */
+.num { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+.k-timer { font-size: 1.05rem; font-weight: 700; white-space: nowrap; }
+.timer-verde   { color: var(--green); }
+.timer-naranja { color: var(--orange); }
+.timer-roja    { color: var(--red); animation: pulse 1.4s infinite; }
+
+.aviso-ronda {
+  margin-top: 10px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(245,166,35,.14); color: var(--orange);
+  font-size: .78rem; font-weight: 700;
+}
+.est-items { margin-top: 10px; }
+.est-nota-item { font-size: .78rem; color: var(--orange); padding: 2px 0 4px 26px; }
+.est-otra {
+  margin-top: 10px; padding: 7px 10px; border-radius: 8px;
+  background: var(--panel); color: var(--gray2); font-size: .78rem;
+}
+.c-gray2 { color: var(--gray2); }
+
+/* ── F8: COBRAR Y CAJA ─────────────────────────────── */
+.cobro-head { display: flex; justify-content: space-between; gap: 12px; }
+.cobro-codigo { font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+.cobro-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.cobro-total { font-size: 1.6rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.cobro-items { margin: 10px 0; }
+.cobro-pagos { padding: 6px 0; border-top: 1px solid var(--card2); margin-bottom: 8px; }
+
+.cobro-semaforo { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.sem { font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.sem-ok  { background: rgba(78,203,113,.18); color: var(--green); }
+.sem-esp { background: rgba(245,166,35,.18); color: var(--orange); }
+
+.pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+@media (min-width: 560px) { .pay-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* Teclado numérico para montos parciales */
+.monto-display {
+  font-size: 2.2rem; font-weight: 700; text-align: center;
+  padding: 12px; background: var(--panel); border-radius: 12px; margin-bottom: 4px;
+}
+.numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.numpad-btn {
+  min-height: 56px; font-size: 1.3rem; font-weight: 700;
+  background: var(--card2); color: var(--white);
+  border: none; border-radius: 10px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.numpad-btn:active { transform: scale(.95); filter: brightness(.85); }
+.sheet-titulo { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px; }
+
+.caja-titulo { font-size: 1.15rem; font-weight: 700; }
+.caja-linea {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--card2); font-size: .92rem;
+}
+.caja-linea:last-child { border-bottom: none; }
+.caja-total { font-weight: 700; font-size: 1.05rem; border-bottom: none; }
+.caja-entregar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 10px; padding: 12px; border-radius: 10px;
+  background: rgba(245,166,35,.12);
+}
+.caja-entregar-lbl { font-weight: 700; color: var(--orange); font-size: .92rem; }
+.caja-entregar-monto { font-size: 1.5rem; font-weight: 700; color: var(--orange); }
+
+/* ── F9: VENTA RAPIDA ──────────────────────────────── */
+.vr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (min-width: 560px) { .vr-grid { grid-template-columns: repeat(3, 1fr); } }
+.vr-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  min-height: 74px; padding: 12px; text-align: left;
+  background: var(--card); color: var(--white);
+  border: 2px solid transparent; border-radius: 12px; cursor: pointer;
+  font-family: inherit;
+}
+.vr-item:active { transform: scale(.97); border-color: var(--accent); }
+.vr-agotado { opacity: .45; cursor: not-allowed; }
+.vr-nombre { font-size: .9rem; font-weight: 600; line-height: 1.2; }
+.vr-precio { font-size: .85rem; color: var(--green); font-weight: 700; }
+
+.vr-total {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--card2);
+  font-size: 1.35rem; font-weight: 700;
+}
+.vr-quitar {
+  background: none; border: none; color: var(--red);
+  font-size: 1rem; cursor: pointer; padding: 0 6px; min-width: 30px;
+}
+.vr-aviso {
+  margin-top: 6px; padding: 8px 10px; border-radius: 8px;
+  font-size: .8rem; font-weight: 600;
+}
+.vr-aviso-ok    { background: rgba(78,203,113,.14); color: var(--green); }
+.vr-aviso-nuevo { background: rgba(245,166,35,.14); color: var(--orange); }
+
+/* ── F6: INICIO ────────────────────────────────────── */
+.home-saludo { padding: var(--s2) 0 var(--s4); }
+.home-nombre { font-size: var(--t-lg); font-weight: 700; }
+.home-fecha  { font-size: var(--t-sm); color: var(--gray2); }
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+@media (min-width: 640px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+
+.tile {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s1);
+  min-height: 108px; padding: var(--s4) var(--s3);
+  background: var(--card); border-radius: var(--r-md);
+  color: var(--white); text-decoration: none; text-align: center;
+  transition: transform .15s ease, background .15s ease;
+}
+.tile:active { transform: scale(.97); background: var(--card2); }
+.tile-ancho  { grid-column: 1 / -1; }
+
+.tile-ico { font-size: 2rem; line-height: 1; }
+/* La PALABRA pesa mas que el dibujo: un icono solo se malinterpreta,
+   un icono con su palabra debajo no. */
+.tile-txt { font-size: var(--t-sm); font-weight: 700; letter-spacing: .02em; }
+.tile-sub { font-size: var(--t-xs); color: var(--gray2); font-weight: 400; }
+
+.tile-principal { background: var(--accent); min-height: 120px; }
+.tile-principal:active { background: var(--acc2); }
+.tile-principal .tile-ico { font-size: 2.4rem; }
+.tile-principal .tile-txt { font-size: var(--t-md); }
+.tile-negocio { background: var(--panel); }
+
+.tile-badge {
+  position: absolute; top: var(--s2); right: var(--s2);
+  min-width: 26px; padding: 2px 8px;
+  background: var(--orange); color: #111;
+  border-radius: var(--r-full);
+  font-size: var(--t-xs); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tile-badge-alerta { background: var(--red); color: #fff; }
+
+/* ── F3: BARRA INFERIOR ────────────────────────────── */
+/* Cuatro destinos fijos, siempre visibles, al alcance del pulgar.
+   Reemplaza a las 14 pestañas con scroll horizontal, donde lo que no
+   se veía sencillamente no existía para el usuario. */
+.barra-abajo {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
+  display: flex; background: var(--panel);
+  border-top: 1px solid var(--card2);
+  /* Sin esto, en los iPhone con barra de gestos queda tapada */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.barra-item {
+  position: relative; flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; min-height: var(--tap); padding: var(--s2) var(--s1);
+  color: var(--gray2); text-decoration: none;
+}
+.barra-item.activo { color: var(--brand-text); }
+.barra-item:active { background: var(--card2); }
+.barra-ico { font-size: 1.35rem; line-height: 1; }
+/* La palabra nunca es opcional: un icono solo se malinterpreta. */
+.barra-txt { font-size: .68rem; font-weight: 600; }
+.barra-badge {
+  position: absolute; top: 4px; right: 50%; margin-right: -22px;
+  min-width: 18px; padding: 1px 5px;
+  background: var(--red); color: #fff;
+  border-radius: var(--r-full); font-size: .62rem; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* Espacio para que la barra no tape el final del contenido */
+.page { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }

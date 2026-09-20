@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}— {{ titulo }}{% endblock %}
+
+{% block content %}
+{# Una sola plantilla para las dos estaciones. El color cambia por completo
+   para que se note desde lejos en cuál estás: naranja = pizzas, azul = bebidas. #}
+{% set color = 'var(--orange)' if es_pizzas else 'var(--blue)' %}
+
+<div class="est-head" style="border-color:{{ color }}">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:2rem">{{ icono }}</span>
+    <div>
+      <div class="est-titulo" style="color:{{ color }}">{{ titulo }}</div>
+      <div class="text-xs c-gray2">{{ jornada }}</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="est-contador num" style="color:{{ color }}">{{ comandas | length }}</div>
+    <div class="text-xs c-gray2">por preparar</div>
+  </div>
+</div>
+
+<div class="est-tabs">
+  <a href="{{ url_for('estacion_pizzas') }}"
+     class="est-tab {% if es_pizzas %}activa{% endif %}"
+     style="{% if es_pizzas %}border-color:var(--orange);color:var(--orange){% endif %}">
+    🍕 Pizzas {% if not es_pizzas and pendientes_otra %}<span class="est-badge">{{ pendientes_otra }}</span>{% endif %}
+  </a>
+  <a href="{{ url_for('estacion_bebidas') }}"
+     class="est-tab {% if not es_pizzas %}activa{% endif %}"
+     style="{% if not es_pizzas %}border-color:var(--blue);color:var(--blue){% endif %}">
+    🥤 Bebidas {% if es_pizzas and pendientes_otra %}<span class="est-badge">{{ pendientes_otra }}</span>{% endif %}
+  </a>
+</div>
+
+<div class="refresh-bar">
+  <div class="refresh-indicator">
+    <div class="refresh-dot" id="dot"></div>
+    <span id="conexion">Actualizando sola</span>
+  </div>
+  <button id="btn-sonido" class="btn btn-sm btn-ghost" onclick="activarSonido()">🔇 Activar sonido</button>
+</div>
+
+{% if not comandas %}
+<div class="empty" style="padding:60px 20px">
+  <span class="e-ico" style="font-size:3.5rem">✅</span>
+  <div style="font-size:1.2rem;font-weight:700;margin-bottom:4px">Todo al día</div>
+  <div class="c-gray2">Nada pendiente en {{ titulo | lower }}</div>
+</div>
+{% else %}
+
+<div class="k-grid">
+{% for k in comandas %}
+  <div class="k-card est-card" data-min="{{ k.minutos }}"
+       style="border-top:3px solid {{ color }}">
+
+    <div class="k-card-head">
+      <div style="min-width:0">
+        <div class="est-codigo">{{ k.codigo }}</div>
+        <div class="est-meta">
+          {% if k.mesa_num %}<span class="chip">Mesa {{ k.mesa_num }}</span>{% endif %}
+          {% if k.ronda > 1 %}<span class="chip chip-ronda">RONDA {{ k.ronda }}</span>{% endif %}
+          <span class="text-xs c-gray2">#{{ k.pedido_id }} · {{ k.mesero }}</span>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="k-timer num timer-{{ k.urgencia }}">{{ k.minutos }} min</div>
+        {% if k.franja_hora %}<div class="text-xs c-gray2">⏰ {{ k.franja_hora }}</div>{% endif %}
+      </div>
+    </div>
+
+    {% if k.ronda > 1 %}
+    <div class="aviso-ronda">
+      ➕ Esto es ADICIONAL. Lo anterior ya salió, no lo repitas.
+    </div>
+    {% endif %}
+
+    <div class="est-items">
+      {% for it in k.productos %}
+      <div class="k-item">
+        <span class="k-item-qty num">{{ it.cantidad }}×</span>
+        <span class="k-item-name">{{ it.nombre }}</span>
+      </div>
+      {% if it.nota %}<div class="est-nota-item">↳ {{ it.nota }}</div>{% endif %}
+      {% endfor %}
+    </div>
+
+    {% if k.otra_estacion %}
+    <div class="est-otra">
+      {{ '🥤' if es_pizzas else '🍕' }}
+      {{ k.otra_estacion | sum(attribute='cantidad') }}
+      {{ 'bebida' if es_pizzas else 'pizza' }}{{ 's' if k.otra_estacion | sum(attribute='cantidad') != 1 }}
+      · lo prepara la otra estación
+    </div>
+    {% endif %}
+
+    {% if k.notas %}
+    <div class="k-notas">
+      <div class="k-notas-lbl">📝 Notas</div>
+      <div class="k-notas-txt">{{ k.notas }}</div>
+    </div>
+    {% endif %}
+
+    <form method="post"
+          action="{{ url_for('entregar_pizzas' if es_pizzas else 'entregar_bebidas', pid=k.pedido_id, ronda=k.ronda) }}">
+      <button type="submit" class="btn btn-green btn-full btn-lg mt-12">✅ ENTREGUÉ</button>
+    </form>
+  </div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Cronómetro: sube solo, sin recargar la página ──────────────────
+function tictac() {
+  document.querySelectorAll('.est-card').forEach(function (card) {
+    var min = parseInt(card.dataset.min || '0', 10) + 1;
+    card.dataset.min = min;
+    var t = card.querySelector('.k-timer');
+    if (!t) return;
+    t.textContent = min + ' min';
+    t.className = 'k-timer num timer-' + (min >= 20 ? 'roja' : (min >= 10 ? 'naranja' : 'verde'));
+  });
+}
+setInterval(tictac, 60000);
+
+// ── Sonido: Chrome lo bloquea hasta que alguien toca algo, así que hace
+//    falta un botón. Se recuerda para no pedirlo cada noche. ────────
+var audio = null;
+function activarSonido() {
+  try {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    localStorage.setItem('jaca_sonido', '1');
+    var b = document.getElementById('btn-sonido');
+    b.textContent = '🔊 Sonido activo';
+    b.classList.remove('btn-ghost');
+    b.classList.add('btn-green');
+    pitar();
+  } catch (e) { }
+}
+if (localStorage.getItem('jaca_sonido') === '1') {
+  document.addEventListener('click', function una() {
+    activarSonido();
+    document.removeEventListener('click', una);
+  }, { once: true });
+}
+function pitar() {
+  if (!audio) return;
+  [0, 0.18].forEach(function (t) {
+    var o = audio.createOscillator(), g = audio.createGain();
+    o.connect(g); g.connect(audio.destination);
+    o.frequency.value = 880; o.type = 'sine';
+    g.gain.setValueAtTime(0.0001, audio.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(0.3, audio.currentTime + t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + t + 0.15);
+    o.start(audio.currentTime + t); o.stop(audio.currentTime + t + 0.16);
+  });
+}
+
+// ── Avisos y refresco ──────────────────────────────────────────────
+// Que la pantalla AVISE si se quedó congelada importa más que el refresco:
+// lo peligroso es una tablet dormida que parece estar al día.
+var ultimoOk = Date.now();
+var titulo = document.title;
+var parpadeo = null;
+
+function alertar(texto) {
+  pitar();
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  showToast(texto, 8000);
+  if (!parpadeo) {
+    var on = false;
+    parpadeo = setInterval(function () {
+      document.title = (on = !on) ? '🔔 ¡PEDIDO NUEVO!' : titulo;
+    }, 700);
+    setTimeout(function () {
+      clearInterval(parpadeo); parpadeo = null; document.title = titulo;
+    }, 15000);
+  }
+}
+
+async function revisar() {
+  try {
+    var r = await fetch('/cocina/notificaciones');
+    (await r.json()).forEach(function (n) {
+      alertar('🔔 #' + n.pid + ' — ' + (n.detalle || 'pedido modificado'));
+    });
+    ultimoOk = Date.now();
+    document.getElementById('dot').style.background = 'var(--green)';
+    document.getElementById('conexion').textContent = 'Actualizando sola';
+  } catch (e) { }
+  var seg = Math.round((Date.now() - ultimoOk) / 1000);
+  if (seg > 90) {
+    document.getElementById('dot').style.background = 'var(--red)';
+    document.getElementById('conexion').textContent = 'SIN CONEXIÓN hace ' + seg + 's';
+  }
+}
+setInterval(revisar, 8000);
+setInterval(function () { location.reload(); }, 45000);
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden) location.reload();   // la tablet despertó: ponerse al día
+});
+</script>
+{% endblock %}

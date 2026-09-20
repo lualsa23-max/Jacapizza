@@ -1,65 +1,132 @@
 {% extends "base.html" %}
-{% block title %}— Caja del Día{% endblock %}
-{% block content %}
-<h2 class="sec-title">📈 Caja del día — {{ hoy }}</h2>
+{% block title %}— Caja{% endblock %}
 
-<div class="metrics" style="grid-template-columns:repeat(2,1fr)">
-  <div class="metric" style="grid-column:1/-1">
-    <div class="metric-ico">💰</div>
-    <div class="metric-val c-green" style="font-size:1.6rem">{{ total | cop }}</div>
-    <div class="metric-lbl">Total del día</div>
-  </div>
-  {% for m, v in metodos.items() %}
-  {% set icons = {'Efectivo':'💵','Tarjeta':'💳','Nequi':'📱','Daviplata':'📲','Llave Bre-B':'🔑'} %}
-  <div class="metric">
-    <div class="metric-ico">{{ icons.get(m,'💳') }}</div>
-    <div class="metric-val c-accent">{{ v | cop }}</div>
-    <div class="metric-lbl">{{ m }}</div>
+{% macro desglose(r, titulo) %}
+<div class="card">
+  <div class="caja-titulo">{{ titulo }}</div>
+  <div class="text-xs c-gray2 mb-12">{{ hoy }}</div>
+
+  {% if r.total %}
+  {% for m, v in r.por_metodo.items() %}
+  <div class="caja-linea">
+    <span>{{ metodos_iconos.get(m, '•') }} {{ m }}</span>
+    <span class="num">{{ v | cop }}</span>
   </div>
   {% endfor %}
-  <div class="metric">
-    <div class="metric-ico">🧾</div>
-    <div class="metric-val c-white">{{ pedidos | length }}</div>
-    <div class="metric-lbl">Transacciones</div>
+
+  <div class="caja-linea caja-total">
+    <span>TOTAL COBRADO</span>
+    <span class="num">{{ r.total | cop }}</span>
   </div>
+
+  <div class="caja-entregar">
+    <div>
+      <div class="caja-entregar-lbl">▶ A ENTREGAR</div>
+      <div class="text-xs c-gray2">solo el efectivo; lo demás ya llegó a la cuenta</div>
+    </div>
+    <div class="caja-entregar-monto num">{{ r.efectivo | cop }}</div>
+  </div>
+  {% else %}
+  <div class="empty" style="padding:24px"><span class="e-ico">💤</span>Todavía no hay cobros</div>
+  {% endif %}
 </div>
+{% endmacro %}
 
-{% if por_cobrador %}
-<div class="card mt-12">
-  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase">Recaudado por persona</h3>
-  {% for nombre, monto in por_cobrador.items() %}
-  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.88rem">
-    <span>💁 {{ nombre }}</span>
-    <span class="c-accent font-bold">{{ monto | cop }}</span>
-  </div>
-  {% endfor %}
+{% block content %}
+{% if es_admin %}
+<div style="display:flex;gap:8px;margin-bottom:12px">
+  <a href="{{ url_for('cajero_caja', vista='mia') }}"
+     class="btn btn-sm {{ 'btn-primary' if vista != 'todos' else 'btn-ghost' }}">🧾 La mía</a>
+  <a href="{{ url_for('cajero_caja', vista='todos') }}"
+     class="btn btn-sm {{ 'btn-primary' if vista == 'todos' else 'btn-ghost' }}">👥 De todos</a>
 </div>
 {% endif %}
 
-<h3 class="sec-title mt-16">Detalle de cobros</h3>
-{% if pedidos %}
-  {% for p in pedidos | reverse %}
-  <div class="card mb-8" style="padding:12px 14px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div style="flex:1">
-        <div class="font-bold">#{{ p.id }} — {{ p.mesa }}</div>
-        <div class="text-xs c-gray">{{ p.mesero }} · {{ p.hora }}</div>
-      </div>
-      <span class="font-bold c-green" style="font-size:1rem">{{ p.total | cop }}</span>
+{% if vista == 'todos' and es_admin %}
+
+  {{ desglose(todo, 'Caja del día — todos') }}
+
+  <h3 class="sec-title mt-16">Cierre por persona</h3>
+  {% for persona, d in todo.por_persona.items() %}
+  {% set e = entregas.get(persona) %}
+  <div class="card mb-8">
+    <div class="caja-linea" style="border:none;padding-bottom:4px">
+      <strong>{{ persona }}</strong>
+      <span class="text-xs c-gray2">cobró {{ d.total | cop }}</span>
     </div>
-    {% if p.pagos %}
-    <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--card2)">
-      {% for pg in p.pagos %}
-      <div style="display:flex;justify-content:space-between;font-size:.8rem;padding:2px 0">
-        <span class="c-gray">{{ pg.metodo }} — 💁 {{ pg.cobrado_por }} · {{ pg.hora }}</span>
-        <span class="c-green">{{ pg.monto | cop }}</span>
-      </div>
-      {% endfor %}
+    <div class="caja-linea">
+      <span>💵 Debe entregar</span>
+      <span class="num" style="color:var(--orange);font-weight:700">{{ d.efectivo | cop }}</span>
     </div>
+
+    {% if e %}
+    <div class="caja-linea">
+      <span>Recibido</span>
+      <span class="num">{{ e.entregado | cop }}</span>
+    </div>
+    <div class="caja-linea caja-total" style="color:{{ 'var(--green)' if e.diferencia == 0 else 'var(--red)' }}">
+      <span>{% if e.diferencia == 0 %}✅ Cuadra exacto{% elif e.diferencia > 0 %}⚠ Sobra{% else %}⚠ Falta{% endif %}</span>
+      <span class="num">{{ (e.diferencia if e.diferencia >= 0 else -e.diferencia) | cop }}</span>
+    </div>
+    <div class="text-xs c-gray2 mt-4">
+      Recibido por {{ e.recibido_por }} a las {{ e.hora }}{% if e.nota %} · {{ e.nota }}{% endif %}
+    </div>
+    {% else %}
+    <form method="post" action="{{ url_for('registrar_entrega') }}"
+          style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px">
+      <input type="hidden" name="persona" value="{{ persona }}">
+      <div style="flex:1;min-width:120px">
+        <label class="form-label">¿Cuánto recibiste?</label>
+        <input class="form-input" type="number" name="entregado" required min="0" step="1000"
+               placeholder="{{ d.efectivo | int }}" style="min-height:42px">
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label class="form-label">Nota (opcional)</label>
+        <input class="form-input" type="text" name="nota" style="min-height:42px">
+      </div>
+      <button type="submit" class="btn btn-green" style="min-height:42px">Registrar</button>
+    </form>
     {% endif %}
   </div>
+  {% else %}
+  <div class="empty"><span class="e-ico">💤</span>Nadie ha cobrado todavía hoy</div>
   {% endfor %}
+
+  {% if todo.total %}
+  <div class="card mt-12" style="border-left:3px solid var(--accent)">
+    <div class="caja-linea caja-total">
+      <span>Total efectivo del día</span>
+      <span class="num">{{ todo.efectivo | cop }}</span>
+    </div>
+  </div>
+  {% endif %}
+
 {% else %}
-<div class="empty"><span class="e-ico">📭</span>Sin cobros registrados hoy</div>
+
+  {{ desglose(mio, '🧾 Mi caja — ' + yo) }}
+
+  {% if mio.pagos %}
+  <h3 class="sec-title mt-16">Lo que cobré</h3>
+  <div class="card">
+    {% for pg in mio.pagos | reverse %}
+    <div class="caja-linea">
+      <span class="text-sm">{{ pg.hora }} · {{ metodos_iconos.get(pg.metodo, '•') }} {{ pg.metodo }}</span>
+      <span class="num">{{ pg.monto | cop }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% set mi_entrega = entregas.get(yo) %}
+  {% if mi_entrega %}
+  <div class="card mt-12" style="border-left:3px solid {{ 'var(--green)' if mi_entrega.diferencia == 0 else 'var(--red)' }}">
+    <div class="caja-linea caja-total">
+      <span>{% if mi_entrega.diferencia == 0 %}✅ Entrega cuadrada{% else %}⚠ Diferencia{% endif %}</span>
+      <span class="num">{{ mi_entrega.entregado | cop }}</span>
+    </div>
+    <div class="text-xs c-gray2">Recibido por {{ mi_entrega.recibido_por }} a las {{ mi_entrega.hora }}</div>
+  </div>
+  {% endif %}
+
 {% endif %}
 {% endblock %}

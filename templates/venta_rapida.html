@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}— Venta rápida{% endblock %}
+
+{% block content %}
+<h2 class="sec-title">⚡ Venta rápida</h2>
+<div class="text-xs c-gray2 mb-12">
+  Para una bebida suelta. Se saca de la nevera y se entrega en el acto —
+  no pasa por la pantalla de barra.
+</div>
+
+{% set stock = stock_json | fromjson %}
+
+<div class="vr-grid">
+{% for nombre, precio in bebidas.items() %}
+  {% set s = stock.get(nombre) %}
+  {% set agotado = (s is not none and s <= 0) %}
+  <button class="vr-item {% if agotado %}vr-agotado{% endif %}"
+          {% if agotado %}disabled{% else %}
+          onclick="agregar('{{ nombre | replace("'", "\\'") }}', {{ precio | int }})"
+          {% endif %}>
+    <span class="vr-nombre">{{ nombre }}</span>
+    <span class="vr-precio num">{{ precio | cop }}</span>
+    {% if agotado %}
+      <span class="stock-chip stock-out">Agotado</span>
+    {% elif s is not none and s <= 3 %}
+      <span class="stock-chip stock-low">quedan {{ s }}</span>
+    {% elif s is not none %}
+      <span class="stock-chip stock-ok">{{ s }}</span>
+    {% endif %}
+  </button>
+{% endfor %}
+</div>
+
+<div class="card mt-16" id="carrito-card" style="display:none">
+  <div id="carrito"></div>
+  <div class="vr-total">
+    <span>Total</span>
+    <span class="num" id="total">$0</span>
+  </div>
+
+  <div class="mt-12">
+    <label class="form-label">Código de estadía <span class="c-gray2">— opcional</span></label>
+    <input class="form-input" type="text" id="codigo" autocomplete="off"
+           placeholder="Déjalo vacío si no tiene reserva" oninput="buscarCodigo()">
+    <div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
+  </div>
+
+  <div class="form-label mt-12">¿Cómo paga?</div>
+  <div class="pay-grid">
+    <button type="button" class="btn btn-ghost btn-full metodo-op" id="btn-cuenta"
+            data-m="__cuenta__" onclick="elegir(this)" style="display:none">
+      🧾 Cargar a la cuenta
+    </button>
+    {% for m, icono in metodos.items() %}
+    <button type="button" class="btn btn-ghost btn-full metodo-op" data-m="{{ m }}"
+            onclick="elegir(this)">{{ icono }} {{ m }}</button>
+    {% endfor %}
+  </div>
+
+  <button class="btn btn-green btn-full btn-lg mt-12" id="btn-confirmar" onclick="confirmar()">
+    ✅ Confirmar
+  </button>
+  <button class="btn btn-ghost btn-full mt-8" onclick="limpiar()">🗑 Empezar de nuevo</button>
+</div>
+
+<div class="empty" id="vacio" style="padding:40px 20px">
+  <span class="e-ico">👆</span>
+  <div class="c-gray2">Toca una bebida para empezar</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var carrito = [], metodo = null, cuenta = null, buscando = null;
+
+function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
+
+function agregar(nombre, precio) {
+  var e = carrito.find(function (x) { return x.nombre === nombre; });
+  if (e) e.cantidad++;
+  else carrito.push({ nombre: nombre, tipo: 'Bebida', cantidad: 1, precio_unit: precio });
+  pinta();
+}
+
+function quitar(i) { carrito.splice(i, 1); pinta(); }
+
+function pinta() {
+  var hay = carrito.length > 0;
+  document.getElementById('carrito-card').style.display = hay ? '' : 'none';
+  document.getElementById('vacio').style.display = hay ? 'none' : '';
+  var total = 0, html = '';
+  carrito.forEach(function (x, i) {
+    total += x.cantidad * x.precio_unit;
+    html += '<div class="p-item">'
+          + '<span class="p-item-qty num">' + x.cantidad + '×</span>'
+          + '<span class="p-item-name">' + x.nombre + '</span>'
+          + '<span class="p-item-price num">' + fmt(x.cantidad * x.precio_unit) + '</span>'
+          + '<button class="vr-quitar" onclick="quitar(' + i + ')">✕</button></div>';
+  });
+  document.getElementById('carrito').innerHTML = html;
+  document.getElementById('total').textContent = fmt(total);
+}
+
+// Comprobar el código mientras se escribe: ver a dónde va ANTES de confirmar
+function buscarCodigo() {
+  clearTimeout(buscando);
+  buscando = setTimeout(async function () {
+    var cod = document.getElementById('codigo').value.trim();
+    var aviso = document.getElementById('aviso-codigo');
+    var btnCuenta = document.getElementById('btn-cuenta');
+    if (!cod) {
+      cuenta = null; aviso.style.display = 'none'; btnCuenta.style.display = 'none';
+      if (metodo === '__cuenta__') { metodo = null; despintarMetodos(); }
+      return;
+    }
+    try {
+      var r = await fetch('/api/reserva?codigo=' + encodeURIComponent(cod));
+      var d = await r.json();
+      if (d.existe) {
+        cuenta = d;
+        aviso.className = 'vr-aviso vr-aviso-ok';
+        aviso.textContent = '✓ ' + d.texto + ' — se sumará a esta cuenta';
+        btnCuenta.style.display = '';
+      } else {
+        cuenta = null;
+        aviso.className = 'vr-aviso vr-aviso-nuevo';
+        aviso.textContent = '⚠ No hay cuenta abierta hoy con ese código. Se creará una nueva.';
+        btnCuenta.style.display = 'none';
+        if (metodo === '__cuenta__') { metodo = null; despintarMetodos(); }
+      }
+      aviso.style.display = '';
+    } catch (e) { }
+  }, 350);
+}
+
+function despintarMetodos() {
+  document.querySelectorAll('.metodo-op').forEach(function (b) {
+    b.classList.remove('btn-primary'); b.classList.add('btn-ghost');
+  });
+}
+
+function elegir(btn) {
+  despintarMetodos();
+  btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+  metodo = btn.dataset.m;
+}
+
+function limpiar() {
+  carrito = []; metodo = null; cuenta = null;
+  document.getElementById('codigo').value = '';
+  document.getElementById('aviso-codigo').style.display = 'none';
+  document.getElementById('btn-cuenta').style.display = 'none';
+  despintarMetodos(); pinta();
+}
+
+async function confirmar(confirmado) {
+  if (!carrito.length) return;
+  if (!metodo) { alert('Elige cómo paga'); return; }
+  var btn = document.getElementById('btn-confirmar');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    var r = await fetch('/venta-rapida', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: carrito,
+        codigo: document.getElementById('codigo').value.trim(),
+        metodo: metodo === '__cuenta__' ? '' : metodo,
+        a_cuenta: metodo === '__cuenta__',
+        confirmado: !!confirmado
+      })
+    });
+    var d = await r.json();
+    if (r.status === 409) {
+      btn.disabled = false; btn.textContent = '✅ Confirmar';
+      if (confirm(d.mensaje)) confirmar(true);
+      return;
+    }
+    if (d.error) { alert(d.error); btn.disabled = false; btn.textContent = '✅ Confirmar'; return; }
+    showToast('✅ ' + d.destino + ' — ' + fmt(d.total)
+              + (d.a_cuenta ? ' cargado a la cuenta' : ' cobrado en ' + d.metodo), 5000);
+    limpiar();
+    setTimeout(function () { location.reload(); }, 900);   // refrescar el stock
+  } catch (e) {
+    alert('No se pudo guardar. Revisa la conexión.');
+    btn.disabled = false; btn.textContent = '✅ Confirmar';
+  }
+}
+</script>
+{% endblock %}

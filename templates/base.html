@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#292723">
-  <title>JACAPIZZA {% block title %}{% endblock %}</title>
+  <title>JacaPizza {% block title %}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   {% block head %}{% endblock %}
 </head>
@@ -12,7 +12,7 @@
 
 {% if session.get('usuario') %}
 <nav class="navbar">
-  <span class="nav-brand">🍕 JACAPIZZA</span>
+  <span class="nav-brand">JacaPizza</span>
   <div class="nav-info">
     <span class="nav-user">{{ session.nombre }}</span>
     <span class="role-badge role-{{ session.rol | lower }}">{{ session.rol }}</span>
@@ -20,35 +20,26 @@
   <a href="{{ url_for('logout') }}" class="nav-logout">Salir</a>
 </nav>
 
-<div class="nav-tabs">
-{% if session.rol == 'Administrador' %}
-  <a href="{{ url_for('mesero_nuevo') }}"      class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
-  <a href="{{ url_for('admin_pedidos') }}"      class="tab {% if request.endpoint=='admin_pedidos' %}active{% endif %}">📋 Pedidos</a>
-  <a href="{{ url_for('cocina_pedidos') }}"     class="tab {% if request.endpoint=='cocina_pedidos' %}active{% endif %}">🍳 Cocina</a>
-  <a href="{{ url_for('cajero_cobrar') }}"      class="tab {% if request.endpoint=='cajero_cobrar' %}active{% endif %}">⏳ Cobrar</a>
-  <a href="{{ url_for('cajero_caja') }}"        class="tab {% if request.endpoint=='cajero_caja' %}active{% endif %}">💰 Caja</a>
-  <a href="{{ url_for('mesero_pedidos') }}"     class="tab {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}active{% endif %}">🧾 Mis pedidos</a>
-  <a href="{{ url_for('admin_menu_pizzas') }}"  class="tab {% if request.endpoint in ['admin_menu_pizzas','admin_menu_bebidas'] %}active{% endif %}">🍕 Menú</a>
-  <a href="{{ url_for('admin_inventario') }}"   class="tab {% if request.endpoint=='admin_inventario' %}active{% endif %}">📦 Inventario</a>
-  <a href="{{ url_for('admin_usuarios') }}"     class="tab {% if request.endpoint=='admin_usuarios' %}active{% endif %}">👥 Usuarios</a>
-  <a href="{{ url_for('admin_reportes') }}"     class="tab {% if request.endpoint in ['admin_reportes','admin_resumen'] %}active{% endif %}">📈 Reportes</a>
-  <a href="{{ url_for('admin_cierre') }}"      class="tab {% if request.endpoint in ['admin_cierre','admin_cierre_historial'] %}active{% endif %}">📦 Cierre</a>
-  {% if session.get('usuario') == 'luis' %}
-  <a href="{{ url_for('admin_gastos') }}"      class="tab {% if request.endpoint in ['admin_gastos'] %}active{% endif %}">💸 Gastos</a>
-  {% endif %}
-
-{% elif session.rol == 'Mesero' %}
-  <a href="{{ url_for('mesero_nuevo') }}"   class="tab {% if request.endpoint=='mesero_nuevo' %}active{% endif %}">➕ Nuevo pedido</a>
-  <a href="{{ url_for('mesero_pedidos') }}" class="tab {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}active{% endif %}">📋 Mis pedidos</a>
-
-{% elif session.rol == 'Cajero' %}
-  <a href="{{ url_for('cajero_cobrar') }}" class="tab {% if request.endpoint=='cajero_cobrar' %}active{% endif %}">⏳ Cobrar</a>
-  <a href="{{ url_for('cajero_caja') }}"   class="tab {% if request.endpoint=='cajero_caja' %}active{% endif %}">📈 Caja del día</a>
-
-{% elif session.rol == 'Cocina' %}
-  <a href="{{ url_for('cocina_pedidos') }}" class="tab active">🍳 Pedidos activos</a>
-{% endif %}
-</div>
+{# Sin pestañas con scroll horizontal: con 14 destinos el admin veía cuatro
+   y nada le indicaba que existían los otros diez. Ahora los cuatro destinos
+   más usados van fijos abajo, al alcance del pulgar, y TODO lo demás está en
+   el inicio. Se puede quitar el scroll porque hay menos destinos, no porque
+   los escondamos. #}
+<nav class="barra-abajo">
+  <a href="{{ url_for('dashboard') }}" class="barra-item {% if request.endpoint=='dashboard' %}activo{% endif %}">
+    <span class="barra-ico">🏠</span><span class="barra-txt">Inicio</span>
+  </a>
+  <a href="{{ url_for('mesero_nuevo') }}" class="barra-item {% if request.endpoint=='mesero_nuevo' %}activo{% endif %}">
+    <span class="barra-ico">➕</span><span class="barra-txt">Nuevo</span>
+  </a>
+  <a href="{{ url_for('cajero_cobrar') }}" class="barra-item {% if request.endpoint=='cajero_cobrar' %}activo{% endif %}">
+    <span class="barra-ico">💵</span><span class="barra-txt">Cobrar</span>
+    {% if nav_por_cobrar %}<span class="barra-badge">{{ nav_por_cobrar }}</span>{% endif %}
+  </a>
+  <a href="{{ url_for('mesero_pedidos') }}" class="barra-item {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}activo{% endif %}">
+    <span class="barra-ico">🔎</span><span class="barra-txt">Reservas</span>
+  </a>
+</nav>
 {% endif %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}
