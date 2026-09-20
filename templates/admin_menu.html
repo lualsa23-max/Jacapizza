@@ -11,7 +11,7 @@
 {% set sin_precio = productos | selectattr('precio', 'le', 0) | list %}
 {% if sin_precio %}
 <div class="flash flash-error mb-12">
-  ⚠ {{ sin_precio | length }} producto{{ 's' if sin_precio|length != 1 }} sin precio:
+  {{ icono('alerta', 18) }} {{ sin_precio | length }} producto{{ 's' if sin_precio|length != 1 }} sin precio:
   <strong>{{ sin_precio | map(attribute='nombre') | join(', ') }}</strong>.
   Se {{ 'venden' if sin_precio|length != 1 else 'vende' }} gratis hasta que les pongas precio.
 </div>
@@ -37,6 +37,14 @@
     </div>
 
     {% if tipo == 'bebidas' %}
+    <div style="min-width:130px">
+      <label class="form-label">Categoría</label>
+      <select class="form-select" name="categoria" style="min-height:40px;font-size:.88rem">
+        {% for cat in categorias %}
+        <option value="{{ cat }}" {% if p.categoria == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div style="min-width:120px">
       <label class="form-label">¿Controlar stock?</label>
       <select class="form-select" name="en_inventario" style="min-height:40px;font-size:.88rem">
@@ -62,7 +70,7 @@
   {% endif %}
 </div>
 {% else %}
-<div class="empty"><span class="e-ico">📭</span>No hay productos en esta sección</div>
+<div class="empty"><span class="e-ico">{{ icono('vacio', 18) }}</span>No hay productos en esta sección</div>
 {% endfor %}
 
 <div class="card mt-16">
@@ -88,6 +96,12 @@
         <select class="form-select" name="en_inventario" style="min-height:40px;font-size:.88rem">
           <option value="1">Sí — va en inventario</option>
           <option value="0">No — sin stock</option>
+        </select>
+      </div>
+      <div style="min-width:130px">
+        <label class="form-label">Categoría</label>
+        <select class="form-select" name="categoria" style="min-height:40px;font-size:.88rem">
+          {% for cat in categorias %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
         </select>
       </div>
       <div style="min-width:90px">

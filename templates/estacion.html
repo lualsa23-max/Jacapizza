@@ -38,7 +38,7 @@
     <div class="refresh-dot" id="dot"></div>
     <span id="conexion">Actualizando sola</span>
   </div>
-  <button id="btn-sonido" class="btn btn-sm btn-ghost" onclick="activarSonido()">🔇 Activar sonido</button>
+  <button id="btn-sonido" class="btn btn-sm btn-ghost" onclick="activarSonido()">{{ icono('mudo', 18) }} Activar sonido</button>
 </div>
 
 {% if not comandas %}
@@ -65,13 +65,13 @@
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div class="k-timer num timer-{{ k.urgencia }}">{{ k.minutos }} min</div>
-        {% if k.franja_hora %}<div class="text-xs c-gray2">⏰ {{ k.franja_hora }}</div>{% endif %}
+        {% if k.franja_hora %}<div class="text-xs c-gray2">{{ icono('reloj', 18) }} {{ k.franja_hora }}</div>{% endif %}
       </div>
     </div>
 
     {% if k.ronda > 1 %}
     <div class="aviso-ronda">
-      ➕ Esto es ADICIONAL. Lo anterior ya salió, no lo repitas.
+      {{ icono('pedido', 18) }} Esto es ADICIONAL. Lo anterior ya salió, no lo repitas.
     </div>
     {% endif %}
 
@@ -96,7 +96,7 @@
 
     {% if k.notas %}
     <div class="k-notas">
-      <div class="k-notas-lbl">📝 Notas</div>
+      <div class="k-notas-lbl">{{ icono('editar', 18) }} Notas</div>
       <div class="k-notas-txt">{{ k.notas }}</div>
     </div>
     {% endif %}
@@ -135,7 +135,7 @@ function activarSonido() {
     if (audio.state === 'suspended') audio.resume();
     localStorage.setItem('jaca_sonido', '1');
     var b = document.getElementById('btn-sonido');
-    b.textContent = '🔊 Sonido activo';
+ b.textContent = ' Sonido activo';
     b.classList.remove('btn-ghost');
     b.classList.add('btn-green');
     pitar();
@@ -174,7 +174,7 @@ function alertar(texto) {
   if (!parpadeo) {
     var on = false;
     parpadeo = setInterval(function () {
-      document.title = (on = !on) ? '🔔 ¡PEDIDO NUEVO!' : titulo;
+ document.title = (on = !on) ? ' ¡PEDIDO NUEVO!' : titulo;
     }, 700);
     setTimeout(function () {
       clearInterval(parpadeo); parpadeo = null; document.title = titulo;
@@ -186,7 +186,7 @@ async function revisar() {
   try {
     var r = await fetch('/cocina/notificaciones');
     (await r.json()).forEach(function (n) {
-      alertar('🔔 #' + n.pid + ' — ' + (n.detalle || 'pedido modificado'));
+ alertar(' #' + n.pid + ' — ' + (n.detalle || 'pedido modificado'));
     });
     ultimoOk = Date.now();
     document.getElementById('dot').style.background = 'var(--green)';

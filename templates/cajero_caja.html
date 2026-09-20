@@ -27,7 +27,7 @@
     <div class="caja-entregar-monto num">{{ r.efectivo | cop }}</div>
   </div>
   {% else %}
-  <div class="empty" style="padding:24px"><span class="e-ico">💤</span>Todavía no hay cobros</div>
+  <div class="empty" style="padding:24px"><span class="e-ico">{{ icono('reloj', 18) }}</span>Todavía no hay cobros</div>
   {% endif %}
 </div>
 {% endmacro %}
@@ -36,9 +36,9 @@
 {% if es_admin %}
 <div style="display:flex;gap:8px;margin-bottom:12px">
   <a href="{{ url_for('cajero_caja', vista='mia') }}"
-     class="btn btn-sm {{ 'btn-primary' if vista != 'todos' else 'btn-ghost' }}">🧾 La mía</a>
+     class="btn btn-sm {{ 'btn-primary' if vista != 'todos' else 'btn-ghost' }}">{{ icono('caja', 18) }} La mía</a>
   <a href="{{ url_for('cajero_caja', vista='todos') }}"
-     class="btn btn-sm {{ 'btn-primary' if vista == 'todos' else 'btn-ghost' }}">👥 De todos</a>
+     class="btn btn-sm {{ 'btn-primary' if vista == 'todos' else 'btn-ghost' }}">{{ icono('usuario', 18) }} De todos</a>
 </div>
 {% endif %}
 
@@ -55,7 +55,7 @@
       <span class="text-xs c-gray2">cobró {{ d.total | cop }}</span>
     </div>
     <div class="caja-linea">
-      <span>💵 Debe entregar</span>
+      <span>{{ icono('cobrar', 18) }} Debe entregar</span>
       <span class="num" style="color:var(--orange);font-weight:700">{{ d.efectivo | cop }}</span>
     </div>
 
@@ -65,7 +65,7 @@
       <span class="num">{{ e.entregado | cop }}</span>
     </div>
     <div class="caja-linea caja-total" style="color:{{ 'var(--green)' if e.diferencia == 0 else 'var(--red)' }}">
-      <span>{% if e.diferencia == 0 %}✅ Cuadra exacto{% elif e.diferencia > 0 %}⚠ Sobra{% else %}⚠ Falta{% endif %}</span>
+      <span>{% if e.diferencia == 0 %}{{ icono('check', 18) }} Cuadra exacto{% elif e.diferencia > 0 %}{{ icono('alerta', 18) }} Sobra{% else %}{{ icono('alerta', 18) }} Falta{% endif %}</span>
       <span class="num">{{ (e.diferencia if e.diferencia >= 0 else -e.diferencia) | cop }}</span>
     </div>
     <div class="text-xs c-gray2 mt-4">
@@ -89,7 +89,7 @@
     {% endif %}
   </div>
   {% else %}
-  <div class="empty"><span class="e-ico">💤</span>Nadie ha cobrado todavía hoy</div>
+  <div class="empty"><span class="e-ico">{{ icono('reloj', 18) }}</span>Nadie ha cobrado todavía hoy</div>
   {% endfor %}
 
   {% if todo.total %}
@@ -103,7 +103,7 @@
 
 {% else %}
 
-  {{ desglose(mio, '🧾 Mi caja — ' + yo) }}
+  {{ desglose(mio, 'Mi caja — ' + yo) }}
 
   {% if mio.pagos %}
   <h3 class="sec-title mt-16">Lo que cobré</h3>
@@ -121,7 +121,7 @@
   {% if mi_entrega %}
   <div class="card mt-12" style="border-left:3px solid {{ 'var(--green)' if mi_entrega.diferencia == 0 else 'var(--red)' }}">
     <div class="caja-linea caja-total">
-      <span>{% if mi_entrega.diferencia == 0 %}✅ Entrega cuadrada{% else %}⚠ Diferencia{% endif %}</span>
+      <span>{% if mi_entrega.diferencia == 0 %}{{ icono('check', 18) }} Entrega cuadrada{% else %}{{ icono('alerta', 18) }} Diferencia{% endif %}</span>
       <span class="num">{{ mi_entrega.entregado | cop }}</span>
     </div>
     <div class="text-xs c-gray2">Recibido por {{ mi_entrega.recibido_por }} a las {{ mi_entrega.hora }}</div>

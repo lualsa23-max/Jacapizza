@@ -16,10 +16,10 @@
          marcado nada ya no impide cerrar la cuenta. #}
       <div class="cobro-semaforo">
         <span class="sem {{ 'sem-ok' if p.estado_cocina == 'Entregado' else 'sem-esp' }}">
-          🍕 {{ 'Entregado' if p.estado_cocina == 'Entregado' else 'En cocina' }}
+          {{ icono('pizza', 18) }} {{ 'Entregado' if p.estado_cocina == 'Entregado' else 'En cocina' }}
         </span>
         <span class="sem {{ 'sem-ok' if p.estado_barra == 'Entregado' else 'sem-esp' }}">
-          🥤 {{ 'Entregado' if p.estado_barra == 'Entregado' else 'Pendiente' }}
+          {{ icono('bebidas', 18) }} {{ 'Entregado' if p.estado_barra == 'Entregado' else 'Pendiente' }}
         </span>
       </div>
     </div>
@@ -36,7 +36,7 @@
     {% for it in p.productos %}
     <div class="p-item">
       <span class="p-item-qty num">{{ it.cantidad }}×</span>
-      <span class="p-item-name">{{ '🍕' if it.tipo == 'Pizza' else '🥤' }} {{ it.nombre }}</span>
+      <span class="p-item-name">{{ icono('pizza', 16) if it.tipo == 'Pizza' else icono('bebidas', 16) }} {{ it.nombre }}</span>
       <span class="p-item-price num">{{ (it.cantidad * it.precio_unit) | cop }}</span>
     </div>
     {% endfor %}
@@ -62,11 +62,11 @@
   <div style="display:flex;gap:6px;margin-top:8px">
     <button class="btn btn-ghost btn-sm" style="flex:1"
             onclick="abrirParcial({{ p.id }}, {{ p.saldo | int }}, '{{ p.mesa | replace("'", "") }}')">
-      💰 Otro monto
+      {{ icono('cobrar', 18) }} Otro monto
     </button>
     <button class="btn btn-ghost btn-sm" style="flex:1"
             onclick="abrirCortesia({{ p.id }}, '{{ p.mesa | replace("'", "") }}')">
-      🎁 Sin cobrar
+      {{ icono('regalo', 18) }} Sin cobrar
     </button>
   </div>
 </div>
@@ -86,7 +86,7 @@
 
 {% if count_anteriores and filtro != 'anteriores' %}
 <div class="flash flash-error mb-12">
-  ⚠ Hay <strong>{{ count_anteriores }}</strong> cuenta{{ 's' if count_anteriores != 1 }} de días anteriores
+  {{ icono('alerta', 18) }} Hay <strong>{{ count_anteriores }}</strong> cuenta{{ 's' if count_anteriores != 1 }} de días anteriores
   sin cobrar, por <strong>{{ deuda_anterior | cop }}</strong>.
   <a href="{{ url_for('cajero_cobrar', filtro='anteriores') }}" style="color:inherit;text-decoration:underline">Verlas</a>
 </div>
@@ -96,20 +96,20 @@
   {% if anteriores_por_fecha %}
     {% for fecha, lista in anteriores_por_fecha.items() %}
     <div class="k-group-header k-gh-red" style="margin-top:14px">
-      <span>📅 {{ fecha }}</span>
+      <span>{{ icono('calendario', 18) }} {{ fecha }}</span>
       <span style="font-size:.85rem;font-weight:500">{{ lista | length }} cuenta{{ 's' if lista|length != 1 }}</span>
     </div>
     {% for p in lista %}{{ tarjeta(p, true) }}{% endfor %}
     {% endfor %}
   {% else %}
-    <div class="empty"><span class="e-ico">✅</span>Nada pendiente de días anteriores</div>
+    <div class="empty"><span class="e-ico">{{ icono('check', 18) }}</span>Nada pendiente de días anteriores</div>
   {% endif %}
 {% else %}
   {% if pedidos %}
     {% for p in pedidos %}{{ tarjeta(p) }}{% endfor %}
   {% else %}
     <div class="empty" style="padding:60px 20px">
-      <span class="e-ico" style="font-size:3.5rem">🎉</span>
+      <span class="e-ico" style="font-size:3.5rem">{{ icono('check', 18) }}</span>
       <div style="font-size:1.2rem;font-weight:700">Todo cobrado</div>
       <div class="c-gray2">Ninguna cuenta abierta hoy</div>
     </div>
@@ -140,7 +140,7 @@
         {% endfor %}
       </div>
 
-      <button type="submit" class="btn btn-green btn-full btn-lg mt-12">✅ Cobrar</button>
+      <button type="submit" class="btn btn-green btn-full btn-lg mt-12">{{ icono('check', 18) }} Cobrar</button>
       <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrar('ov-parcial')">Cancelar</button>
     </form>
   </div>

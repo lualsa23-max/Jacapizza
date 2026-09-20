@@ -11,13 +11,13 @@
 <div class="login-wrap">
   <div class="login-box">
     <div class="login-logo">
-      <span class="pizza">🍕</span>
+      <span class="pizza">{{ icono('pizza', 18) }}</span>
       <h1>JACAPIZZA</h1>
       <p>Sistema de Gestión</p>
     </div>
     <div class="login-card">
       {% if error %}
-      <div class="login-err">⚠️ {{ error }}</div>
+      <div class="login-err">{{ icono('alerta', 18) }} {{ error }}</div>
       {% endif %}
       <form method="post">
         <div class="form-group">

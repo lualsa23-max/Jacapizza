@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}— Pedidos del Día{% endblock %}
 {% block content %}
-<h2 class="sec-title">📋 Pedidos del Día</h2>
+<h2 class="sec-title">{{ icono('menu', 18) }} Pedidos del Día</h2>
 {% if pedidos %}
   {% for p in pedidos %}
   <div class="p-card">
@@ -19,35 +19,35 @@
       </div>
     </div>
     {% if p.franja_hora %}
-    <div class="p-franja">⏰ Entrega: {{ p.franja_hora }}</div>
+    <div class="p-franja">{{ icono('reloj', 18) }} Entrega: {{ p.franja_hora }}</div>
     {% endif %}
     <div class="p-items">
       {% for it in p.productos %}
       <div class="p-item">
         <span class="p-item-qty">{{ it.cantidad }}×</span>
-        <span class="p-item-name">{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+        <span class="p-item-name">{{ icono('pizza', 16) if it.tipo == 'Pizza' else icono('bebidas', 16) }} {{ it.nombre }}</span>
         <span class="p-item-price">{{ (it.cantidad * it.precio_unit) | cop }}</span>
       </div>
       {% endfor %}
     </div>
     {% if p.notas %}
-    <div class="p-notas"><strong>📝 Notas</strong>{{ p.notas }}</div>
+    <div class="p-notas"><strong>{{ icono('editar', 18) }} Notas</strong>{{ p.notas }}</div>
     {% endif %}
     <div class="p-foot">
       <span class="p-total">{{ p.total | cop }}</span>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         {% if p.estado in ['Pendiente', 'Listo'] %}
-        <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm">✏ Editar</a>
+        <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm">{{ icono('editar', 18) }} Editar</a>
         {% elif p.estado == 'Pagado' and session.get('rol') == 'Administrador' %}
         <form method="post" action="/admin/pedido/{{ p.id }}/reabrir" style="display:inline"
               onsubmit="return confirm('¿Reabrir pedido #{{ p.id }}? Podrás agregar productos y cobrar la diferencia.')">
-          <button type="submit" class="btn btn-orange btn-sm">🔓 Reabrir</button>
+          <button type="submit" class="btn btn-orange btn-sm">{{ icono('candado', 18) }} Reabrir</button>
         </form>
         {% endif %}
         {% if session.get('rol') == 'Administrador' %}
         <form method="post" action="/admin/pedido/{{ p.id }}/eliminar" style="display:inline"
               onsubmit="return confirm('¿Eliminar el pedido #{{ p.id }} de {{ p.mesa }}? Esta acción no se puede deshacer.')">
-          <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+          <button type="submit" class="btn btn-danger btn-sm">{{ icono('borrar', 18) }}</button>
         </form>
         {% endif %}
       </div>
@@ -55,6 +55,6 @@
   </div>
   {% endfor %}
 {% else %}
-<div class="empty"><span class="e-ico">📭</span>No has registrado pedidos aún</div>
+<div class="empty"><span class="e-ico">{{ icono('vacio', 18) }}</span>No has registrado pedidos aún</div>
 {% endif %}
 {% endblock %}

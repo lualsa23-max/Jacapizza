@@ -3,15 +3,15 @@
 {% block content %}
 
 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
-  <h2 class="sec-title" style="margin:0">📋 Historial de Cierres</h2>
+  <h2 class="sec-title" style="margin:0">{{ icono('menu', 18) }} Historial de Cierres</h2>
   <div style="display:flex;gap:8px">
-    <a href="/admin/cierre" class="btn btn-primary btn-sm">➕ Nuevo cierre</a>
+    <a href="/admin/cierre" class="btn btn-primary btn-sm">{{ icono('pedido', 18) }} Nuevo cierre</a>
     <a href="/admin/cierre/csv" class="btn btn-ghost btn-sm">⬇ Exportar CSV</a>
   </div>
 </div>
 
 {% if not fechas %}
-<div class="empty"><span class="e-ico">📭</span>No hay cierres registrados aún</div>
+<div class="empty"><span class="e-ico">{{ icono('vacio', 18) }}</span>No hay cierres registrados aún</div>
 {% else %}
 
 {% for fecha in fechas %}
@@ -24,7 +24,7 @@
       <div class="text-xs c-gray mt-4">{{ items|length }} ítems registrados</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <a href="/admin/cierre?fecha={{ fecha }}" class="btn btn-ghost btn-sm">✏ Editar</a>
+      <a href="/admin/cierre?fecha={{ fecha }}" class="btn btn-ghost btn-sm">{{ icono('editar', 18) }} Editar</a>
       <a href="/admin/cierre/csv?fi={{ fecha }}&ff={{ fecha }}" class="btn btn-ghost btn-sm">⬇ CSV</a>
     </div>
   </div>
@@ -46,9 +46,9 @@
         {% for it in items %}
         <tr>
           <td style="font-size:.85rem;font-weight:600">
-            {% if it.tipo == 'pizza' %}🍕
-            {% elif it.tipo == 'bebida' %}🥤
-            {% else %}🍹{% endif %}
+            {% if it.tipo == 'pizza' %}{{ icono('pizza', 18) }}
+            {% elif it.tipo == 'bebida' %}{{ icono('bebidas', 18) }}
+            {% else %}{{ icono('bebidas', 18) }}{% endif %}
             {{ it.nombre }}
           </td>
           <td style="text-align:center">{{ it.stock_inicial }}</td>
@@ -57,9 +57,9 @@
           <td style="text-align:center;font-weight:700">{{ it.real_contado }}</td>
           <td style="text-align:center">
             {% if it.diferencia == 0 %}
-              <span style="color:var(--green);font-weight:700">✅ 0</span>
+              <span style="color:var(--green);font-weight:700">{{ icono('check', 18) }} 0</span>
             {% elif it.diferencia < 0 %}
-              <span style="color:var(--red);font-weight:700">⚠ {{ it.diferencia }}</span>
+              <span style="color:var(--red);font-weight:700">{{ icono('alerta', 18) }} {{ it.diferencia }}</span>
             {% else %}
               <span style="color:var(--orange);font-weight:700">+{{ it.diferencia }}</span>
             {% endif %}

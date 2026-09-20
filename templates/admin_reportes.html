@@ -4,7 +4,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
-<h2 class="sec-title">📈 Reportes de Ventas</h2>
+<h2 class="sec-title">{{ icono('negocio', 18) }} Reportes de Ventas</h2>
 
 <div class="periodo-tabs">
   <a href="{{ url_for('admin_reportes', periodo='hoy') }}"    class="periodo-tab {% if periodo=='hoy' %}active{% endif %}">Hoy</a>
@@ -29,17 +29,17 @@
 
 <div class="metrics">
   <div class="metric">
-    <div class="metric-ico">💰</div>
+    <div class="metric-ico">{{ icono('cobrar', 18) }}</div>
     <div class="metric-val c-accent">{{ data.total_ventas | cop }}</div>
     <div class="metric-lbl">Total ventas</div>
   </div>
   <div class="metric">
-    <div class="metric-ico">🧾</div>
+    <div class="metric-ico">{{ icono('caja', 18) }}</div>
     <div class="metric-val c-white">{{ data.n_pedidos }}</div>
     <div class="metric-lbl">Pedidos</div>
   </div>
   <div class="metric">
-    <div class="metric-ico">📊</div>
+    <div class="metric-ico">{{ icono('negocio', 18) }}</div>
     <div class="metric-val c-green">{{ data.ticket_prom | cop }}</div>
     <div class="metric-lbl">Ticket promedio</div>
   </div>
@@ -69,7 +69,7 @@
   <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Productos más vendidos</h3>
   {% for it in data.top_items[:8] %}
   <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.85rem">
-    <span>{{ '🍕' if it.tipo=='Pizza' else '🥤' }} {{ it.nombre }}</span>
+    <span>{{ icono('pizza', 16) if it.tipo == 'Pizza' else icono('bebidas', 16) }} {{ it.nombre }}</span>
     <span class="c-accent font-bold" style="margin-left:8px;white-space:nowrap">{{ it.cantidad }}× — {{ it.valor | cop }}</span>
   </div>
   {% endfor %}

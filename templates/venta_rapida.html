@@ -2,7 +2,7 @@
 {% block title %}— Venta rápida{% endblock %}
 
 {% block content %}
-<h2 class="sec-title">⚡ Venta rápida</h2>
+<h2 class="sec-title">{{ icono('rapido', 18) }} Venta rápida</h2>
 <div class="text-xs c-gray2 mb-12">
   Para una bebida suelta. Se saca de la nevera y se entrega en el acto —
   no pasa por la pantalla de barra.
@@ -48,7 +48,7 @@
   <div class="pay-grid">
     <button type="button" class="btn btn-ghost btn-full metodo-op" id="btn-cuenta"
             data-m="__cuenta__" onclick="elegir(this)" style="display:none">
-      🧾 Cargar a la cuenta
+      {{ icono('caja', 18) }} Cargar a la cuenta
     </button>
     {% for m, icono in metodos.items() %}
     <button type="button" class="btn btn-ghost btn-full metodo-op" data-m="{{ m }}"
@@ -57,13 +57,13 @@
   </div>
 
   <button class="btn btn-green btn-full btn-lg mt-12" id="btn-confirmar" onclick="confirmar()">
-    ✅ Confirmar
+    {{ icono('check', 18) }} Confirmar
   </button>
-  <button class="btn btn-ghost btn-full mt-8" onclick="limpiar()">🗑 Empezar de nuevo</button>
+  <button class="btn btn-ghost btn-full mt-8" onclick="limpiar()">{{ icono('borrar', 18) }} Empezar de nuevo</button>
 </div>
 
 <div class="empty" id="vacio" style="padding:40px 20px">
-  <span class="e-ico">👆</span>
+  <span class="e-ico">{{ icono('flecha', 18) }}</span>
   <div class="c-gray2">Toca una bebida para empezar</div>
 </div>
 {% endblock %}
@@ -126,12 +126,12 @@ function buscarCodigo() {
       if (d.existe) {
         cuenta = d;
         aviso.className = 'vr-aviso vr-aviso-ok';
-        aviso.textContent = '✓ ' + d.texto + ' — se sumará a esta cuenta';
+ aviso.textContent = ' ' + d.texto + ' — se sumará a esta cuenta';
         btnCuenta.style.display = '';
       } else {
         cuenta = null;
         aviso.className = 'vr-aviso vr-aviso-nuevo';
-        aviso.textContent = '⚠ No hay cuenta abierta hoy con ese código. Se creará una nueva.';
+ aviso.textContent = ' No hay cuenta abierta hoy con ese código. Se creará una nueva.';
         btnCuenta.style.display = 'none';
         if (metodo === '__cuenta__') { metodo = null; despintarMetodos(); }
       }
@@ -178,18 +178,18 @@ async function confirmar(confirmado) {
     });
     var d = await r.json();
     if (r.status === 409) {
-      btn.disabled = false; btn.textContent = '✅ Confirmar';
+ btn.disabled = false; btn.textContent = ' Confirmar';
       if (confirm(d.mensaje)) confirmar(true);
       return;
     }
-    if (d.error) { alert(d.error); btn.disabled = false; btn.textContent = '✅ Confirmar'; return; }
-    showToast('✅ ' + d.destino + ' — ' + fmt(d.total)
+ if (d.error) { alert(d.error); btn.disabled = false; btn.textContent = ' Confirmar'; return; }
+ showToast(' ' + d.destino + ' — ' + fmt(d.total)
               + (d.a_cuenta ? ' cargado a la cuenta' : ' cobrado en ' + d.metodo), 5000);
     limpiar();
     setTimeout(function () { location.reload(); }, 900);   // refrescar el stock
   } catch (e) {
     alert('No se pudo guardar. Revisa la conexión.');
-    btn.disabled = false; btn.textContent = '✅ Confirmar';
+ btn.disabled = false; btn.textContent = ' Confirmar';
   }
 }
 </script>

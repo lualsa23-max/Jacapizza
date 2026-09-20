@@ -27,7 +27,7 @@ _MESES = ["enero","febrero","marzo","abril","mayo","junio","julio",
 
 
 def _fecha_larga():
-    """'viernes 20 de septiembre' — se lee mejor que 20/09/2026 al entrar."""
+    """'viernes 20 de septiembre'— se lee mejor que 20/09/2026 al entrar."""
     d = ahora()
     return f"{_DIAS[d.weekday()]} {d.day} de {_MESES[d.month - 1]}"
 
@@ -39,14 +39,14 @@ def jornada_actual():
 
 
 # ── F2: COMPARACION DE FECHAS ────────────────────────
-# El formato 'dd/mm/yyyy' NO se puede ordenar como texto, y el codigo lo venia
+# El formato 'dd/mm/yyyy'NO se puede ordenar como texto, y el codigo lo venia
 # comparando asi. Efecto real medido sobre la base de produccion: el reporte de
 # cualquier mes mostraba casi el historico completo (marzo decia $15.383.500
-# cuando fueron $1.970.500), porque '21/03/2026' esta entre '01/09/2026' y
-# '30/09/2026' letra por letra. Y un rango que cruzaba de mes daba $0.
+# cuando fueron $1.970.500), porque '21/03/2026'esta entre '01/09/2026'y
+# '30/09/2026'letra por letra. Y un rango que cruzaba de mes daba $0.
 
 def fecha_a_iso(fecha_str, por_defecto=None):
-    """'dd/mm/yyyy' -> 'yyyy-mm-dd'. None si no se puede interpretar."""
+    """'dd/mm/yyyy'-> 'yyyy-mm-dd'. None si no se puede interpretar."""
     try:
         d, m, y = str(fecha_str).strip().split("/")
         return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
@@ -150,12 +150,37 @@ INV_DEFAULT = {
 }
 # Los 5 medios que ya usan. Estaban repetidos a mano en cada plantilla;
 # ahora se definen una vez y se validan en el servidor.
+# Categorias de bebida. El orden es el que sale en pantalla: primero lo que
+# mas se vende. Se guardan en `catalogo.categoria`, asi que se pueden cambiar
+# desde el Menu sin tocar el codigo.
+CATEGORIAS_BEBIDA = ["Cervezas", "Jugos y frescos", "Gaseosas y aguas",
+                     "Cócteles", "Otros"]
+
+
+def categoria_sugerida(nombre):
+    """Adivina la categoria por el nombre, para no tener que clasificar 27
+    productos a mano. Solo se usa la PRIMERA vez; despues manda lo guardado."""
+    n = (nombre or "").lower()
+    if n.startswith("cerveza"):
+        return "Cervezas"
+    if n.startswith("jugo") or n.startswith("limonada") or "cerezada" in n:
+        return "Jugos y frescos"
+    if n.startswith(("gaseosa", "soda", "coca", "agua")):
+        return "Gaseosas y aguas"
+    if n.startswith("cóctel") or n.startswith("coctel") or "cuba libre" in n \
+            or "gin tonic" in n or "cola y pola" in n:
+        return "Cócteles"
+    return "Otros"
+
+
+# El valor es el NOMBRE del icono de trazo, no un emoji: los emojis se ven
+# distintos en cada aparato y no se pueden teñir del color del contexto.
 METODOS_PAGO = {
-    "Efectivo":    "💵",
-    "Tarjeta":     "💳",
-    "Nequi":       "📱",
-    "Daviplata":   "📱",
-    "Llave Bre-B": "🔑",
+    "Efectivo":    "cobrar",
+    "Tarjeta":     "tarjeta",
+    "Nequi":       "movil",
+    "Daviplata":   "movil",
+    "Llave Bre-B": "llave",
 }
 
 CATEGORIAS_GASTO = [
@@ -267,14 +292,12 @@ def init_db():
     try:
         print(f"[BOOT] init_db starting, DB_PATH={DB_PATH}", flush=True)
         with _conn() as c:
-            c.executescript("""
-            CREATE TABLE IF NOT EXISTS pedidos (
+            c.executescript("""CREATE TABLE IF NOT EXISTS pedidos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT NOT NULL, mesero TEXT NOT NULL,
                 estado TEXT DEFAULT 'Pendiente', total REAL DEFAULT 0,
                 hora TEXT, fecha TEXT, pago TEXT, modificado INTEGER DEFAULT 0,
-                notas TEXT DEFAULT '', franja_hora TEXT DEFAULT ''
-            );
+                notas TEXT DEFAULT '', franja_hora TEXT DEFAULT '');
             CREATE TABLE IF NOT EXISTS items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER,
                 nombre TEXT, tipo TEXT, cantidad INTEGER, precio_unit REAL
@@ -293,8 +316,7 @@ def init_db():
                 fecha TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL,
                 stock_inicial INTEGER DEFAULT 0, vendido INTEGER DEFAULT 0,
                 teorico INTEGER DEFAULT 0, real_contado INTEGER DEFAULT 0,
-                diferencia INTEGER DEFAULT 0, nota TEXT DEFAULT ''
-            );
+                diferencia INTEGER DEFAULT 0, nota TEXT DEFAULT '');
             CREATE TABLE IF NOT EXISTS catalogo (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT NOT NULL UNIQUE, tipo TEXT NOT NULL,
@@ -331,8 +353,7 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 rol TEXT NOT NULL DEFAULT 'Operador',
                 activo INTEGER DEFAULT 1,
-                creado TEXT DEFAULT ''
-            );
+                creado TEXT DEFAULT '');
             CREATE TABLE IF NOT EXISTS gastos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 fecha TEXT NOT NULL, hora TEXT NOT NULL,
@@ -371,7 +392,8 @@ def init_db():
                         "ALTER TABLE items ADD COLUMN nota TEXT DEFAULT ''",
                         "ALTER TABLE pagos ADD COLUMN jornada TEXT DEFAULT ''",
                         "ALTER TABLE gastos ADD COLUMN jornada TEXT DEFAULT ''",
-                        "ALTER TABLE cierres_inventario ADD COLUMN jornada TEXT DEFAULT ''"]:
+                        "ALTER TABLE cierres_inventario ADD COLUMN jornada TEXT DEFAULT ''",
+                        "ALTER TABLE catalogo ADD COLUMN categoria TEXT DEFAULT ''"]:
                 try: c.execute(col)
                 except: pass
             _aplicar_pragmas(c)
@@ -424,6 +446,26 @@ def _seed_catalogo():
         print("Seed error:", e)
 
 try: _seed_catalogo()
+except: pass
+
+
+def _clasificar_bebidas():
+    """Pone categoria a las bebidas que aun no la tienen. Idempotente: solo
+    toca las vacias, asi que un cambio hecho a mano no se pisa."""
+    try:
+        with _conn() as c:
+            sin = c.execute("SELECT id,nombre FROM catalogo WHERE tipo LIKE 'bebida%' "
+                            "AND COALESCE(categoria,'')=''").fetchall()
+            for r in sin:
+                c.execute("UPDATE catalogo SET categoria=? WHERE id=?",
+                          (categoria_sugerida(r["nombre"]), r["id"]))
+            if sin:
+                print(f"[BOOT] {len(sin)} bebida(s) clasificadas por categoria", flush=True)
+    except Exception as e:
+        print(f"[BOOT] _clasificar_bebidas fallo: {e}", flush=True)
+
+
+try: _clasificar_bebidas()
 except: pass
 
 
@@ -545,19 +587,40 @@ def get_catalogo_pizzas():
     except: pass
     return dict(PIZZAS_DEFAULT)
 
+def get_bebidas_por_categoria():
+    """Bebidas agrupadas, en el orden de CATEGORIAS_BEBIDA. Solo devuelve las
+    categorias que tienen algo: una seccion vacia es ruido."""
+    try:
+        with _conn() as c:
+            filas = c.execute(
+                "SELECT nombre,precio,COALESCE(categoria,'') cat FROM catalogo "
+                "WHERE tipo IN ('bebida','bebida_especial') AND activo=1 "
+                "ORDER BY nombre COLLATE NOCASE").fetchall()
+    except Exception:
+        return {"Otros": dict(BEBIDAS_DEFAULT)}
+    grupos = {}
+    for r in filas:
+        cat = r["cat"] or categoria_sugerida(r["nombre"])
+        grupos.setdefault(cat, {})[r["nombre"]] = r["precio"]
+    orden = [c for c in CATEGORIAS_BEBIDA if c in grupos]
+    orden += [c for c in grupos if c not in CATEGORIAS_BEBIDA]
+    return {c: grupos[c] for c in orden}
+
+
 def get_catalogo_admin(familia):
     """Filas completas del catalogo para la pantalla de menu.
 
     A diferencia de get_catalogo_pizzas/bebidas —que devuelven {nombre: precio}
     para el carrito— aqui hace falta el `id`, porque toda edicion se hace por id.
-    'bebidas' incluye el tipo historico 'bebida_especial', que antes se mostraba
+    'bebidas'incluye el tipo historico 'bebida_especial', que antes se mostraba
     pero no se podia editar.
     """
     tipos = ("pizza",) if familia == "pizzas" else ("bebida", "bebida_especial")
     ph = ",".join("?" * len(tipos))
     with _conn() as c:
         rows = c.execute(
-            f"SELECT id,nombre,tipo,precio,en_inventario,alerta_min FROM catalogo "
+            f"SELECT id,nombre,tipo,precio,en_inventario,alerta_min,"
+            f"COALESCE(categoria,'') categoria FROM catalogo "
             f"WHERE tipo IN ({ph}) AND activo=1 ORDER BY nombre COLLATE NOCASE", tipos).fetchall()
     return [dict(r) for r in rows]
 
@@ -603,7 +666,7 @@ def _sync_estado(c, pid):
 
     NO escribe la columna `estado` de siempre. En esta fase las pantallas
     siguen leyendola, y derivarla ya cambiaria el comportamiento: un pedido
-    con pizzas pagado por adelantado pasaria a 'Pagado' y la cocina dejaria
+    con pizzas pagado por adelantado pasaria a 'Pagado'y la cocina dejaria
     de verlo. El cambio de lectura llega con las pantallas nuevas.
     """
     row = c.execute("SELECT total, cierre_manual FROM pedidos WHERE id=?", (pid,)).fetchone()
@@ -1008,7 +1071,7 @@ def cobrar_pedido(pid, metodo, cobrado_por=""):
 
 def actualizar_pedido(pid, items, notas=None, franja_hora=None):
     """Actualiza el pedido preservando items ya despachados.
-    Los 'items' recibidos son los NO despachados (lo que el mesero puede editar).
+    Los 'items'recibidos son los NO despachados (lo que el mesero puede editar).
     Los items ya despachados se mantienen intactos en BD.
     El total del pedido = suma de items despachados + items nuevos."""
     with _conn() as c:
@@ -1271,10 +1334,10 @@ except:
 
 ALLOWED_FACTURA_EXT = {'png','jpg','jpeg','pdf','webp','heic'}
 def _allowed_factura(fn):
-    return '.' in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_FACTURA_EXT
+    return '.'in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_FACTURA_EXT
 
 def _fecha_a_iso(fecha_str):
-    """Alias historico de fecha_a_iso(). Se mantiene el '9999-99-99' de antes
+    """Alias historico de fecha_a_iso(). Se mantiene el '9999-99-99'de antes
     para no cambiar el comportamiento de quien todavia lo llame."""
     return fecha_a_iso(fecha_str, "9999-99-99")
 
@@ -1324,7 +1387,7 @@ def eliminar_gasto(gid):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario' not in session: return redirect(url_for('login'))
+        if 'usuario'not in session: return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -1333,7 +1396,7 @@ def admin_required(f):
     Es lo unico reservado; todo lo operativo lo hace cualquiera del equipo."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario' not in session:
+        if 'usuario'not in session:
             return redirect(url_for('login'))
         if session.get('rol') != ROL_ADMIN:
             flash('Esa sección es solo para administradores', 'error')
@@ -1345,7 +1408,7 @@ def admin_required(f):
 def rol_required(*roles):
     """Compatibilidad con los roles viejos.
 
-    Ya no existen 'Mesero', 'Cajero' ni 'Cocina': cualquiera del equipo entra.
+    Ya no existen 'Mesero', 'Cajero'ni 'Cocina': cualquiera del equipo entra.
     Solo se sigue filtrando 'Administrador'.
     """
     if ROL_ADMIN in roles:
@@ -1355,7 +1418,7 @@ def rol_required(*roles):
 def solo_luis(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'usuario' not in session: return redirect(url_for('login'))
+        if 'usuario'not in session: return redirect(url_for('login'))
         if session.get('usuario') != 'luis':
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
@@ -1364,7 +1427,7 @@ def solo_luis(f):
 # ── ROUTES ────────────────────────────────────────────
 @app.route('/')
 def index():
-    if 'usuario' in session: return redirect(url_for('dashboard'))
+    if 'usuario'in session: return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET','POST'])
@@ -1392,7 +1455,7 @@ def logout():
 @app.context_processor
 def _datos_barra():
     """Lo que la barra inferior necesita en cualquier pantalla."""
-    if 'usuario' not in session:
+    if 'usuario'not in session:
         return {}
     try:
         n = len([p for p in listar_pedidos(estado_cuenta="Abierta") if p["total"] > 0])
@@ -1663,7 +1726,7 @@ def admin_eliminar_pedido(pid):
         c.execute("DELETE FROM notificaciones WHERE pid=?", (pid,))
         c.execute("DELETE FROM pagos WHERE pedido_id=?", (pid,))
         c.execute("DELETE FROM pedidos WHERE id=?", (pid,))
-    flash(f'🗑 Pedido #{pid} eliminado', 'success')
+    flash(f'Pedido #{pid} eliminado', 'success')
     return redirect(url_for('admin_pedidos'))
 
 @app.route('/admin/pedido/<int:pid>/reabrir', methods=['POST'])
@@ -1675,7 +1738,7 @@ def admin_reabrir_pedido(pid):
         return redirect(url_for('admin_pedidos'))
     with _conn() as c:
         c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
-    flash(f'🔓 Pedido #{pid} reabierto — puedes editarlo y agregar productos', 'success')
+    flash(f'Pedido #{pid} reabierto — puedes editarlo y agregar productos', 'success')
     return redirect(url_for('mesero_editar', pid=pid))
 
 @app.route('/admin/reportes')
@@ -1739,7 +1802,7 @@ def admin_gastos():
             else:
                 flash('Formato no soportado (usa jpg, png, pdf, webp)', 'error')
         crear_gasto(categoria, proveedor, descripcion, monto, metodo_pago, session['nombre'], factura_path)
-        flash(f'✅ Gasto registrado: {categoria} — ${monto:,.0f}'.replace(',','.'), 'success')
+        flash(f'Gasto registrado: {categoria} — ${monto:,.0f}'.replace(',','.'), 'success')
         return redirect(url_for('admin_gastos'))
     hoy = ahora().strftime("%d/%m/%Y")
     ayer = (ahora() - timedelta(days=1)).strftime("%d/%m/%Y")
@@ -1762,7 +1825,7 @@ def admin_gastos():
 @solo_luis
 def admin_eliminar_gasto(gid):
     eliminar_gasto(gid)
-    flash('🗑 Gasto eliminado', 'success')
+    flash('Gasto eliminado', 'success')
     return redirect(url_for('admin_gastos', filtro=request.form.get('filtro','hoy')))
 
 @app.route('/admin/gastos/factura/<path:filename>')
@@ -1782,7 +1845,7 @@ def admin_usuarios():
         accion = request.form.get('action')
         uid    = request.form.get('id', '').strip()
 
-        if accion == 'update' and uid:
+        if accion == 'update'and uid:
             nombre = request.form.get('nombre', '').strip()
             rol    = request.form.get('rol', ROL_OPERADOR)
             pwd    = request.form.get('password', '').strip()
@@ -1806,9 +1869,10 @@ def admin_usuarios():
                 if pwd:
                     c.execute("UPDATE usuarios SET password_hash=? WHERE id=?",
                               (generate_password_hash(pwd), uid))
-            flash(f'@{actual["usuario"]} actualizado' + (' (contraseña nueva)' if pwd else ''), 'success')
+            flash(f'@{actual["usuario"]} actualizado'
+                  + (' (contraseña nueva)' if pwd else ''), 'success')
 
-        elif accion == 'delete' and uid:
+        elif accion == 'delete'and uid:
             with _conn() as c:
                 row = c.execute("SELECT usuario,rol FROM usuarios WHERE id=?", (uid,)).fetchone()
                 if not row:
@@ -1860,7 +1924,7 @@ def _handle_menu(form, tipo_catalogo):
     pero `catalogo.nombre` es UNIQUE GLOBAL: si el nombre ya existia con otro
     tipo, el INSERT OR IGNORE se ignoraba Y el UPDATE no encontraba nada, asi
     que el producto no se guardaba sin decir por que. Por ese camino acabaron
-    bebidas registradas como tipo 'pizza' en la base de produccion.
+    bebidas registradas como tipo 'pizza'en la base de produccion.
 
     Ademas ahora cada operacion devuelve un mensaje: nada falla en silencio.
     """
@@ -1877,16 +1941,18 @@ def _handle_menu(form, tipo_catalogo):
             choca = c.execute("SELECT id,tipo FROM catalogo WHERE nombre=? AND id<>?",
                               (nombre, cid)).fetchone()
             if choca:
-                return (f'Ya existe otro producto llamado "{nombre}" '
-                        f'(tipo {choca["tipo"]}). Usa otro nombre.', 'error')
+                return (f'Ya existe otro producto llamado "{nombre}" 'f'(tipo {choca["tipo"]}). Usa otro nombre.', 'error')
             cur = c.execute("UPDATE catalogo SET nombre=?, precio=? WHERE id=?",
                             (nombre, precio, cid))
             if not cur.rowcount:
                 return ('No se encontro ese producto.', 'error')
             if form.get('en_inventario') is not None:
                 c.execute("UPDATE catalogo SET en_inventario=?, alerta_min=? WHERE id=?",
-                          (1 if form.get('en_inventario') == '1' else 0,
+                          (1 if form.get('en_inventario') == '1'else 0,
                            int(form.get('alerta_min', 5) or 5), cid))
+            if form.get('categoria') in CATEGORIAS_BEBIDA:
+                c.execute("UPDATE catalogo SET categoria=? WHERE id=?",
+                          (form.get('categoria'), cid))
         return (f'Guardado: {nombre} — {fmt_cop(precio)}', 'success')
 
     if action == 'delete':
@@ -1904,27 +1970,28 @@ def _handle_menu(form, tipo_catalogo):
     if action == 'add':
         nombre = form.get('name', '').strip()
         precio = float(form.get('precio', 0) or 0)
-        en_inv = 1 if form.get('en_inventario') == '1' else 0
+        en_inv = 1 if form.get('en_inventario') == '1'else 0
         alerta = int(form.get('alerta_min', 5) or 5)
         if not nombre:
             return ('Escribe un nombre.', 'error')
         with _conn() as c:
             ex = c.execute("SELECT id,tipo,activo FROM catalogo WHERE nombre=?", (nombre,)).fetchone()
             if ex and ex["tipo"] != tipo_catalogo:
-                return (f'"{nombre}" ya existe como {ex["tipo"]}. '
-                        f'Cambiale el nombre o editalo en su seccion.', 'error')
+                return (f'"{nombre}" ya existe como {ex["tipo"]}. 'f'Cambiale el nombre o editalo en su seccion.', 'error')
             if ex:
                 # Reactivar uno dado de baja, con los datos nuevos
                 c.execute("UPDATE catalogo SET precio=?, activo=1, en_inventario=?, alerta_min=? "
                           "WHERE id=?", (precio, en_inv, alerta, ex["id"]))
                 verbo = 'Reactivado' if not ex["activo"] else 'Actualizado'
             else:
-                c.execute("INSERT INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) "
-                          "VALUES (?,?,?,?,?,1)", (nombre, tipo_catalogo, precio, en_inv, alerta))
+                cat = form.get('categoria')
+                if cat not in CATEGORIAS_BEBIDA:
+                    cat = categoria_sugerida(nombre)
+                c.execute("INSERT INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo,categoria) "
+                          "VALUES (?,?,?,?,?,1,?)", (nombre, tipo_catalogo, precio, en_inv, alerta, cat))
                 verbo = 'Agregado'
         if precio <= 0:
-            return (f'{verbo}: {nombre}, pero SIN PRECIO. Se venderia gratis — '
-                    f'editalo y ponle precio.', 'error')
+            return (f'{verbo}: {nombre}, pero SIN PRECIO. Se venderia gratis — 'f'editalo y ponle precio.', 'error')
         return (f'{verbo}: {nombre} — {fmt_cop(precio)}', 'success')
 
     return None
@@ -1939,7 +2006,8 @@ def admin_menu_pizzas():
             flash(msg[0], msg[1])
         return redirect(url_for('admin_menu_pizzas'))
     return render_template('admin_menu.html', productos=get_catalogo_admin('pizzas'),
-                           tipo='pizzas', titulo='Menú Pizzas', icono_seccion='pizza')
+                           tipo='pizzas', titulo='Menú Pizzas', icono_seccion='pizza',
+                           categorias=CATEGORIAS_BEBIDA)
 
 @app.route('/admin/menu/bebidas', methods=['GET','POST'])
 @login_required   # trabajo diario: agregar bebidas
@@ -1950,7 +2018,8 @@ def admin_menu_bebidas():
             flash(msg[0], msg[1])
         return redirect(url_for('admin_menu_bebidas'))
     return render_template('admin_menu.html', productos=get_catalogo_admin('bebidas'),
-                           tipo='bebidas', titulo='Menú Bebidas', icono_seccion='bebidas')
+                           tipo='bebidas', titulo='Menú Bebidas', icono_seccion='bebidas',
+                           categorias=CATEGORIAS_BEBIDA)
 
 # ── MESERO ────────────────────────────────────────────
 @app.route('/mesero/nuevo', methods=['GET','POST'])
@@ -2002,7 +2071,7 @@ def mesero_nuevo():
     alertas = {k: v["alerta_min"] for k, v in get_stock_con_alertas().items()}
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
-        sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
+        sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
         stock_json=json.dumps(stock), alertas_json=json.dumps(alertas),
         metodos=METODOS_PAGO, precio_pizza=PRECIO_PIZZA)
 
@@ -2063,7 +2132,7 @@ def mesero_editar(pid):
     pedido_editable['productos'] = items_no_despachados
     pedido_editable['productos_despachados'] = items_despachados
     return render_template('mesero_editar.html', pedido=pedido_editable,
-        sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
+        sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
         pulpas_json=json.dumps(pulpas))
 
 # ── CAJERO ────────────────────────────────────────────
@@ -2127,10 +2196,9 @@ def cajero_pagar(pid):
     registrar_pago(pid, monto, metodo, session['nombre'], marcar_pagado=False)
     q = get_pedido(pid)
     if q["estado_cuenta"] == "Cerrada":
-        flash(f'✅ {q["mesa"]} — {fmt_cop(monto)} en {metodo}. Cuenta cerrada.', 'success')
+        flash(f'{q["mesa"]} — {fmt_cop(monto)} en {metodo}. Cuenta cerrada.', 'success')
     else:
-        flash(f'💵 {q["mesa"]} — {fmt_cop(monto)} en {metodo}. '
-              f'Falta {fmt_cop(q["saldo"])}.', 'success')
+        flash(f'{q["mesa"]} — {fmt_cop(monto)} en {metodo}. 'f'Falta {fmt_cop(q["saldo"])}.', 'success')
     return redirect(url_for('cajero_cobrar'))
 
 
@@ -2223,10 +2291,9 @@ def registrar_entrega():
                    (request.form.get('nota') or '').strip()))
     dif = entregado - esperado
     if dif == 0:
-        flash(f'✅ {persona} entregó {fmt_cop(entregado)} — cuadra exacto', 'success')
+        flash(f'{persona} entregó {fmt_cop(entregado)} — cuadra exacto', 'success')
     else:
-        flash(f'⚠ {persona}: esperado {fmt_cop(esperado)}, recibido {fmt_cop(entregado)} '
-              f'({"sobra" if dif > 0 else "falta"} {fmt_cop(abs(dif))})', 'error')
+        flash(f'{persona}: esperado {fmt_cop(esperado)}, recibido {fmt_cop(entregado)} 'f'({"sobra" if dif > 0 else "falta"} {fmt_cop(abs(dif))})', 'error')
     return redirect(url_for('cajero_caja', vista='todos'))
 
 
@@ -2265,10 +2332,9 @@ def api_reserva():
         "existe": True, "id": p["id"], "codigo": p["mesa"], "mesa_num": p["mesa_num"],
         "total": p["total"], "saldo": p["saldo"],
         "cerrada": p["estado_cuenta"] == "Cerrada",
-        "texto": (f'{p["mesa"]}'
-                  + (f' · Mesa {p["mesa_num"]}' if p["mesa_num"] else '')
+        "texto": (f'{p["mesa"]}' + (f' · Mesa {p["mesa_num"]}' if p["mesa_num"] else '')
                   + (f' · debe {fmt_cop(p["saldo"])}' if p["saldo"] > 0
-                     else ' · ya pagó, se reabrirá con esta bebida')),
+                     else '· ya pagó, se reabrirá con esta bebida')),
     })
 
 
@@ -2296,8 +2362,7 @@ def venta_rapida():
         # Un error de tecleo no puede crear una cuenta fantasma en silencio
         if codigo and not cuenta and not confirmado:
             return jsonify({'confirmar': True,
-                            'mensaje': f'No hay ninguna cuenta abierta hoy con el código '
-                                       f'"{codigo}". ¿Crear una nueva?'}), 409
+                            'mensaje': f'No hay ninguna cuenta abierta hoy con el código 'f'"{codigo}". ¿Crear una nueva?'}), 409
 
         if not a_cuenta and metodo not in METODOS_PAGO:
             return jsonify({'error': 'Elige cómo paga'}), 400

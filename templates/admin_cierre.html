@@ -2,12 +2,12 @@
 {% block title %}— Cierre de Inventario{% endblock %}
 {% block content %}
 
-<h2 class="sec-title">📦 Cierre de Inventario</h2>
+<h2 class="sec-title">{{ icono('inventario', 18) }} Cierre de Inventario</h2>
 
 <!-- Selector de fecha -->
 <div class="card mb-16" style="padding:12px">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <label class="form-label" style="margin:0;white-space:nowrap">📅 Fecha:</label>
+    <label class="form-label" style="margin:0;white-space:nowrap">{{ icono('calendario', 18) }} Fecha:</label>
     <input type="text" id="fecha-input" class="form-input" value="{{ fecha | default('') }}"
            placeholder="dd/mm/aaaa" style="max-width:140px;min-height:38px">
     <button class="btn btn-ghost btn-sm" onclick="cambiarFecha()">Consultar</button>
@@ -19,14 +19,14 @@
       {% endfor %}
     </select>
     {% endif %}
-    <a href="/admin/cierre/historial" class="btn btn-ghost btn-sm">📋 Historial</a>
+    <a href="/admin/cierre/historial" class="btn btn-ghost btn-sm">{{ icono('menu', 18) }} Historial</a>
     <a href="/admin/cierre/csv" class="btn btn-ghost btn-sm">⬇ CSV</a>
   </div>
 </div>
 
 {% if sin_inventario %}
 <div class="card" style="border:2px solid var(--orange);background:rgba(245,166,35,.08);padding:20px;text-align:center">
-  <div style="font-size:2rem;margin-bottom:8px">📋</div>
+  <div style="font-size:2rem;margin-bottom:8px">{{ icono('menu', 18) }}</div>
   <div style="font-size:1.05rem;font-weight:700;color:var(--orange);margin-bottom:8px">
     Sin inventario registrado para {{ fecha }}
   </div>
@@ -34,16 +34,16 @@
     Para hacer el cierre primero debes cargar el inventario del día desde la sección <strong>Inventario</strong>.
     El cierre compara lo que ingresó vs lo que se vendió.
   </div>
-  <a href="/admin/inventario" class="btn btn-orange">📦 Ir a cargar inventario</a>
+  <a href="/admin/inventario" class="btn btn-orange">{{ icono('inventario', 18) }} Ir a cargar inventario</a>
 </div>
 
 {% elif cierre_items %}
 
 {% if saved_dict %}
-<div class="flash flash-success mb-12">✅ Cierre del {{ fecha }} guardado. Puedes editarlo y volver a guardar.</div>
+<div class="flash flash-success mb-12">{{ icono('check', 18) }} Cierre del {{ fecha }} guardado. Puedes editarlo y volver a guardar.</div>
 {% endif %}
 
-<div id="status-msg" class="flash flash-success mb-12" style="display:none">✅ Cierre guardado correctamente</div>
+<div id="status-msg" class="flash flash-success mb-12" style="display:none">{{ icono('check', 18) }} Cierre guardado correctamente</div>
 
 <div class="tbl-wrap card" style="padding:0;margin-bottom:16px">
   <table id="tabla-cierre">
@@ -65,9 +65,9 @@
           data-inicial="{{ it.stock_inicial }}" data-vendido="{{ it.vendido }}"
           data-teorico="{{ it.teorico }}">
         <td style="font-weight:600;font-size:.88rem">
-          {% if it.tipo == 'pizza' %}🍕
-          {% elif it.tipo == 'bebida' %}🥤
-          {% else %}🍹{% endif %}
+          {% if it.tipo == 'pizza' %}{{ icono('pizza', 18) }}
+          {% elif it.tipo == 'bebida' %}{{ icono('bebidas', 18) }}
+          {% else %}{{ icono('bebidas', 18) }}{% endif %}
           {{ it.nombre }}
         </td>
         <td style="text-align:center;font-weight:700">{{ it.stock_inicial }}</td>
@@ -82,8 +82,8 @@
         <td style="text-align:center">
           <span class="dif-badge">
             {% if saved %}
-              {% if saved.diferencia == 0 %}<span style="color:var(--green);font-weight:700">✅ 0</span>
-              {% elif saved.diferencia < 0 %}<span style="color:var(--red);font-weight:700">⚠ {{ saved.diferencia }}</span>
+              {% if saved.diferencia == 0 %}<span style="color:var(--green);font-weight:700">{{ icono('check', 18) }} 0</span>
+              {% elif saved.diferencia < 0 %}<span style="color:var(--red);font-weight:700">{{ icono('alerta', 18) }} {{ saved.diferencia }}</span>
               {% else %}<span style="color:var(--orange);font-weight:700">+{{ saved.diferencia }}</span>
               {% endif %}
             {% else %}—{% endif %}
@@ -107,12 +107,12 @@
 </div>
 
 <button class="btn btn-primary btn-full btn-lg" onclick="guardarCierre()">
-  💾 Guardar cierre del {{ fecha }}
+  {{ icono('guardar', 18) }} Guardar cierre del {{ fecha }}
 </button>
 
 {% else %}
 <div class="empty">
-  <span class="e-ico">📦</span>
+  <span class="e-ico">{{ icono('inventario', 18) }}</span>
   No hay datos para mostrar en esta fecha
 </div>
 {% endif %}
@@ -138,8 +138,8 @@ function calcularDif(input){
   const badge = row.querySelector('.dif-badge');
   if(isNaN(real)){ badge.innerHTML = '—'; return; }
   const dif = real - teorico;
-  if(dif === 0)     badge.innerHTML = '<span style="color:var(--green);font-weight:700">✅ 0</span>';
-  else if(dif < 0)  badge.innerHTML = '<span style="color:var(--red);font-weight:700">⚠ ' + dif + '</span>';
+ if(dif === 0) badge.innerHTML = '<span style="color:var(--green);font-weight:700"> 0</span>';
+ else if(dif < 0) badge.innerHTML = '<span style="color:var(--red);font-weight:700"> ' + dif + '</span>';
   else              badge.innerHTML = '<span style="color:var(--orange);font-weight:700">+' + dif + '</span>';
   actualizarResumen();
 }
@@ -160,9 +160,9 @@ function actualizarResumen(){
   document.getElementById('resumen-wrap').style.display = 'block';
   document.getElementById('resumen-content').innerHTML =
     '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
-    '<div class="metric" style="flex:1"><div class="metric-ico">✅</div><div class="metric-val c-green">'+ok+'</div><div class="metric-lbl">Cuadra</div></div>' +
-    '<div class="metric" style="flex:1"><div class="metric-ico">⚠</div><div class="metric-val c-red">'+falta+'</div><div class="metric-lbl">Faltante</div></div>' +
-    '<div class="metric" style="flex:1"><div class="metric-ico">📦</div><div class="metric-val c-orange">'+sobra+'</div><div class="metric-lbl">Sobrante</div></div>' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">{{ icono('check', 18) }}</div><div class="metric-val c-green">'+ok+'</div><div class="metric-lbl">Cuadra</div></div>' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">{{ icono('alerta', 18) }}</div><div class="metric-val c-red">'+falta+'</div><div class="metric-lbl">Faltante</div></div>' +
+    '<div class="metric" style="flex:1"><div class="metric-ico">{{ icono('inventario', 18) }}</div><div class="metric-val c-orange">'+sobra+'</div><div class="metric-lbl">Sobrante</div></div>' +
     '<div class="metric" style="flex:1"><div class="metric-ico">❓</div><div class="metric-val c-gray">'+sin_contar+'</div><div class="metric-lbl">Sin contar</div></div>' +
     '</div>';
 }

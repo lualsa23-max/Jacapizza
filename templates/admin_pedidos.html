@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block title %}— Todos los Pedidos{% endblock %}
 {% block content %}
-<h2 class="sec-title">📋 Todos los Pedidos</h2>
+<h2 class="sec-title">{{ icono('menu', 18) }} Todos los Pedidos</h2>
 
 <div class="card mb-12" style="padding:12px">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <a href="{{ url_for('admin_pedidos', fecha=hoy) }}"
-       class="btn btn-sm {% if fecha_filtro==hoy %}btn-primary{% else %}btn-ghost{% endif %}">📅 Hoy</a>
+       class="btn btn-sm {% if fecha_filtro==hoy %}btn-primary{% else %}btn-ghost{% endif %}">{{ icono('calendario', 18) }} Hoy</a>
     <a href="{{ url_for('admin_pedidos', fecha=ayer) }}"
        class="btn btn-sm {% if fecha_filtro==ayer %}btn-primary{% else %}btn-ghost{% endif %}">⏪ Ayer</a>
     <a href="{{ url_for('admin_pedidos', fecha='todos') }}"
-       class="btn btn-sm {% if fecha_filtro=='todos' %}btn-primary{% else %}btn-ghost{% endif %}">📋 Todos</a>
+       class="btn btn-sm {% if fecha_filtro=='todos' %}btn-primary{% else %}btn-ghost{% endif %}">{{ icono('menu', 18) }} Todos</a>
     <form method="get" style="display:flex;gap:6px;align-items:center;margin-left:auto">
       <input class="form-input" type="text" name="fecha" value="{{ fecha_filtro }}"
              placeholder="dd/mm/aaaa" style="width:130px;min-height:36px;font-size:.85rem">
@@ -48,11 +48,11 @@
         </td>
         <td>
           {% if p.estado == 'Pagado' %}
-            <span class="badge b-pagado">✅ Pagado</span>
+            <span class="badge b-pagado">{{ icono('check', 18) }} Pagado</span>
           {% elif p.estado == 'Listo' %}
-            <span class="badge b-listo">🔔 Por cobrar</span>
+            <span class="badge b-listo">{{ icono('campana', 18) }} Por cobrar</span>
           {% elif p.estado == 'Pendiente' %}
-            <span class="badge b-pendiente">🔥 En cocina</span>
+            <span class="badge b-pendiente">{{ icono('fuego', 18) }} En cocina</span>
           {% else %}
             <span class="badge">{{ p.estado }}</span>
           {% endif %}
@@ -64,14 +64,14 @@
           {% if p.estado == 'Pagado' %}
           <form method="post" action="/admin/pedido/{{ p.id }}/reabrir" style="display:inline"
                 onsubmit="return confirm('¿Reabrir pedido #{{ p.id }}? Podrás agregar productos y cobrar la diferencia.')">
-            <button type="submit" class="btn btn-orange btn-sm" style="margin-bottom:4px">🔓</button>
+            <button type="submit" class="btn btn-orange btn-sm" style="margin-bottom:4px">{{ icono('candado', 18) }}</button>
           </form>
           {% else %}
-          <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm" style="margin-bottom:4px">✏</a>
+          <a href="{{ url_for('mesero_editar', pid=p.id) }}" class="btn btn-primary btn-sm" style="margin-bottom:4px">{{ icono('editar', 18) }}</a>
           {% endif %}
           <form method="post" action="/admin/pedido/{{ p.id }}/eliminar" style="display:inline"
                 onsubmit="return confirm('¿Eliminar el pedido #{{ p.id }} de {{ p.mesa }}? Esta acción no se puede deshacer.')">
-            <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+            <button type="submit" class="btn btn-danger btn-sm">{{ icono('borrar', 18) }}</button>
           </form>
         </td>
       </tr>
@@ -80,6 +80,6 @@
   </table>
 </div>
 {% else %}
-<div class="empty"><span class="e-ico">📭</span>No hay pedidos registrados</div>
+<div class="empty"><span class="e-ico">{{ icono('vacio', 18) }}</span>No hay pedidos registrados</div>
 {% endif %}
 {% endblock %}

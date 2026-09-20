@@ -57,31 +57,42 @@
 {# ── BEBIDAS ───────────────────────────────────────────────────── #}
 <h3 class="ped-seccion">{{ icono('bebidas', 20) }} Bebidas</h3>
 
-<div class="ped-bebidas">
-  {% for nombre, precio in bebidas.items() %}
-  {% set s = stock.get(nombre) %}
-  {# El contador avisa, no prohibe: la nevera es la verdad. #}
-  <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
-       id="beb-{{ loop.index }}"
-       data-n="{{ nombre }}" data-p="{{ precio | int }}"
-       data-s="{{ s if s is not none else -1 }}">
-    <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
-      <span class="ped-bebida-n">{{ nombre }}</span>
-      <span class="ped-bebida-p num">{{ precio | cop }}</span>
-      {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
-      {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
-      {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
-    </button>
-    {# El contador aparece al agregar la primera: asi se sube la cantidad
-       aqui mismo, sin bajar hasta el carrito. #}
-    <div class="ped-paso" style="display:none">
-      <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
-      <span class="ped-paso-n num">0</span>
-      <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
-    </div>
-  </div>
+{# Con 27 bebidas, solo subtitulos dejan 14 filas de scroll. Los filtros
+   bajan a 3 de un toque, y siguen estando los subtitulos para quien
+   prefiera recorrerlas todas. #}
+<div class="cat-filtros">
+  <button type="button" class="cat-chip activo" data-c="" onclick="filtrar(this)">Todas</button>
+  {% for cat in grupos %}
+  <button type="button" class="cat-chip" data-c="{{ cat }}" onclick="filtrar(this)">{{ cat }}</button>
   {% endfor %}
 </div>
+
+{% for cat, lista in grupos.items() %}
+<div class="cat-bloque" data-c="{{ cat }}">
+  <div class="cat-titulo">{{ cat }} <span class="cat-n num">{{ lista | length }}</span></div>
+  <div class="ped-bebidas">
+    {% for nombre, precio in lista.items() %}
+    {% set s = stock.get(nombre) %}
+    <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
+         data-n="{{ nombre }}" data-p="{{ precio | int }}"
+         data-s="{{ s if s is not none else -1 }}">
+      <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
+        <span class="ped-bebida-n">{{ nombre }}</span>
+        <span class="ped-bebida-p num">{{ precio | cop }}</span>
+        {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+        {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+        {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+      </button>
+      <div class="ped-paso" style="display:none">
+        <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
+        <span class="ped-paso-n num">0</span>
+        <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
 
 {# ── CARRITO ───────────────────────────────────────────────────── #}
 <h3 class="ped-seccion" id="ancla-carrito">{{ icono('caja', 20) }} El pedido</h3>
@@ -244,6 +255,21 @@ function cerrarVar() {
   pendiente = null;
 }
 
+/* ── Filtro por categoria ─────────────────────────────────────── */
+function filtrar(chip) {
+  var cat = chip.dataset.c;
+  document.querySelectorAll('.cat-chip').forEach(function (c) {
+    c.classList.toggle('activo', c === chip);
+  });
+  document.querySelectorAll('.cat-bloque').forEach(function (b) {
+    b.style.display = (!cat || b.dataset.c === cat) ? '' : 'none';
+  });
+  // Con una sola categoria a la vista, su titulo sobra
+  document.querySelectorAll('.cat-titulo').forEach(function (h) {
+    h.style.display = cat ? 'none' : '';
+  });
+}
+
 /* ── Cantidad desde la propia bebida ──────────────────────────── */
 var pendienteTile = null;
 
@@ -360,7 +386,7 @@ function revisarCodigo() {
       var d = await (await fetch('/api/reserva?codigo=' + encodeURIComponent(cod))).json();
       if (d.existe) {
         av.className = 'vr-aviso vr-aviso-ok';
-        av.innerHTML = '✓ Ya existe: ' + d.texto +
+ av.innerHTML = ' Ya existe: ' + d.texto +
           ' · <a href="/mesero/pedido/' + d.id + '/editar" style="color:inherit;text-decoration:underline">abrir esa cuenta</a>';
         av.style.display = '';
       } else { av.style.display = 'none'; }

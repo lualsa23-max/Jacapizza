@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}— Inventario{% endblock %}
 {% block content %}
-<h2 class="sec-title">📦 Inventario del día</h2>
+<h2 class="sec-title">{{ icono('inventario', 18) }} Inventario del día</h2>
 
-<div id="status" class="flash flash-success mb-12" style="display:none">✅ Inventario guardado correctamente</div>
+<div id="status" class="flash flash-success mb-12" style="display:none">{{ icono('check', 18) }} Inventario guardado correctamente</div>
 
 <h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Ítems en inventario</h3>
 <div id="inv-estandar">
@@ -13,7 +13,7 @@
 {% set cur_alerta = ex.alerta_min  if ex else alerta_def %}
 <div class="inv-row" style="flex-wrap:wrap;gap:8px">
   <span class="inv-name" style="min-width:150px">
-    {{ '🍕' if tipo=='pizza' else '🥤' }} {{ nombre }}
+    {{ icono('pizza', 16) if tipo == 'pizza' else icono('bebidas', 16) }} {{ nombre }}
   </span>
   <div class="inv-spin">
     <span>Stock</span>
@@ -27,11 +27,11 @@
   </div>
   {% if ex %}
     {% if ex.stock == 0 %}
-      <span class="inv-badge c-red">⛔ Agotado</span>
+      <span class="inv-badge c-red">{{ icono('alerta', 18) }} Agotado</span>
     {% elif ex.stock <= ex.alerta_min %}
-      <span class="inv-badge c-orange">⚠ {{ ex.stock }}</span>
+      <span class="inv-badge c-orange">{{ icono('alerta', 18) }} {{ ex.stock }}</span>
     {% else %}
-      <span class="inv-badge c-green">✅ {{ ex.stock }}</span>
+      <span class="inv-badge c-green">{{ icono('check', 18) }} {{ ex.stock }}</span>
     {% endif %}
   {% endif %}
 </div>
@@ -39,14 +39,14 @@
 </div>
 
 <hr class="divider mt-16">
-<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">➕ Agregar nuevo producto al inventario</h3>
+<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">{{ icono('pedido', 18) }} Agregar nuevo producto al inventario</h3>
 <p class="text-sm c-gray mb-12">Al agregar un producto aquí, aparecerá automáticamente en el menú de pedidos del mesero.</p>
 
 <div id="nuevos-container"></div>
-<button type="button" class="btn btn-outline btn-sm mb-16" onclick="addNuevo()">➕ Agregar producto nuevo</button>
+<button type="button" class="btn btn-outline btn-sm mb-16" onclick="addNuevo()">{{ icono('pedido', 18) }} Agregar producto nuevo</button>
 
 <hr class="divider">
-<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">🍹 Pulpas para jugos</h3>
+<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">{{ icono('bebidas', 18) }} Pulpas para jugos</h3>
 <p class="text-sm c-gray mb-12">Frutas disponibles hoy para jugos naturales.</p>
 
 <div id="pulpas-container">
@@ -62,11 +62,11 @@
   </div>
   {% endfor %}
 </div>
-<button type="button" class="btn btn-outline btn-sm mt-8 mb-16" onclick="addPulpa()">➕ Agregar fruta</button>
+<button type="button" class="btn btn-outline btn-sm mt-8 mb-16" onclick="addPulpa()">{{ icono('pedido', 18) }} Agregar fruta</button>
 
 <hr class="divider">
 <button type="button" class="btn btn-primary btn-full btn-lg mt-8" onclick="guardar()">
-  💾 Guardar inventario
+  {{ icono('guardar', 18) }} Guardar inventario
 </button>
 {% endblock %}
 
@@ -111,14 +111,14 @@ function addNuevo(){
       <div style="min-width:60px">
         <label class="form-label">Tipo</label>
         <select class="form-select nuevo-tipo" style="min-height:40px;font-size:.88rem">
-          <option value="bebida">🥤 Bebida</option>
-          <option value="pizza">🍕 Pizza</option>
+          <option value="bebida">{{ icono('bebidas', 18) }} Bebida</option>
+          <option value="pizza">{{ icono('pizza', 18) }} Pizza</option>
         </select>
       </div>
       <button type="button" class="btn btn-danger btn-sm" style="min-height:40px" onclick="this.closest('.nuevo-row').remove()">✕</button>
     </div>
     <div style="background:rgba(78,203,113,.1);border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:1.1rem">💡</span>
+      <span style="font-size:1.1rem">{{ icono('alerta', 18) }}</span>
       <span class="text-sm c-green">El precio se asigna en <strong>Menú</strong>. Aquí solo controlas stock y alertas.</span>
     </div>
   `;

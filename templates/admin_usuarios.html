@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}— Usuarios{% endblock %}
 {% block content %}
-<h2 class="sec-title">👥 Usuarios</h2>
+<h2 class="sec-title">{{ icono('usuario', 18) }} Usuarios</h2>
 
 <div class="card mb-12" style="border-left:3px solid var(--blue)">
   <div style="font-size:.88rem;line-height:1.6">
@@ -38,10 +38,10 @@
     </div>
 
     <div style="display:flex;gap:6px">
-      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">💾 Guardar</button>
+      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">{{ icono('guardar', 18) }} Guardar</button>
       {% if u.usuario != session.get('usuario') %}
       <button type="submit" name="action" value="delete" class="btn btn-danger btn-sm" style="min-height:40px"
-              onclick="return confirm('¿Desactivar a {{ u.nombre }}?\n\nSus pedidos y cobros anteriores no se tocan.')">🗑</button>
+ onclick="return confirm('¿Desactivar a {{ u.nombre }}?\n\nSus pedidos y cobros anteriores no se tocan.')"></button>
       {% endif %}
     </div>
   </form>
@@ -50,7 +50,7 @@
 {% endfor %}
 
 <div class="card mt-16">
-  <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">➕ Agregar persona</h3>
+  <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">{{ icono('pedido', 18) }} Agregar persona</h3>
   <form method="post">
     <input type="hidden" name="action" value="create">
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -75,7 +75,7 @@
           {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
         </select>
       </div>
-      <button type="submit" class="btn btn-green" style="min-height:40px">➕ Agregar</button>
+      <button type="submit" class="btn btn-green" style="min-height:40px">{{ icono('pedido', 18) }} Agregar</button>
     </div>
   </form>
 </div>
