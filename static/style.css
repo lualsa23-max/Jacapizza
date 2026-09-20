@@ -1112,3 +1112,10 @@ a.nav-brand:active { opacity: .7; }
 .rep-barra-doble .rep-barra-fill:last-child { border-radius: 0 var(--r-full) var(--r-full) 0; }
 
 .rep-masas-fila { display: flex; align-items: baseline; gap: var(--s2); }
+
+/* El wordmark también en el login: Verdana, sin eslogan, sin emoji */
+.login-logo .wordmark {
+  font-family: Verdana, Geneva, sans-serif;
+  font-weight: 700; font-size: 2rem; letter-spacing: -.02em;
+  color: var(--brand-text); text-align: center;
+}

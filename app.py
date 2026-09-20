@@ -96,6 +96,30 @@ def add_headers(response):
     response.headers['X-Robots-Tag'] = 'noindex, nofollow'
     return response
 
+@app.route('/manifest.json')
+def manifest():
+    """Lo que necesita Android para tratar la app como una app de verdad al
+    añadirla a la pantalla de inicio: nombre, icono y que abra sin la barra
+    del navegador. En iOS lo mismo se pide con las etiquetas <meta> del head."""
+    return jsonify({
+        "name": "JacaPizza",
+        "short_name": "JacaPizza",
+        "start_url": "/dashboard",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#292723",
+        "theme_color": "#292723",
+        "icons": [
+            {"src": url_for('static', filename='iconos/icono-192.png'),
+             "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": url_for('static', filename='iconos/icono-512.png'),
+             "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": url_for('static', filename='iconos/icono-512.png'),
+             "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    })
+
+
 @app.route('/robots.txt')
 def robots():
     return Response("User-agent: *\nAllow: /\n", mimetype='text/plain')

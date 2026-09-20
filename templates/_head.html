@@ -1,0 +1,21 @@
+{# Cabecera común. Va incluida en base.html Y en login.html, que es una página
+   aparte: tenerlo en un solo sitio evita que se desincronicen, que es justo
+   lo que había pasado — el login se quedó sin los iconos de la app. #}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#292723">
+
+{# ── Añadir a la pantalla de inicio ──────────────────────────────
+   Sin esto el celular no sabe qué icono poner y deja el recuadro vacío.
+   Android lo lee del manifiesto; iOS necesita además estas <meta>. #}
+<link rel="manifest" href="{{ url_for('manifest') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='iconos/icono-180.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='iconos/favicon-32.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+{# El nombre que queda bajo el icono. Corto, o el sistema lo recorta. #}
+<meta name="apple-mobile-web-app-title" content="JacaPizza">
+<meta name="application-name" content="JacaPizza">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">

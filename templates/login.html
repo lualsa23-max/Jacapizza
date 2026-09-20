@@ -1,19 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#292723">
-  <title>JACAPIZZA — Ingresar</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% include "_head.html" %}
+  <title>JacaPizza — Ingresar</title>
 </head>
 <body>
 <div class="login-wrap">
   <div class="login-box">
     <div class="login-logo">
-      <span class="pizza">{{ icono('pizza', 18) }}</span>
-      <h1>JACAPIZZA</h1>
-      <p>Sistema de Gestión</p>
+      <h1 class="wordmark">JacaPizza</h1>
     </div>
     <div class="login-card">
       {% if error %}
