@@ -1,0 +1,21 @@
+# Configuracion del instalador de herramientas que usa Railway al construir.
+#
+# Sin esto el build falla asi:
+#   mise ERROR Failed to install core:python@3.11.9:
+#              No GitHub artifact attestations found
+#
+# Que es: antes de instalar Python, mise comprueba contra GitHub la firma del
+# binario descargado. Cuando esa comprobacion no se puede hacer -- porque el
+# servicio de firmas de GitHub no responde, o porque ese build concreto de
+# CPython no las publica -- mise se niega a instalar y el build muere antes
+# de llegar siquiera a copiar el codigo.
+#
+# Desactivarla salta ESA comprobacion. El binario se sigue descargando del
+# sitio oficial y mise sigue validando su checksum, que es la verificacion
+# que de verdad detecta un archivo corrupto o cambiado.
+#
+# La version de Python la sigue definiendo runtime.txt (3.11.9), para no
+# tener el dato en dos sitios.
+
+[settings]
+python.github_attestations = false
