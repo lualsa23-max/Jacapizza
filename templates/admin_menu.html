@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}— {{ titulo }}{% endblock %}
 {% block content %}
-<h2 class="sec-title">{{ icono }} {{ titulo }}</h2>
+<h2 class="sec-title">{{ icono(icono_seccion, 24) }} {{ titulo }}</h2>
 
 <div style="display:flex;gap:8px;margin-bottom:14px">
-  <a href="{{ url_for('admin_menu_pizzas') }}" class="btn btn-sm {% if tipo=='pizzas' %}btn-primary{% else %}btn-ghost{% endif %}">🍕 Pizzas</a>
-  <a href="{{ url_for('admin_menu_bebidas') }}" class="btn btn-sm {% if tipo=='bebidas' %}btn-primary{% else %}btn-ghost{% endif %}">🥤 Bebidas</a>
+  <a href="{{ url_for('admin_menu_pizzas') }}" class="btn btn-sm {% if tipo=='pizzas' %}btn-primary{% else %}btn-ghost{% endif %}">{{ icono('pizza', 18) }} Pizzas</a>
+  <a href="{{ url_for('admin_menu_bebidas') }}" class="btn btn-sm {% if tipo=='bebidas' %}btn-primary{% else %}btn-ghost{% endif %}">{{ icono('bebidas', 18) }} Bebidas</a>
 </div>
 
 {% set sin_precio = productos | selectattr('precio', 'le', 0) | list %}
@@ -48,10 +48,10 @@
     {% endif %}
 
     <div style="display:flex;gap:6px">
-      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">💾 Guardar</button>
+      <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">{{ icono("check", 16) }} Guardar</button>
       <button type="submit" name="action" value="delete"
               class="btn btn-danger btn-sm" style="min-height:40px"
-              onclick="return confirm('¿Eliminar {{ p.nombre }} del menú?\n\nLos pedidos que ya lo tienen no se tocan.')">🗑</button>
+              onclick="return confirm('¿Eliminar {{ p.nombre }} del menú?\n\nLos pedidos que ya lo tienen no se tocan.')">{{ icono("borrar", 16) }}</button>
     </div>
   </form>
 
@@ -66,7 +66,7 @@
 {% endfor %}
 
 <div class="card mt-16">
-  <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">➕ Agregar producto</h3>
+  <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">{{ icono("pedido", 18) }} Agregar producto</h3>
   <form method="post">
     <input type="hidden" name="action" value="add">
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -96,7 +96,7 @@
                style="min-height:40px;font-size:.88rem">
       </div>
       {% endif %}
-      <button type="submit" class="btn btn-green" style="min-height:40px">➕ Agregar</button>
+      <button type="submit" class="btn btn-green" style="min-height:40px">{{ icono("pedido", 16) }} Agregar</button>
     </div>
   </form>
   <div class="text-xs c-gray mt-8">

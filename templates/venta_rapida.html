@@ -13,15 +13,14 @@
 <div class="vr-grid">
 {% for nombre, precio in bebidas.items() %}
   {% set s = stock.get(nombre) %}
-  {% set agotado = (s is not none and s <= 0) %}
-  <button class="vr-item {% if agotado %}vr-agotado{% endif %}"
-          {% if agotado %}disabled{% else %}
-          onclick="agregar('{{ nombre | replace("'", "\\'") }}', {{ precio | int }})"
-          {% endif %}>
+  {# El contador NO bloquea la venta: la nevera es la verdad, no el numero.
+     Si dice 0 y hay cerveza fisica, tiene que poder venderse. Avisa y ya. #}
+  <button type="button" class="vr-item {% if s == 0 %}vr-sin-registro{% endif %}"
+          onclick="agregar('{{ nombre | replace("'", "\\'") }}', {{ precio | int }}, {{ s if s is not none else -1 }})">
     <span class="vr-nombre">{{ nombre }}</span>
     <span class="vr-precio num">{{ precio | cop }}</span>
-    {% if agotado %}
-      <span class="stock-chip stock-out">Agotado</span>
+    {% if s == 0 %}
+      <span class="stock-chip stock-out">sin registro</span>
     {% elif s is not none and s <= 3 %}
       <span class="stock-chip stock-low">quedan {{ s }}</span>
     {% elif s is not none %}
@@ -75,7 +74,15 @@ var carrito = [], metodo = null, cuenta = null, buscando = null;
 
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
 
-function agregar(nombre, precio) {
+var avisados = {};
+function agregar(nombre, precio, stock) {
+  // El contador de inventario avisa, no prohibe: se avisa UNA vez y se deja
+  // seguir. Bloquear la venta porque un numero dice 0 es peor que vender
+  // algo que si esta en la nevera.
+  if (stock === 0 && !avisados[nombre]) {
+    avisados[nombre] = true;
+    if (!confirm('El inventario dice que no queda ' + nombre + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
+  }
   var e = carrito.find(function (x) { return x.nombre === nombre; });
   if (e) e.cantidad++;
   else carrito.push({ nombre: nombre, tipo: 'Bebida', cantidad: 1, precio_unit: precio });

@@ -1,418 +1,329 @@
 {% extends "base.html" %}
-{% block title %}— Nuevo Pedido{% endblock %}
+{% block title %}— Nuevo pedido{% endblock %}
+
 {% block content %}
+{# Una sola pantalla, un solo scroll. Antes habia cuatro paneles con pestañas:
+   elegir pizza -> agregar -> ir al carrito -> volver a bebidas -> volver al
+   carrito. Ahora todo esta en la misma columna y el total va fijo abajo. #}
 
-<!-- Código de pedido -->
-<div class="card mb-12">
-  <label class="form-label">Código del pedido</label>
-  <div style="display:flex;gap:8px">
-    <input id="cod-input" class="form-input" type="text" placeholder="Ej: Mesa 3 / Juan"
-           style="flex:1" autocapitalize="words">
-    <button class="btn btn-primary" onclick="confirmarCodigo()" id="btn-cod">Confirmar</button>
-  </div>
-  <div id="cod-status" class="text-sm c-orange mt-8">⚠ Confirma el código antes de enviar</div>
+{% set stock = stock_json | fromjson %}
+
+<div class="ped-cabecera">
+  <input class="form-input ped-codigo" type="text" id="codigo" autocomplete="off"
+         placeholder="Código de reserva" oninput="revisarCodigo()">
+  <input class="form-input ped-mesa" type="text" id="mesa" autocomplete="off"
+         placeholder="Mesa" maxlength="6">
+</div>
+<div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
+
+{# ── PIZZAS ────────────────────────────────────────────────────── #}
+<h3 class="ped-seccion">{{ icono('pizza', 20) }} Pizzas
+  <span class="ped-ayuda">toca 1 o 2 sabores</span></h3>
+
+{% set masa = stock.get('Pizza (masa)') %}
+{% if masa is not none and masa <= 3 %}
+<div class="ped-aviso-masa {% if masa <= 0 %}ped-aviso-rojo{% endif %}">
+  {{ icono('alerta', 16) }}
+  {% if masa <= 0 %}El conteo dice que no quedan masas{% else %}Quedan {{ masa }} masas{% endif %}
+</div>
+{% endif %}
+
+<div class="ped-sabores">
+  {% for nombre, precio in sabores.items() %}
+  <button type="button" class="ped-sabor" data-n="{{ nombre }}" data-p="{{ precio | int }}"
+          onclick="tocarSabor(this)">{{ nombre }}</button>
+  {% endfor %}
 </div>
 
-<!-- Cantidad -->
-<div class="qty-bar">
-  <label>Cantidad:</label>
-  <div class="qty-ctrl">
-    <button class="qty-btn" onclick="cambiarQty(-1)">−</button>
-    <span class="qty-num" id="qty-num">1</span>
-    <button class="qty-btn" onclick="cambiarQty(+1)">+</button>
-  </div>
+<div class="ped-pizza-accion">
+  <div id="sabores-elegidos" class="ped-elegidos">Ninguno elegido</div>
+  <button type="button" class="btn btn-primary btn-lg" id="btn-pizza"
+          onclick="agregarPizza()" disabled>{{ icono('pedido', 20) }} Agregar pizza</button>
 </div>
 
-<!-- Tabs -->
-<div class="order-tabs">
-  <button class="order-tab active" onclick="switchTab('pizzas', this)">🍕 Pizzas</button>
-  <button class="order-tab" onclick="switchTab('bebidas', this)">🥤 Bebidas</button>
-  <button class="order-tab" onclick="switchTab('carrito', this)">
-    🛒 Pedido
-    <span class="cart-badge" id="cart-badge">0</span>
+{# ── BEBIDAS ───────────────────────────────────────────────────── #}
+<h3 class="ped-seccion">{{ icono('bebidas', 20) }} Bebidas</h3>
+
+<div class="ped-bebidas">
+  {% for nombre, precio in bebidas.items() %}
+  {% set s = stock.get(nombre) %}
+  {# El contador avisa, no prohibe: la nevera es la verdad. #}
+  <button type="button" class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
+          onclick="tocarBebida(this)"
+          data-n="{{ nombre }}" data-p="{{ precio | int }}"
+          data-s="{{ s if s is not none else -1 }}">
+    <span class="ped-bebida-n">{{ nombre }}</span>
+    <span class="ped-bebida-p num">{{ precio | cop }}</span>
+    {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+    {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+    {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
   </button>
+  {% endfor %}
 </div>
 
-<!-- PANEL PIZZAS -->
-<div class="order-panel active" id="panel-pizzas">
-  <div class="card">
-    {% set stock = stock_json | fromjson %}
-    {% set masas_val = stock.get('Pizza (masa)') %}
-    {% if masas_val is not none %}
-      {% if masas_val == 0 %}
-        <div class="text-sm c-red mb-8 font-bold">⛔ Sin masas disponibles hoy</div>
-      {% elif masas_val <= 3 %}
-        <div class="text-sm c-orange mb-8 font-bold">⚠ Quedan {{ masas_val }} masa(s)</div>
-      {% else %}
-        <div class="text-sm c-green mb-8">✅ Masas disponibles: {{ masas_val }}</div>
-      {% endif %}
-    {% endif %}
-    <p class="text-sm c-gray mb-8">Selecciona 1 o 2 sabores</p>
-    <div class="pizza-grid" id="pizza-grid">
-      {% for sabor in sabores %}
-      <button class="pizza-opt" data-sabor="{{ sabor }}" onclick="toggleSabor(this)">{{ sabor }}</button>
-      {% endfor %}
-    </div>
-    <div class="sel-display" id="sel-display">Sin sabor seleccionado</div>
-    <button class="btn btn-primary btn-full mt-8" onclick="agregarPizza()">➕ Agregar pizza al pedido</button>
+{# ── DETALLES ──────────────────────────────────────────────────── #}
+<h3 class="ped-seccion">{{ icono('reloj', 20) }} Entrega y notas</h3>
+<div class="card">
+  <label class="form-label">Hora de entrega</label>
+  <select class="form-select" id="franja">
+    {% for f in franjas %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+  </select>
+  <label class="form-label mt-12">Notas para cocina</label>
+  <textarea class="form-input" id="notas" rows="2"
+            placeholder="Sin cebolla, bien cocida…"></textarea>
+</div>
+
+{# ── CARRITO ───────────────────────────────────────────────────── #}
+<h3 class="ped-seccion" id="ancla-carrito">{{ icono('caja', 20) }} El pedido</h3>
+<div class="card" id="carrito-card">
+  <div id="carrito" class="ped-lista">
+    <div class="ped-vacio">Todavía no has agregado nada</div>
   </div>
-</div>
 
-<!-- PANEL BEBIDAS -->
-<div class="order-panel" id="panel-bebidas">
-  <div class="card">
-    {% set stock = stock_json | fromjson %}
-
-    {% for nombre, precio in bebidas.items() %}
-
-    {# Determinar disponibilidad y stock #}
-    {% set agotado = false %}
-    {% set stock_val = none %}
-
-    {% if nombre in ['Gaseosa','Agua 600ml','Cerveza Águila','Cerveza Águila Light','Cerveza Coronita','Limonada de Coco','Cerezada','Cerveza Poker'] %}
-      {% set stock_val = stock.get(nombre) %}
-      {% if stock_val == 0 %}{% set agotado = true %}{% endif %}
-
-    {% elif nombre == 'Soda Italiana' %}
-      {# Soda: mostrar stock de cada sabor #}
-      {% set s_rojos = stock.get('Soda Italiana - Frutos Rojos', 0) %}
-      {% set s_amarillos = stock.get('Soda Italiana - Frutos Amarillos', 0) %}
-      {% if s_rojos == 0 and s_amarillos == 0 %}{% set agotado = true %}{% endif %}
-    {% endif %}
-
-    <div class="beb-row">
-      <div style="flex:1">
-        <div class="beb-name {% if agotado %}c-gray{% endif %}">{{ nombre }}</div>
-        {# Stock chips por tipo #}
-        {% if nombre == 'Soda Italiana' %}
-          {% set s_rojos = stock.get('Soda Italiana - Frutos Rojos', 0) %}
-          {% set s_amarillos = stock.get('Soda Italiana - Frutos Amarillos', 0) %}
-          <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">
-            {% if s_rojos == 0 %}
-              <span class="stock-chip stock-out">🔴 Rojos agotados</span>
-            {% elif s_rojos <= 3 %}
-              <span class="stock-chip stock-low">🔴 Rojos: {{ s_rojos }}</span>
-            {% else %}
-              <span class="stock-chip stock-ok">🔴 Rojos: {{ s_rojos }}</span>
-            {% endif %}
-            {% if s_amarillos == 0 %}
-              <span class="stock-chip stock-out">🟡 Amarillos agotados</span>
-            {% elif s_amarillos <= 3 %}
-              <span class="stock-chip stock-low">🟡 Amarillos: {{ s_amarillos }}</span>
-            {% else %}
-              <span class="stock-chip stock-ok">🟡 Amarillos: {{ s_amarillos }}</span>
-            {% endif %}
-          </div>
-        {% elif stock_val is not none %}
-          {% if stock_val == 0 %}
-            <span class="stock-chip stock-out">Agotado</span>
-          {% elif stock_val <= 3 %}
-            <span class="stock-chip stock-low">⚠ {{ stock_val }} unid.</span>
-          {% else %}
-            <span class="stock-chip stock-ok">{{ stock_val }} unid.</span>
-          {% endif %}
-        {% endif %}
+  <div class="ped-cobro mt-12">
+    <label class="ped-check">
+      <input type="checkbox" id="cobrar-ya" onchange="verPagos()">
+      <span>Cobrar ahora</span>
+    </label>
+    <div id="pagos" style="display:none">
+      <div class="pay-grid mt-8">
+        {% for m, ico in metodos.items() %}
+        <button type="button" class="btn btn-ghost btn-full metodo-op"
+                data-m="{{ m }}" onclick="elegirPago(this)">{{ m }}</button>
+        {% endfor %}
       </div>
-
-      <span class="beb-price">{{ precio | cop }}</span>
-
-      {% if not agotado %}
-        {% if nombre == 'Gaseosa' %}
-          <button class="btn btn-primary btn-sm" onclick="modalTexto('{{ nombre }}', {{ precio }}, 'Sabor de gaseosa')">+</button>
-        {% elif nombre == 'Soda Italiana' %}
-          <button class="btn btn-primary btn-sm" onclick="modalSoda({{ precio }})">+</button>
-        {% elif nombre == 'Cerezada' or nombre == 'Limonada de Coco' %}
-          <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['en agua','en leche'])">+</button>
-        {% elif nombre.startswith('Jugo Natural') %}
-          <button class="btn btn-primary btn-sm" onclick="modalOpciones('{{ nombre }}', {{ precio }}, ['en agua','en leche'])">+</button>
-        {% elif nombre.startswith('Cerveza') %}
-          <button class="btn btn-primary btn-sm" onclick="modalCerveza('{{ nombre }}', {{ precio }})">+</button>
-        {% else %}
-          <button class="btn btn-primary btn-sm" onclick="addBebida('{{ nombre }}', {{ precio }})">+</button>
-        {% endif %}
-      {% else %}
-        <button class="btn btn-ghost btn-sm" disabled style="opacity:.5">Agotado</button>
-      {% endif %}
     </div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- PANEL CARRITO -->
-<div class="order-panel" id="panel-carrito">
-  <div class="cart-total" id="cart-total">$0</div>
-  <div class="cart-total-lbl">TOTAL DEL PEDIDO</div>
-  <div id="cart-items"></div>
-  <div class="card mt-12">
-    <label class="form-label">⏰ Hora de entrega</label>
-    <select class="form-select mb-12" id="franja-sel">
-      {% for f in franjas %}<option>{{ f }}</option>{% endfor %}
-    </select>
-    <label class="form-label">📝 Notas / observaciones</label>
-    <textarea class="form-textarea" id="notas-txt" placeholder="Sin azúcar, en leche, sin topping..."></textarea>
   </div>
 
-  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarPedido(false)">
-    📤 Enviar a cocina
+  <button class="btn btn-ghost btn-full mt-12" onclick="limpiar()">
+    {{ icono('borrar', 18) }} Vaciar
   </button>
+</div>
 
-  <div class="card mt-10" style="border:2px solid var(--green);padding:14px">
-    <div class="text-sm font-bold c-green mb-10">💵 Cobrar ahora — el cliente paga de inmediato</div>
-    <div class="pay-grid" style="margin-bottom:10px">
-      <button class="btn btn-ghost btn-sm" id="pay-Efectivo"     onclick="selPago('Efectivo')"   >💵 Efectivo</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Tarjeta"      onclick="selPago('Tarjeta')"    >💳 Tarjeta</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Nequi"        onclick="selPago('Nequi')"      >📱 Nequi</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Daviplata"    onclick="selPago('Daviplata')"  >📲 Daviplata</button>
-      <button class="btn btn-ghost btn-sm" id="pay-Llave Bre-B"  onclick="selPago('Llave Bre-B')">🔑 Bre-B</button>
+{# Barra fija: el total y el boton de enviar siempre a la vista, sin tener
+   que hacer scroll hasta abajo para saber cuanto va. #}
+<div class="ped-barra" id="ped-barra" style="display:none">
+  <div class="ped-barra-info">
+    <div class="ped-barra-n" id="barra-n">0 productos</div>
+    <div class="ped-barra-t num" id="barra-t">$0</div>
+  </div>
+  <button class="btn btn-green btn-lg" id="btn-enviar" onclick="enviar()">
+    {{ icono('check', 22) }} <span id="txt-enviar">Enviar</span>
+  </button>
+</div>
+
+{# ── Hoja de variantes ─────────────────────────────────────────── #}
+<div class="overlay" id="hoja-var" onclick="if(event.target===this)cerrarVar()">
+  <div class="sheet">
+    <div class="sheet-titulo" id="var-titulo"></div>
+    <div id="var-opciones"></div>
+    <div id="var-texto" style="display:none">
+      <input class="form-input" type="text" id="var-input" placeholder="¿Cuál?">
+      <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarTexto()">Agregar</button>
     </div>
-    <div id="pago-sel-txt" class="text-sm c-gray mb-8">Selecciona un método de pago</div>
-    <button class="btn btn-green btn-full btn-lg" onclick="confirmarPedido(true)">✅ Confirmar y cobrar</button>
-  </div>
-
-  <button class="btn btn-ghost btn-full mt-8" onclick="limpiarCarrito()">🗑 Limpiar pedido</button>
-</div>
-
-<!-- MODAL TEXTO (Gaseosa) -->
-<div class="overlay" id="modal-texto">
-  <div class="sheet">
-    <h3 class="sheet-title" id="modal-texto-titulo">¿Qué sabor?</h3>
-    <input class="form-input mb-12" type="text" id="modal-texto-input" placeholder="Ej: Cola, Naranja...">
-    <button class="btn btn-primary btn-full" onclick="confirmTexto()">Agregar</button>
-    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-texto')">Cancelar</button>
-  </div>
-</div>
-
-<!-- MODAL SODA ITALIANA -->
-<div class="overlay" id="modal-soda">
-  <div class="sheet">
-    <h3 class="sheet-title">🥤 Soda Italiana — ¿Qué sabor?</h3>
-    <div id="soda-opts"></div>
-    <button class="btn btn-primary btn-full mt-12" onclick="confirmSoda()">Agregar</button>
-    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-soda')">Cancelar</button>
-  </div>
-</div>
-
-<!-- MODAL OPCIONES (agua/leche para jugos, cerezada, etc.) -->
-<div class="overlay" id="modal-opciones">
-  <div class="sheet">
-    <h3 class="sheet-title" id="modal-opc-titulo">Selecciona</h3>
-    <div id="modal-opc-list"></div>
-    <button class="btn btn-primary btn-full mt-12" onclick="confirmOpciones()">Agregar</button>
-    <button class="btn btn-ghost btn-full mt-8" onclick="closeModal('modal-opciones')">Cancelar</button>
+    <button class="btn btn-ghost btn-full mt-8" onclick="cerrarVar()">Cancelar</button>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-const STOCK  = {{ stock_json | safe }};
+var carrito = [], sabores = [], metodo = null, avisados = {}, buscando = null;
+var PRECIO_PIZZA = {{ precio_pizza | int }};
 
-let qty = 1;
-let saboresSel = [];
-let carrito = [];
-let codConfirmado = false;
-let modalNombreBase = '', modalPrecioBase = 0;
-let metodoPagoSel = '';
-let sodaPrecio = 0;
+function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
 
-function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
+/* ── Pizzas: hasta 2 sabores, un solo precio ──────────────────── */
+function tocarSabor(b) {
+  var n = b.dataset.n, i = sabores.indexOf(n);
+  if (i >= 0) { sabores.splice(i, 1); b.classList.remove('activo'); }
+  else {
+    if (sabores.length >= 2) { alert('Máximo 2 sabores por pizza'); return; }
+    sabores.push(n); b.classList.add('activo');
+  }
+  document.getElementById('sabores-elegidos').textContent =
+    sabores.length ? sabores.join(' / ') : 'Ninguno elegido';
+  document.getElementById('btn-pizza').disabled = sabores.length === 0;
+}
 
-function confirmarCodigo(){
-  const cod = document.getElementById('cod-input').value.trim();
-  if(!cod){ alert('Escribe un código primero'); return; }
-  if(confirm('¿El código del pedido es: "' + cod + '"?')){
-    codConfirmado = true;
-    document.getElementById('cod-status').textContent = '✅ Código confirmado: ' + cod;
-    document.getElementById('cod-status').className = 'text-sm c-green mt-8';
-    document.getElementById('cod-input').disabled = true;
-    document.getElementById('btn-cod').textContent = '✏ Editar';
-    document.getElementById('btn-cod').onclick = editarCodigo;
+function agregarPizza() {
+  if (!sabores.length) return;
+  // Una pizza de dos sabores cuesta lo que la mas cara, no la suma
+  var precio = PRECIO_PIZZA;
+  document.querySelectorAll('.ped-sabor.activo').forEach(function (b) {
+    precio = Math.max(precio, parseInt(b.dataset.p, 10) || 0);
+  });
+  meter(sabores.join(' / '), 'Pizza', precio);
+  sabores = [];
+  document.querySelectorAll('.ped-sabor.activo').forEach(function (b) { b.classList.remove('activo'); });
+  document.getElementById('sabores-elegidos').textContent = 'Ninguno elegido';
+  document.getElementById('btn-pizza').disabled = true;
+}
+
+/* ── Bebidas: algunas piden variante ──────────────────────────── */
+var VARIANTES = {
+  'Gaseosa':        { tipo: 'texto',  pide: '¿De qué sabor?' },
+  'Soda Italiana':  { tipo: 'lista',  ops: ['Frutos Rojos', 'Frutos Amarillos'] },
+  'Cerezada':       { tipo: 'lista',  ops: ['en agua', 'en leche'] },
+  'Limonada de Coco': { tipo: 'lista', ops: ['en agua', 'en leche'] }
+};
+var pendiente = null;
+
+function tocarBebida(b) {
+  var n = b.dataset.n, p = parseInt(b.dataset.p, 10), s = parseInt(b.dataset.s, 10);
+  if (s === 0 && !avisados[n]) {
+    avisados[n] = true;
+    if (!confirm('El inventario dice que no queda ' + n + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
+  }
+  var v = VARIANTES[n];
+  if (!v && n.indexOf('Jugo Natural') === 0) v = { tipo: 'lista', ops: ['en agua', 'en leche'] };
+  if (!v && n.indexOf('Cerveza') === 0) v = { tipo: 'lista', ops: ['Normal', 'Michelada (+$2.500)'] };
+  if (!v) { meter(n, 'Bebida', p); return; }
+  pendiente = { nombre: n, precio: p };
+  abrirVariante(n, v);
+}
+
+function abrirVariante(nombre, v) {
+  document.getElementById('var-titulo').textContent = nombre;
+  var cont = document.getElementById('var-opciones');
+  var txt = document.getElementById('var-texto');
+  if (v.tipo === 'texto') {
+    cont.innerHTML = '';
+    txt.style.display = '';
+    document.getElementById('var-input').value = '';
+    document.getElementById('var-input').placeholder = v.pide;
+  } else {
+    txt.style.display = 'none';
+    cont.innerHTML = v.ops.map(function (o) {
+      return '<button type="button" class="sheet-opt" onclick="elegirVariante(\'' +
+             o.replace(/'/g, "\\'") + '\')">' + o + '</button>';
+    }).join('');
+  }
+  document.getElementById('hoja-var').classList.add('open');
+}
+
+function elegirVariante(op) {
+  var extra = 0, etiqueta = op;
+  if (op.indexOf('Michelada') === 0) { extra = 2500; etiqueta = 'Michelada'; }
+  if (op === 'Normal') etiqueta = null;
+  meter(pendiente.nombre + (etiqueta ? ' — ' + etiqueta : ''), 'Bebida', pendiente.precio + extra);
+  cerrarVar();
+}
+
+function confirmarTexto() {
+  var v = document.getElementById('var-input').value.trim();
+  meter(pendiente.nombre + (v ? ' — ' + v : ''), 'Bebida', pendiente.precio);
+  cerrarVar();
+}
+
+function cerrarVar() {
+  document.getElementById('hoja-var').classList.remove('open');
+  pendiente = null;
+}
+
+/* ── Carrito ──────────────────────────────────────────────────── */
+function meter(nombre, tipo, precio) {
+  var e = carrito.find(function (x) { return x.nombre === nombre && x.precio_unit === precio; });
+  if (e) e.cantidad++;
+  else carrito.push({ nombre: nombre, tipo: tipo, cantidad: 1, precio_unit: precio });
+  pinta();
+  showToast(nombre, 1800);
+}
+
+function cambiar(i, d) {
+  carrito[i].cantidad += d;
+  if (carrito[i].cantidad <= 0) carrito.splice(i, 1);
+  pinta();
+}
+
+function pinta() {
+  var total = 0, uds = 0, html = '';
+  carrito.forEach(function (x, i) {
+    total += x.cantidad * x.precio_unit; uds += x.cantidad;
+    html += '<div class="ped-linea">'
+          + '<div class="ped-linea-txt"><div class="ped-linea-n">' + x.nombre + '</div>'
+          + '<div class="ped-linea-p num">' + fmt(x.cantidad * x.precio_unit) + '</div></div>'
+          + '<div class="ped-qty">'
+          + '<button type="button" onclick="cambiar(' + i + ',-1)">−</button>'
+          + '<span class="num">' + x.cantidad + '</span>'
+          + '<button type="button" onclick="cambiar(' + i + ',1)">+</button>'
+          + '</div></div>';
+  });
+  document.getElementById('carrito').innerHTML =
+    html || '<div class="ped-vacio">Todavía no has agregado nada</div>';
+  document.getElementById('barra-n').textContent = uds + (uds === 1 ? ' producto' : ' productos');
+  document.getElementById('barra-t').textContent = fmt(total);
+  document.getElementById('ped-barra').style.display = carrito.length ? '' : 'none';
+}
+
+function limpiar() {
+  if (carrito.length && !confirm('¿Vaciar el pedido?')) return;
+  carrito = []; pinta();
+}
+
+/* ── Cobro ────────────────────────────────────────────────────── */
+function verPagos() {
+  var on = document.getElementById('cobrar-ya').checked;
+  document.getElementById('pagos').style.display = on ? '' : 'none';
+  if (!on) { metodo = null; document.querySelectorAll('.metodo-op').forEach(function (b) {
+    b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); }); }
+  document.getElementById('txt-enviar').textContent = on ? 'Cobrar y enviar' : 'Enviar';
+}
+
+function elegirPago(b) {
+  document.querySelectorAll('.metodo-op').forEach(function (x) {
+    x.classList.remove('btn-primary'); x.classList.add('btn-ghost'); });
+  b.classList.remove('btn-ghost'); b.classList.add('btn-primary');
+  metodo = b.dataset.m;
+}
+
+/* ── Código de reserva: avisa si ya existe ────────────────────── */
+function revisarCodigo() {
+  clearTimeout(buscando);
+  buscando = setTimeout(async function () {
+    var cod = document.getElementById('codigo').value.trim();
+    var av = document.getElementById('aviso-codigo');
+    if (!cod) { av.style.display = 'none'; return; }
+    try {
+      var d = await (await fetch('/api/reserva?codigo=' + encodeURIComponent(cod))).json();
+      if (d.existe) {
+        av.className = 'vr-aviso vr-aviso-ok';
+        av.innerHTML = '✓ Ya existe: ' + d.texto +
+          ' · <a href="/mesero/pedido/' + d.id + '/editar" style="color:inherit;text-decoration:underline">abrir esa cuenta</a>';
+        av.style.display = '';
+      } else { av.style.display = 'none'; }
+    } catch (e) { }
+  }, 400);
+}
+
+/* ── Enviar ───────────────────────────────────────────────────── */
+async function enviar() {
+  var cod = document.getElementById('codigo').value.trim();
+  if (!cod) { alert('Falta el código de reserva'); document.getElementById('codigo').focus(); return; }
+  if (!carrito.length) return;
+  var cobrar = document.getElementById('cobrar-ya').checked;
+  if (cobrar && !metodo) { alert('Elige cómo paga'); return; }
+
+  var b = document.getElementById('btn-enviar');
+  b.disabled = true; document.getElementById('txt-enviar').textContent = 'Enviando…';
+  try {
+    var r = await fetch('/mesero/nuevo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        codigo: cod, mesa_num: document.getElementById('mesa').value.trim(),
+        items: carrito, notas: document.getElementById('notas').value.trim(),
+        franja: document.getElementById('franja').value,
+        cobrar_ya: cobrar, metodo_pago: metodo || 'Efectivo'
+      })
+    });
+    var d = await r.json();
+    if (d.error) { alert(d.error); b.disabled = false; verPagos(); return; }
+    showToast('Pedido enviado — ' + cod, 3500);
+    setTimeout(function () { location.reload(); }, 800);
+  } catch (e) {
+    alert('No se pudo enviar. Revisa la conexión.');
+    b.disabled = false; verPagos();
   }
 }
-function editarCodigo(){
-  codConfirmado = false;
-  document.getElementById('cod-input').disabled = false;
-  document.getElementById('cod-status').textContent = '⚠ Confirma el código antes de enviar';
-  document.getElementById('cod-status').className = 'text-sm c-orange mt-8';
-  document.getElementById('btn-cod').textContent = 'Confirmar';
-  document.getElementById('btn-cod').onclick = confirmarCodigo;
-  document.getElementById('cod-input').focus();
-}
-
-function switchTab(name, btn){
-  document.querySelectorAll('.order-panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.order-tab').forEach(b=>b.classList.remove('active'));
-  document.getElementById('panel-'+name).classList.add('active');
-  btn.classList.add('active');
-}
-
-function toggleSabor(btn){
-  const s = btn.dataset.sabor;
-  if(saboresSel.includes(s)){ saboresSel=saboresSel.filter(x=>x!==s); btn.classList.remove('sel'); }
-  else if(saboresSel.length<2){ saboresSel.push(s); btn.classList.add('sel'); }
-  else{ alert('Máximo 2 sabores. Quita uno primero.'); return; }
-  const d=document.getElementById('sel-display');
-  d.textContent=saboresSel.length?saboresSel.join('  +  '):'Sin sabor seleccionado';
-  d.classList.toggle('has-val', saboresSel.length>0);
-}
-function agregarPizza(){
-  if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
-  addToCart(saboresSel.join(' / '), 'Pizza', 20000);
-  saboresSel=[];
-  document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
-  document.getElementById('sel-display').textContent='Sin sabor seleccionado';
-  document.getElementById('sel-display').classList.remove('has-val');
-  switchTab('carrito', document.querySelectorAll('.order-tab')[2]);
-}
-
-function addBebida(nombre, precio){ addToCart(nombre, 'Bebida', precio); showToast(nombre+' agregado ✅'); }
-
-function modalTexto(nombre, precio, placeholder){
-  modalNombreBase=nombre; modalPrecioBase=precio;
-  document.getElementById('modal-texto-titulo').textContent='¿Qué '+nombre.toLowerCase()+' deseas?';
-  document.getElementById('modal-texto-input').placeholder=placeholder;
-  document.getElementById('modal-texto-input').value='';
-  openModal('modal-texto');
-  setTimeout(()=>document.getElementById('modal-texto-input').focus(), 300);
-}
-function confirmTexto(){
-  const det=document.getElementById('modal-texto-input').value.trim();
-  addBebida(det ? modalNombreBase+' — '+det : modalNombreBase, modalPrecioBase);
-  closeModal('modal-texto');
-}
-
-// SODA ITALIANA — con stock por sabor
-function modalSoda(precio){
-  sodaPrecio = precio;
-  const sR = STOCK['Soda Italiana - Frutos Rojos'] || 0;
-  const sA = STOCK['Soda Italiana - Frutos Amarillos'] || 0;
-  const opts = [];
-  if(sR > 0) opts.push({val:'Frutos Rojos',    label:'🔴 Frutos Rojos — '+sR+' disp.'});
-  if(sA > 0) opts.push({val:'Frutos Amarillos', label:'🟡 Frutos Amarillos — '+sA+' disp.'});
-  if(!opts.length){ alert('Ambos sabores de Soda Italiana están agotados'); return; }
-  const list = document.getElementById('soda-opts');
-  list.innerHTML = '';
-  opts.forEach((o,i)=>{
-    list.innerHTML += '<div class="sheet-opt '+(i===0?'sel':'')+'" onclick="selectOpt(this,\'soda-opt\')">' +
-      '<input type="radio" name="soda-opt" value="'+o.val+'" '+(i===0?'checked':'')+'>'+
-      '<label>'+o.label+'</label></div>';
-  });
-  openModal('modal-soda');
-}
-function confirmSoda(){
-  const sel = document.querySelector('[name="soda-opt"]:checked');
-  if(sel){ addBebida('Soda Italiana — '+sel.value, sodaPrecio); }
-  closeModal('modal-soda');
-}
-
-function modalCerveza(nombre, precio){
-  modalOpciones(nombre, precio, ['🍺 Normal', '🌶 Michelada (+$2.500)']);
-}
-function confirmOpciones(){
-  const sel=document.querySelector('[name="opc-opts"]:checked');
-  if(sel){
-    let val = sel.value;
-    let precio = modalOpcPrecio;
-    let nombre = modalOpcNombre;
-    if(val.includes('Michelada')){
-      nombre += ' — Michelada';
-      precio += 2500;
-    } else if(val !== modalOpcNombre && !val.includes('Normal')){
-      nombre += ' — ' + val;
-    }
-    addBebida(nombre, precio);
-  }
-  closeModal('modal-opciones');
-}
-
-let modalOpcNombre='', modalOpcPrecio=0;
-function modalOpciones(nombre, precio, opciones){
-  modalOpcNombre=nombre; modalOpcPrecio=precio;
-  document.getElementById('modal-opc-titulo').textContent=nombre;
-  const list=document.getElementById('modal-opc-list');
-  list.innerHTML='';
-  opciones.forEach((o,i)=>{
-    list.innerHTML+='<div class="sheet-opt '+(i===0?'sel':'')+'" onclick="selectOpt(this,\'opc-opts\')">' +
-      '<input type="radio" name="opc-opts" value="'+o+'" '+(i===0?'checked':'')+'>'+
-      '<label>'+o+'</label></div>';
-  });
-  openModal('modal-opciones');
-}
-
-function selectOpt(el, name){
-  el.closest('.sheet').querySelectorAll('.sheet-opt').forEach(x=>x.classList.remove('sel'));
-  el.classList.add('sel');
-  el.querySelector('input[name="'+name+'"]').checked=true;
-}
-function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
-document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',function(e){ if(e.target===this) closeModal(this.id); }));
-
-function selPago(metodo){
-  metodoPagoSel=metodo;
-  document.querySelectorAll('[id^="pay-"]').forEach(b=>b.classList.remove('btn-green'));
-  const btn=document.getElementById('pay-'+metodo);
-  if(btn) btn.classList.add('btn-green');
-  document.getElementById('pago-sel-txt').textContent='✅ Método seleccionado: '+metodo;
-  document.getElementById('pago-sel-txt').className='text-sm c-green mb-8';
-}
-
-function addToCart(nombre, tipo, precio){
-  const ex=carrito.find(i=>i.nombre===nombre);
-  if(ex){ ex.cantidad+=qty; } else { carrito.push({nombre,tipo,cantidad:qty,precio_unit:precio}); }
-  renderCart();
-}
-function removeFromCart(nombre){ carrito=carrito.filter(i=>i.nombre!==nombre); renderCart(); }
-function limpiarCarrito(){ carrito=[]; document.getElementById('notas-txt').value=''; metodoPagoSel=''; renderCart(); }
-
-function renderCart(){
-  const total=carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
-  document.getElementById('cart-total').textContent='$'+total.toLocaleString('es-CO').replace(/,/g,'.');
-  const badge=document.getElementById('cart-badge');
-  const count=carrito.reduce((s,i)=>s+i.cantidad,0);
-  badge.textContent=count; badge.classList.toggle('show',count>0);
-  const el=document.getElementById('cart-items');
-  el.innerHTML='';
-  if(!carrito.length){
-    el.innerHTML='<div class="empty" style="padding:20px 0"><span class="e-ico">🛒</span>Agrega pizzas o bebidas</div>';
-    return;
-  }
-  carrito.forEach(item=>{
-    const sub=item.cantidad*item.precio_unit;
-    const d=document.createElement('div'); d.className='cart-item';
-    d.innerHTML='<span class="cart-item-qty">'+item.cantidad+'×</span>'+
-      '<div class="cart-item-info"><div class="cart-item-name">'+item.nombre+'</div>'+
-      '<div class="cart-item-sub">$'+sub.toLocaleString('es-CO').replace(/,/g,'.')+'</div></div>'+
-      '<span class="cart-remove" onclick="removeFromCart(\''+item.nombre.replace(/'/g,"\\'")+'\')">✕</span>';
-    el.appendChild(d);
-  });
-}
-
-async function confirmarPedido(cobrarYa){
-  if(!codConfirmado){ alert('Confirma el código del pedido primero'); return; }
-  if(!carrito.length){ alert('Agrega al menos un ítem al pedido'); return; }
-  if(cobrarYa && !metodoPagoSel){ alert('Selecciona un método de pago primero'); return; }
-  const codigo=document.getElementById('cod-input').value.trim();
-  const franja=document.getElementById('franja-sel').value;
-  const notas=document.getElementById('notas-txt').value.trim();
-  const total=carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
-  const items_txt=carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
-  const msg=cobrarYa
-    ?'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nPago: '+metodoPagoSel+'\n\n¿Confirmar y cobrar ahora?'
-    :'Pedido: '+codigo+'\n\n'+items_txt+'\n\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.')+'\nEntrega: '+franja+'\n\n¿Enviar a cocina?';
-  if(!confirm(msg)) return;
-  try{
-    const r=await fetch('/mesero/nuevo',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({codigo,items:carrito,notas,franja,cobrar_ya:cobrarYa,metodo_pago:metodoPagoSel})});
-    const d=await r.json();
-    if(d.ok){
-      if(d.cobrado) alert('✅ Pedido #'+d.id+' registrado y cobrado con '+metodoPagoSel+'!');
-      else alert('✅ Pedido #'+d.id+' enviado a cocina!\nCódigo: '+codigo+'\nHora: '+franja);
-      editarCodigo(); limpiarCarrito();
-      switchTab('pizzas', document.querySelectorAll('.order-tab')[0]);
-    } else { alert('Error: '+d.error); }
-  } catch(e){ alert('Error de conexión. Intenta de nuevo.'); }
-}
-renderCart();
 </script>
 {% endblock %}

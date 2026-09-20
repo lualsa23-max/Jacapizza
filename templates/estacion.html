@@ -8,10 +8,10 @@
 
 <div class="est-head" style="border-color:{{ color }}">
   <div style="display:flex;align-items:center;gap:10px">
-    <span style="font-size:2rem">{{ icono }}</span>
+    <span style="color:{{ color }}">{{ icono('cocina', 34) }}</span>
     <div>
       <div class="est-titulo" style="color:{{ color }}">{{ titulo }}</div>
-      <div class="text-xs c-gray2">{{ jornada }}</div>
+      <div class="text-xs c-gray2">{{ subtitulo }} · {{ jornada }}</div>
     </div>
   </div>
   <div style="text-align:right">
@@ -24,12 +24,12 @@
   <a href="{{ url_for('estacion_pizzas') }}"
      class="est-tab {% if es_pizzas %}activa{% endif %}"
      style="{% if es_pizzas %}border-color:var(--orange);color:var(--orange){% endif %}">
-    🍕 Pizzas {% if not es_pizzas and pendientes_otra %}<span class="est-badge">{{ pendientes_otra }}</span>{% endif %}
+    {{ icono('pizza', 20) }} Pizzas {% if not es_pizzas and pendientes_otra %}<span class="est-badge">{{ pendientes_otra }}</span>{% endif %}
   </a>
   <a href="{{ url_for('estacion_bebidas') }}"
      class="est-tab {% if not es_pizzas %}activa{% endif %}"
      style="{% if not es_pizzas %}border-color:var(--blue);color:var(--blue){% endif %}">
-    🥤 Bebidas {% if es_pizzas and pendientes_otra %}<span class="est-badge">{{ pendientes_otra }}</span>{% endif %}
+    {{ icono('bebidas', 20) }} Bebidas {% if es_pizzas and pendientes_otra %}<span class="est-badge">{{ pendientes_otra }}</span>{% endif %}
   </a>
 </div>
 
@@ -43,7 +43,7 @@
 
 {% if not comandas %}
 <div class="empty" style="padding:60px 20px">
-  <span class="e-ico" style="font-size:3.5rem">✅</span>
+  <span class="e-ico">{{ icono("check", 48) }}</span>
   <div style="font-size:1.2rem;font-weight:700;margin-bottom:4px">Todo al día</div>
   <div class="c-gray2">Nada pendiente en {{ titulo | lower }}</div>
 </div>
@@ -87,7 +87,7 @@
 
     {% if k.otra_estacion %}
     <div class="est-otra">
-      {{ '🥤' if es_pizzas else '🍕' }}
+      {{ icono('bebidas', 16) if es_pizzas else icono('pizza', 16) }}
       {{ k.otra_estacion | sum(attribute='cantidad') }}
       {{ 'bebida' if es_pizzas else 'pizza' }}{{ 's' if k.otra_estacion | sum(attribute='cantidad') != 1 }}
       · lo prepara la otra estación
@@ -103,7 +103,7 @@
 
     <form method="post"
           action="{{ url_for('entregar_pizzas' if es_pizzas else 'entregar_bebidas', pid=k.pedido_id, ronda=k.ronda) }}">
-      <button type="submit" class="btn btn-green btn-full btn-lg mt-12">✅ ENTREGUÉ</button>
+      <button type="submit" class="btn btn-green btn-full btn-lg mt-12">{{ icono("check", 22) }} ENTREGUÉ</button>
     </form>
   </div>
 {% endfor %}

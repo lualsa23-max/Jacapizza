@@ -113,13 +113,20 @@ def test_exige_medio_de_pago():
     check(cod == 400, "y un medio inventado también")
 
 
-def test_respeta_el_stock():
-    print("\n  No se puede vender lo que no hay")
+def test_el_stock_avisa_pero_no_prohibe():
+    print("\n  El contador avisa, pero NO impide vender")
+    # La nevera es la verdad, no el numero. Si el inventario dice 0 y hay
+    # cerveza fisica, tiene que poder venderse: por eso la pantalla avisa una
+    # vez y deja seguir, y el servidor no rechaza.
     A.upsert_inventario("Gaseosa", "bebida", 0)
     c = entrar()
     cod, d = vender(c)
-    check(cod == 400 and 'error' in d, f"rechazado: {d.get('error', '')[:44]}")
+    check(cod == 200 and d.get('ok'), "se vende igual aunque el conteo diga 0")
+    check(A.get_stock_dict().get("Gaseosa") == 0, "el stock no baja de 0")
     A.upsert_inventario("Gaseosa", "bebida", 10)
+    cod, d = vender(c, items=[{"nombre": "Gaseosa", "tipo": "Bebida",
+                               "cantidad": 2, "precio_unit": 4000}])
+    check(A.get_stock_dict().get("Gaseosa") == 8, "y con stock normal descuenta bien (10 -> 8)")
 
 
 def test_descuenta_inventario_una_sola_vez():
@@ -138,7 +145,7 @@ if __name__ == "__main__":
     for fn in [test_sin_codigo_no_se_inventa_nada, test_codigo_con_cuenta_abierta_se_suma,
                test_codigo_mayusculas_y_espacios, test_codigo_de_cuenta_ya_pagada_la_reabre,
                test_codigo_sin_cuenta_pide_confirmacion, test_exige_medio_de_pago,
-               test_respeta_el_stock, test_descuenta_inventario_una_sola_vez]:
+               test_el_stock_avisa_pero_no_prohibe, test_descuenta_inventario_una_sola_vez]:
         try:
             fn()
         except Exception:

@@ -9,6 +9,7 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+{% include "_iconos.html" %}
 
 {% if session.get('usuario') %}
 <nav class="navbar">
@@ -26,20 +27,46 @@
    el inicio. Se puede quitar el scroll porque hay menos destinos, no porque
    los escondamos. #}
 <nav class="barra-abajo">
-  <a href="{{ url_for('dashboard') }}" class="barra-item {% if request.endpoint=='dashboard' %}activo{% endif %}">
-    <span class="barra-ico">🏠</span><span class="barra-txt">Inicio</span>
+  {# Cinco destinos con icono de trazo. Lo demas vive en "Mas", que abre una
+     hoja desde abajo: no hace falta pasar por una pantalla de menu para
+     empezar a trabajar. #}
+  <a href="{{ url_for('mesero_nuevo') }}" class="barra-item {% if request.endpoint in ['mesero_nuevo','mesero_editar'] %}activo{% endif %}">
+    {{ icono('pedido', 26) }}<span class="barra-txt">Pedido</span>
   </a>
-  <a href="{{ url_for('mesero_nuevo') }}" class="barra-item {% if request.endpoint=='mesero_nuevo' %}activo{% endif %}">
-    <span class="barra-ico">➕</span><span class="barra-txt">Nuevo</span>
+  <a href="{{ url_for('estacion_pizzas') }}" class="barra-item {% if request.endpoint in ['estacion_pizzas','estacion_bebidas'] %}activo{% endif %}">
+    {{ icono('cocina', 26) }}<span class="barra-txt">Cocina</span>
+    {% if nav_cocina %}<span class="barra-badge">{{ nav_cocina }}</span>{% endif %}
   </a>
   <a href="{{ url_for('cajero_cobrar') }}" class="barra-item {% if request.endpoint=='cajero_cobrar' %}activo{% endif %}">
-    <span class="barra-ico">💵</span><span class="barra-txt">Cobrar</span>
+    {{ icono('cobrar', 26) }}<span class="barra-txt">Cobrar</span>
     {% if nav_por_cobrar %}<span class="barra-badge">{{ nav_por_cobrar }}</span>{% endif %}
   </a>
-  <a href="{{ url_for('mesero_pedidos') }}" class="barra-item {% if request.endpoint in ['mesero_pedidos','mesero_editar'] %}activo{% endif %}">
-    <span class="barra-ico">🔎</span><span class="barra-txt">Reservas</span>
+  <a href="{{ url_for('cajero_caja') }}" class="barra-item {% if request.endpoint=='cajero_caja' %}activo{% endif %}">
+    {{ icono('caja', 26) }}<span class="barra-txt">Caja</span>
   </a>
+  <button type="button" class="barra-item" onclick="document.getElementById('hoja-mas').classList.add('open')">
+    {{ icono('mas', 26) }}<span class="barra-txt">Más</span>
+  </button>
 </nav>
+
+<div class="overlay" id="hoja-mas" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="sheet">
+    <div class="sheet-titulo">Todo lo demás</div>
+    <div class="mas-grid">
+      <a href="{{ url_for('venta_rapida') }}" class="mas-item">{{ icono('rapido', 28) }}<span>Venta rápida</span></a>
+      <a href="{{ url_for('mesero_pedidos') }}" class="mas-item">{{ icono('buscar', 28) }}<span>Buscar reserva</span></a>
+      <a href="{{ url_for('admin_inventario') }}" class="mas-item">{{ icono('inventario', 28) }}<span>Inventario</span></a>
+      <a href="{{ url_for('admin_menu_pizzas') }}" class="mas-item">{{ icono('menu', 28) }}<span>Menú</span></a>
+      <a href="{{ url_for('admin_cierre') }}" class="mas-item">{{ icono('check', 28) }}<span>Cierre</span></a>
+      {% if session.rol == 'Administrador' %}
+      <a href="{{ url_for('admin_resumen') }}" class="mas-item">{{ icono('negocio', 28) }}<span>Reportes</span></a>
+      <a href="{{ url_for('admin_pedidos') }}" class="mas-item">{{ icono('caja', 28) }}<span>Historial</span></a>
+      <a href="{{ url_for('admin_usuarios') }}" class="mas-item">{{ icono('usuario', 28) }}<span>Usuarios</span></a>
+      {% endif %}
+      <a href="{{ url_for('logout') }}" class="mas-item mas-salir">{{ icono('salir', 28) }}<span>Salir</span></a>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}

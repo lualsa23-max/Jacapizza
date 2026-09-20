@@ -755,3 +755,92 @@ tbody tr:hover td     { background: var(--card2); }
 }
 /* Espacio para que la barra no tape el final del contenido */
 .page { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+
+/* ── ICONOS ────────────────────────────────────────── */
+/* Un solo trazo, heredan el color del texto. Sin emojis: se ven distintos
+   en cada aparato y no se pueden teñir. */
+.ico { display: inline-block; vertical-align: -.15em; flex-shrink: 0; }
+
+/* ── PEDIDO EN UNA SOLA PANTALLA ───────────────────── */
+.ped-cabecera { display: flex; gap: var(--s2); margin-bottom: var(--s2); }
+.ped-codigo { flex: 2; }
+.ped-mesa   { flex: 1; min-width: 0; }
+
+.ped-seccion {
+  display: flex; align-items: center; gap: var(--s2);
+  font-size: var(--t-md); font-weight: 700;
+  margin: var(--s5) 0 var(--s3);
+}
+.ped-ayuda { font-size: var(--t-xs); font-weight: 400; color: var(--gray2); margin-left: auto; }
+
+.ped-aviso-masa {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3); border-radius: var(--r-sm);
+  background: rgba(245,166,35,.14); color: var(--orange);
+  font-size: var(--t-sm); font-weight: 600; margin-bottom: var(--s2);
+}
+.ped-aviso-rojo { background: rgba(236,111,111,.14); color: var(--red); }
+
+.ped-sabores { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.ped-sabor {
+  min-height: var(--tap-lg); padding: var(--s3);
+  background: var(--card); color: var(--white);
+  border: 2px solid transparent; border-radius: var(--r-sm);
+  font-family: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer;
+}
+.ped-sabor.activo { border-color: var(--accent); background: rgba(199,24,126,.14); }
+.ped-sabor:active { transform: scale(.97); }
+
+.ped-pizza-accion {
+  display: flex; align-items: center; gap: var(--s3);
+  margin-top: var(--s3); flex-wrap: wrap;
+}
+.ped-elegidos { flex: 1; min-width: 140px; font-size: var(--t-sm); color: var(--gray2); }
+
+.ped-bebidas { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+@media (min-width: 560px) { .ped-bebidas, .ped-sabores { grid-template-columns: repeat(3, 1fr); } }
+.ped-bebida {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-height: 70px; padding: var(--s3); text-align: left;
+  background: var(--card); color: var(--white);
+  border: 2px solid transparent; border-radius: var(--r-sm);
+  font-family: inherit; cursor: pointer;
+}
+.ped-bebida:active { transform: scale(.97); border-color: var(--accent); }
+.ped-bebida-n { font-size: var(--t-sm); font-weight: 600; line-height: 1.2; }
+.ped-bebida-p { font-size: var(--t-xs); color: var(--green); font-weight: 700; }
+.ped-sin-registro { opacity: .7; }
+
+.ped-lista { min-height: 40px; }
+.ped-vacio { color: var(--gray2); font-size: var(--t-sm); padding: var(--s3) 0; text-align: center; }
+.ped-linea {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) 0; border-bottom: 1px solid var(--card2);
+}
+.ped-linea:last-child { border-bottom: none; }
+.ped-linea-txt { flex: 1; min-width: 0; }
+.ped-linea-n { font-size: var(--t-sm); font-weight: 600; }
+.ped-linea-p { font-size: var(--t-xs); color: var(--green); }
+.ped-qty { display: flex; align-items: center; gap: var(--s2); }
+.ped-qty button {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--card2); color: var(--white); border: none;
+  font-size: 1.1rem; cursor: pointer; font-family: inherit;
+}
+.ped-qty button:active { transform: scale(.9); }
+
+.ped-check { display: flex; align-items: center; gap: var(--s2); font-weight: 600; cursor: pointer; }
+.ped-check input { width: 22px; height: 22px; }
+
+/* Total y envio siempre a la vista, encima de la barra de navegacion */
+.ped-barra {
+  position: fixed; left: 0; right: 0; z-index: 250;
+  bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--panel); border-top: 1px solid var(--card2);
+}
+.ped-barra-info { flex: 1; min-width: 0; }
+.ped-barra-n { font-size: var(--t-xs); color: var(--gray2); }
+.ped-barra-t { font-size: var(--t-lg); font-weight: 700; }
+.page { padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }

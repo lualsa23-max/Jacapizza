@@ -157,6 +157,23 @@ def fromjson_filter(v):
     try: return json.loads(v)
     except: return {}
 
+@app.context_processor
+def _icono():
+    """Dibuja un icono del set. Uso: {{ icono('cocina') }} o {{ icono('cobrar', 32) }}
+
+    Los iconos son de un solo trazo y heredan el color del texto (currentColor),
+    asi que no hay que declarar una variante por cada contexto.
+    """
+    from markupsafe import Markup
+    def icono(nombre, tam=24, clase=""):
+        return Markup(
+            f'<svg class="ico {clase}" width="{tam}" height="{tam}" viewBox="0 0 24 24" '
+            f'fill="none" stroke="currentColor" stroke-width="1.75" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            f'<use href="#i-{nombre}"/></svg>')
+    return {"icono": icono}
+
+
 @app.template_filter('cop')
 def fmt_cop(v):
     try: return f"${float(v):,.0f}".replace(",",".")
@@ -1370,36 +1387,23 @@ def _datos_barra():
         n = len([p for p in listar_pedidos(estado_cuenta="Abierta") if p["total"] > 0])
     except Exception:
         n = 0
-    return {"nav_por_cobrar": n}
+    try:
+        k = len(listar_estacion("Pizza")) + len(listar_estacion("Bebida"))
+    except Exception:
+        k = 0
+    return {"nav_por_cobrar": n, "nav_cocina": k}
 
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """El inicio: el mismo para todo el equipo.
+    """Se entra DIRECTO a trabajar.
 
-    Con dos roles nadie tiene que elegir nada al entrar. El administrador ve
-    un mosaico mas — el de las cifras del negocio.
+    Antes habia una pantalla de mosaicos en medio: un paso mas antes de hacer
+    lo primero que hace todo el mundo al llegar, que es tomar un pedido. Lo
+    demas queda a un toque, en la barra de abajo.
     """
-    j = jornada_actual()
-    try:
-        por_cobrar = len([p for p in listar_pedidos(estado_cuenta="Abierta") if p["total"] > 0])
-    except Exception:
-        por_cobrar = 0
-    try:
-        pizzas  = len(listar_estacion("Pizza"))
-        bebidas = len(listar_estacion("Bebida"))
-    except Exception:
-        pizzas = bebidas = 0
-    try:
-        bajo = len(get_productos_stock_bajo())
-    except Exception:
-        bajo = 0
-    return render_template('home.html',
-        jornada=j, hoy=ahora().strftime("%d/%m/%Y"),
-        por_cobrar=por_cobrar, pizzas=pizzas, bebidas=bebidas, stock_bajo=bajo,
-        es_admin=(session.get('rol') == ROL_ADMIN),
-        mi_caja=resumen_caja(j, session['nombre'])["efectivo"])
+    return redirect(url_for('mesero_nuevo'))
 
 
 # ── ADMIN ─────────────────────────────────────────────
@@ -1903,7 +1907,7 @@ def admin_menu_pizzas():
             flash(msg[0], msg[1])
         return redirect(url_for('admin_menu_pizzas'))
     return render_template('admin_menu.html', productos=get_catalogo_admin('pizzas'),
-                           tipo='pizzas', titulo='Menú Pizzas', icono='🍕')
+                           tipo='pizzas', titulo='Menú Pizzas', icono_seccion='pizza')
 
 @app.route('/admin/menu/bebidas', methods=['GET','POST'])
 @login_required   # trabajo diario: agregar bebidas
@@ -1914,7 +1918,7 @@ def admin_menu_bebidas():
             flash(msg[0], msg[1])
         return redirect(url_for('admin_menu_bebidas'))
     return render_template('admin_menu.html', productos=get_catalogo_admin('bebidas'),
-                           tipo='bebidas', titulo='Menú Bebidas', icono='🥤')
+                           tipo='bebidas', titulo='Menú Bebidas', icono_seccion='bebidas')
 
 # ── MESERO ────────────────────────────────────────────
 @app.route('/mesero/nuevo', methods=['GET','POST'])
@@ -1923,6 +1927,7 @@ def mesero_nuevo():
     if request.method == 'POST':
         data       = request.get_json()
         codigo     = data.get('codigo','').strip()
+        mesa_num   = data.get('mesa_num','').strip()
         items      = data.get('items',[])
         notas      = data.get('notas','')
         franja     = data.get('franja', FRANJAS_HORA[0])
@@ -1935,6 +1940,9 @@ def mesero_nuevo():
         if not ok:
             return jsonify({'error': error_msg}), 400
         p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
+        if mesa_num:
+            with _conn() as c:
+                c.execute("UPDATE pedidos SET mesa_num=? WHERE id=?", (mesa_num, p['id']))
         descontar_inventario(items)
         solo_bebidas = all(i["tipo"] != "Pizza" for i in items)
         # Flujo simplificado:
@@ -1964,8 +1972,7 @@ def mesero_nuevo():
     return render_template('mesero_nuevo.html',
         sabores=get_catalogo_pizzas(), bebidas=get_catalogo_bebidas(), franjas=FRANJAS_HORA,
         stock_json=json.dumps(stock), alertas_json=json.dumps(alertas),
-        pulpas_json=json.dumps(pulpas),
-        toppings=TOPPINGS, precio_pizza=PRECIO_PIZZA)
+        metodos=METODOS_PAGO, precio_pizza=PRECIO_PIZZA)
 
 @app.route('/mesero/pedidos')
 @rol_required('Mesero')
@@ -2247,9 +2254,10 @@ def venta_rapida():
         if not items:
             return jsonify({'error': 'No hay nada que vender'}), 400
 
-        ok, msg = validar_stock_pedido(items)
-        if not ok:
-            return jsonify({'error': msg}), 400
+        # A proposito NO se valida el stock aqui. En la venta rapida la nevera
+        # es la verdad, no el contador: si el inventario dice 0 y fisicamente
+        # hay cerveza, tiene que poder venderse. La pantalla ya avisa antes de
+        # agregarla, y el stock se descuenta igual (sin bajar de 0).
 
         cuenta = buscar_cuenta_por_codigo(codigo) if codigo else None
 
@@ -2313,8 +2321,8 @@ def _pantalla_estacion(tipo):
         'estacion.html',
         comandas=comandas, tipo=tipo, otro=otro,
         es_pizzas=(tipo == "Pizza"),
-        titulo="Pizzas" if tipo == "Pizza" else "Bebidas",
-        icono="🍕" if tipo == "Pizza" else "🥤",
+        titulo="Cocina",
+        subtitulo="Pizzas" if tipo == "Pizza" else "Bebidas",
         jornada=jornada_actual(),
         pendientes_otra=len(listar_estacion(otro)))
 
