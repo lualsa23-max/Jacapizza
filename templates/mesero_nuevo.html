@@ -12,9 +12,22 @@
   <input class="form-input ped-codigo" type="text" id="codigo" autocomplete="off"
          placeholder="Código de reserva" oninput="revisarCodigo()">
   <input class="form-input ped-mesa" type="text" id="mesa" autocomplete="off"
-         placeholder="Mesa" maxlength="6">
+         placeholder="Mesa / lugar" maxlength="14">
 </div>
 <div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
+
+{# Hora y notas van arriba, junto a los datos de la reserva: son de la MISMA
+   decision. Al final estorbaban entre el carrito y el boton de enviar. #}
+<div class="ped-cabecera mt-8">
+  <div style="flex:1;min-width:0">
+    <label class="form-label">Hora de entrega</label>
+    <select class="form-select" id="franja">
+      {% for f in franjas %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+    </select>
+  </div>
+</div>
+<textarea class="form-input mt-8" id="notas" rows="2"
+          placeholder="Notas para cocina: sin cebolla, bien cocida…"></textarea>
 
 {# ── PIZZAS ────────────────────────────────────────────────────── #}
 <h3 class="ped-seccion">{{ icono('pizza', 20) }} Pizzas
@@ -48,29 +61,26 @@
   {% for nombre, precio in bebidas.items() %}
   {% set s = stock.get(nombre) %}
   {# El contador avisa, no prohibe: la nevera es la verdad. #}
-  <button type="button" class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
-          onclick="tocarBebida(this)"
-          data-n="{{ nombre }}" data-p="{{ precio | int }}"
-          data-s="{{ s if s is not none else -1 }}">
-    <span class="ped-bebida-n">{{ nombre }}</span>
-    <span class="ped-bebida-p num">{{ precio | cop }}</span>
-    {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
-    {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
-    {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
-  </button>
+  <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
+       id="beb-{{ loop.index }}"
+       data-n="{{ nombre }}" data-p="{{ precio | int }}"
+       data-s="{{ s if s is not none else -1 }}">
+    <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
+      <span class="ped-bebida-n">{{ nombre }}</span>
+      <span class="ped-bebida-p num">{{ precio | cop }}</span>
+      {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+      {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+      {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+    </button>
+    {# El contador aparece al agregar la primera: asi se sube la cantidad
+       aqui mismo, sin bajar hasta el carrito. #}
+    <div class="ped-paso" style="display:none">
+      <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
+      <span class="ped-paso-n num">0</span>
+      <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
+    </div>
+  </div>
   {% endfor %}
-</div>
-
-{# ── DETALLES ──────────────────────────────────────────────────── #}
-<h3 class="ped-seccion">{{ icono('reloj', 20) }} Entrega y notas</h3>
-<div class="card">
-  <label class="form-label">Hora de entrega</label>
-  <select class="form-select" id="franja">
-    {% for f in franjas %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
-  </select>
-  <label class="form-label mt-12">Notas para cocina</label>
-  <textarea class="form-input" id="notas" rows="2"
-            placeholder="Sin cebolla, bien cocida…"></textarea>
 </div>
 
 {# ── CARRITO ───────────────────────────────────────────────────── #}
@@ -171,6 +181,7 @@ var pendiente = null;
 
 function tocarBebida(b) {
   var n = b.dataset.n, p = parseInt(b.dataset.p, 10), s = parseInt(b.dataset.s, 10);
+  pendienteTile = b;
   if (s === 0 && !avisados[n]) {
     avisados[n] = true;
     if (!confirm('El inventario dice que no queda ' + n + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
@@ -221,6 +232,44 @@ function cerrarVar() {
   pendiente = null;
 }
 
+/* ── Cantidad desde la propia bebida ──────────────────────────── */
+var pendienteTile = null;
+
+function pasoBebida(tile, d) {
+  var base = tile.dataset.n;
+  // Una bebida con variante puede estar varias veces (en agua / en leche).
+  // El +/- de la tarjeta toca la ULTIMA que se agrego de ese producto.
+  var idx = -1;
+  for (var i = carrito.length - 1; i >= 0; i--) {
+    if (carrito[i].nombre === base || carrito[i].nombre.indexOf(base + ' — ') === 0) { idx = i; break; }
+  }
+  if (d > 0) {
+    if (idx < 0) { tocarBebida(tile); return; }   // la primera pide variante
+    carrito[idx].cantidad++;
+  } else {
+    if (idx < 0) return;
+    carrito[idx].cantidad--;
+    if (carrito[idx].cantidad <= 0) carrito.splice(idx, 1);
+  }
+  pinta();
+}
+
+function cuantasHay(base) {
+  return carrito.reduce(function (s, x) {
+    return s + ((x.nombre === base || x.nombre.indexOf(base + ' — ') === 0) ? x.cantidad : 0);
+  }, 0);
+}
+
+function pintarContadores() {
+  document.querySelectorAll('.ped-bebida').forEach(function (tile) {
+    var q = cuantasHay(tile.dataset.n);
+    var paso = tile.querySelector('.ped-paso');
+    paso.style.display = q > 0 ? '' : 'none';
+    paso.querySelector('.ped-paso-n').textContent = q;
+    tile.classList.toggle('con-cantidad', q > 0);
+  });
+}
+
 /* ── Carrito ──────────────────────────────────────────────────── */
 function meter(nombre, tipo, precio) {
   var e = carrito.find(function (x) { return x.nombre === nombre && x.precio_unit === precio; });
@@ -254,6 +303,7 @@ function pinta() {
   document.getElementById('barra-n').textContent = uds + (uds === 1 ? ' producto' : ' productos');
   document.getElementById('barra-t').textContent = fmt(total);
   document.getElementById('ped-barra').style.display = carrito.length ? '' : 'none';
+  pintarContadores();
 }
 
 function limpiar() {
