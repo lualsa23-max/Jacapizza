@@ -1,116 +1,198 @@
 {% extends "base.html" %}
 {% block title %}— Reportes{% endblock %}
-{% block head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-{% endblock %}
+
 {% block content %}
-<h2 class="sec-title">{{ icono('negocio', 18) }} Reportes de Ventas</h2>
+<h2 class="sec-title">{{ icono('negocio', 22) }} Reportes</h2>
 
-<div class="periodo-tabs">
-  <a href="{{ url_for('admin_reportes', periodo='hoy') }}"    class="periodo-tab {% if periodo=='hoy' %}active{% endif %}">Hoy</a>
-  <a href="{{ url_for('admin_reportes', periodo='semana') }}" class="periodo-tab {% if periodo=='semana' %}active{% endif %}">Esta semana</a>
-  <a href="{{ url_for('admin_reportes', periodo='mes') }}"    class="periodo-tab {% if periodo=='mes' %}active{% endif %}">Este mes</a>
+<div class="rep-periodos">
+  {% for clave, etiqueta in [('hoy','Hoy'), ('ayer','Ayer'), ('semana','Semana'), ('mes','Mes')] %}
+  <a href="{{ url_for('admin_reportes', periodo=clave) }}"
+     class="rep-chip {% if periodo == clave %}activo{% endif %}">{{ etiqueta }}</a>
+  {% endfor %}
+  <button type="button" class="rep-chip {% if periodo == 'rango' %}activo{% endif %}"
+          onclick="document.getElementById('hoja-rango').classList.add('open')">Rango…</button>
 </div>
 
-<form class="card mb-12" style="padding:12px" method="get">
-  <input type="hidden" name="periodo" value="personalizado">
-  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-    <div style="flex:1;min-width:120px">
-      <label class="form-label">Desde (dd/mm/aaaa)</label>
-      <input class="form-input" type="text" name="fi" value="{{ fi }}" placeholder="01/01/2025" style="min-height:40px">
-    </div>
-    <div style="flex:1;min-width:120px">
-      <label class="form-label">Hasta (dd/mm/aaaa)</label>
-      <input class="form-input" type="text" name="ff" value="{{ ff }}" placeholder="31/12/2025" style="min-height:40px">
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm" style="min-height:40px">Consultar</button>
-  </div>
-</form>
+<div class="rep-rango">{{ titulo_rango }}</div>
 
-<div class="metrics">
-  <div class="metric">
-    <div class="metric-ico">{{ icono('cobrar', 18) }}</div>
-    <div class="metric-val c-accent">{{ data.total_ventas | cop }}</div>
-    <div class="metric-lbl">Total ventas</div>
+{# ── Ingresos: el numero grande, y el desglose al tocarlo ──────── #}
+<button type="button" class="rep-tarjeta rep-ingresos" onclick="verCanales()">
+  <div class="rep-cab">
+    <span class="rep-etiqueta">Ingresos</span>
+    <span class="rep-ver" id="rep-ver">ver canales</span>
   </div>
-  <div class="metric">
-    <div class="metric-ico">{{ icono('caja', 18) }}</div>
-    <div class="metric-val c-white">{{ data.n_pedidos }}</div>
-    <div class="metric-lbl">Pedidos</div>
+  <div class="rep-grande num">{{ data.total_ventas | cop }}</div>
+  <div class="rep-sub">
+    {{ data.n_pedidos }} pedido{{ 's' if data.n_pedidos != 1 }}
+    · ticket promedio {{ data.ticket_prom | cop }}
   </div>
-  <div class="metric">
-    <div class="metric-ico">{{ icono('negocio', 18) }}</div>
-    <div class="metric-val c-green">{{ data.ticket_prom | cop }}</div>
-    <div class="metric-lbl">Ticket promedio</div>
+</button>
+
+<div class="rep-canales" id="rep-canales">
+  {% if data.por_metodo %}
+  {% for metodo, monto in data.por_metodo.items() %}
+  {% set pct = (monto / data.total_cobrado * 100) if data.total_cobrado else 0 %}
+  <div class="rep-canal">
+    <div class="rep-canal-cab">
+      <span>{{ icono(metodos.get(metodo, 'cobrar'), 18) }} {{ metodo }}</span>
+      <span class="num"><strong>{{ monto | cop }}</strong> · {{ pct | round | int }}%</span>
+    </div>
+    <div class="rep-barra"><div class="rep-barra-fill" style="width:{{ pct }}%"></div></div>
+  </div>
+  {% endfor %}
+
+  {% set sin_detalle = data.total_ventas - data.total_cobrado %}
+  {% if sin_detalle > 1 %}
+  <div class="rep-nota">
+    {{ icono('alerta', 16) }}
+    <span><strong class="num">{{ sin_detalle | cop }}</strong> sin detalle de canal —
+      son cobros de antes de que el sistema guardara cada pago por separado.</span>
+  </div>
+  {% endif %}
+
+  {% if data.por_cobrador %}
+  <div class="rep-subtitulo">Quién cobró</div>
+  {% for persona, monto in data.por_cobrador.items() %}
+  <div class="rep-linea"><span>{{ persona }}</span><span class="num">{{ monto | cop }}</span></div>
+  {% endfor %}
+  {% endif %}
+  {% else %}
+  <div class="rep-nota">Sin cobros registrados en este rango.</div>
+  {% endif %}
+</div>
+
+{# ── Qué se vendió ─────────────────────────────────────────────── #}
+<div class="rep-duo">
+  <div class="rep-tarjeta">
+    <div class="rep-etiqueta">{{ icono('pizza', 16) }} Pizzas</div>
+    <div class="rep-medio num">{{ data.n_pizzas }}</div>
+    <div class="rep-sub num">{{ data.val_pizzas | cop }}</div>
+  </div>
+  <div class="rep-tarjeta">
+    <div class="rep-etiqueta">{{ icono('bebidas', 16) }} Bebidas</div>
+    <div class="rep-medio num">{{ data.n_bebidas }}</div>
+    <div class="rep-sub num">{{ data.val_bebidas | cop }}</div>
   </div>
 </div>
 
-{% if data.por_metodo %}
-<div class="card mt-12">
-  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Métodos de pago</h3>
-  {% for m, v in data.por_metodo.items() %}
-  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.88rem">
-    <span>{{ m }}</span>
-    <span class="c-green font-bold">{{ v | cop }}</span>
+{% if data.n_pizzas %}
+<h3 class="rep-titulo">Pizzas</h3>
+
+<div class="rep-tarjeta">
+  <div class="rep-reparto">
+    <div class="rep-reparto-lado">
+      <div class="rep-reparto-n num">{{ data.n_un_sabor }}</div>
+      <div class="rep-reparto-lbl">de un sabor</div>
+    </div>
+    <div class="rep-reparto-lado">
+      <div class="rep-reparto-n num">{{ data.n_dos_sabores }}</div>
+      <div class="rep-reparto-lbl">de dos sabores</div>
+    </div>
+  </div>
+  {% if data.n_pizzas %}
+  <div class="rep-barra rep-barra-doble">
+    <div class="rep-barra-fill" style="width:{{ data.n_un_sabor / data.n_pizzas * 100 }}%"></div>
+    <div class="rep-barra-fill rep-barra-azul" style="width:{{ data.n_dos_sabores / data.n_pizzas * 100 }}%"></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if data.un_sabor %}
+<div class="rep-subtitulo mt-12">De un solo sabor</div>
+<div class="rep-tarjeta">
+  {% set tope = data.un_sabor[0].cantidad %}
+  {% for s in data.un_sabor %}
+  <div class="rep-item">
+    <div class="rep-item-cab"><span>{{ s.nombre }}</span><span class="num">{{ s.cantidad }}</span></div>
+    <div class="rep-barra"><div class="rep-barra-fill" style="width:{{ s.cantidad / tope * 100 }}%"></div></div>
   </div>
   {% endfor %}
 </div>
 {% endif %}
 
-{% if data.por_dia %}
-<div class="card mt-12">
-  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Ventas por día</h3>
-  <div class="chart-wrap"><canvas id="chartDia"></canvas></div>
+{% if data.dos_sabores %}
+<div class="rep-subtitulo mt-12">Combinaciones de dos sabores</div>
+<div class="rep-tarjeta">
+  {% set tope2 = data.dos_sabores[0].cantidad %}
+  {% for s in data.dos_sabores[:10] %}
+  <div class="rep-item">
+    <div class="rep-item-cab"><span>{{ s.nombre }}</span><span class="num">{{ s.cantidad }}</span></div>
+    <div class="rep-barra"><div class="rep-barra-fill rep-barra-azul" style="width:{{ s.cantidad / tope2 * 100 }}%"></div></div>
+  </div>
+  {% endfor %}
+  {% if data.dos_sabores | length > 10 %}
+  <div class="rep-pie">y {{ data.dos_sabores | length - 10 }} combinaciones más</div>
+  {% endif %}
+  <div class="rep-pie">
+    Cada pizza cuenta una sola vez. «Criolla / Mexicana» y «Mexicana / Criolla»
+    son la misma, así que van juntas.
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if data.bebidas %}
+<h3 class="rep-titulo">Bebidas más vendidas</h3>
+<div class="rep-tarjeta">
+  {% set tope_b = data.bebidas[0].cantidad %}
+  {% for b in data.bebidas[:12] %}
+  <div class="rep-item">
+    <div class="rep-item-cab">
+      <span>{{ b.nombre }}</span>
+      <span class="num">{{ b.cantidad }} · {{ b.valor | cop }}</span>
+    </div>
+    <div class="rep-barra"><div class="rep-barra-fill rep-barra-azul" style="width:{{ b.cantidad / tope_b * 100 }}%"></div></div>
+  </div>
+  {% endfor %}
+  {% if data.bebidas | length > 12 %}
+  <div class="rep-pie">y {{ data.bebidas | length - 12 }} productos más</div>
+  {% endif %}
 </div>
 {% endif %}
 
-{% if data.top_items %}
-<div class="card mt-12">
-  <h3 style="font-size:.85rem;color:var(--gray2);margin-bottom:12px;font-weight:700;text-transform:uppercase">Productos más vendidos</h3>
-  {% for it in data.top_items[:8] %}
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--card2);font-size:.85rem">
-    <span>{{ icono('pizza', 16) if it.tipo == 'Pizza' else icono('bebidas', 16) }} {{ it.nombre }}</span>
-    <span class="c-accent font-bold" style="margin-left:8px;white-space:nowrap">{{ it.cantidad }}× — {{ it.valor | cop }}</span>
+{% if data.por_dia | length > 1 %}
+<h3 class="rep-titulo">Ventas por día</h3>
+<div class="rep-tarjeta">
+  {% set tope_d = data.por_dia.values() | max %}
+  {% for dia, monto in data.por_dia.items() %}
+  <div class="rep-item">
+    <div class="rep-item-cab">
+      <span>{{ dia }}</span><span class="num">{{ monto | cop }}</span>
+    </div>
+    <div class="rep-barra"><div class="rep-barra-fill rep-barra-verde" style="width:{{ monto / tope_d * 100 }}%"></div></div>
   </div>
   {% endfor %}
 </div>
 {% endif %}
 
-<div class="mt-16">
-  <a href="{{ url_for('admin_csv', fi=fi, ff=ff) }}" class="btn btn-ghost">⬇ Exportar CSV</a>
+<a href="{{ url_for('admin_csv', fi=fi, ff=ff) }}" class="btn btn-ghost btn-full mt-16">
+  {{ icono('guardar', 18) }} Descargar el detalle en Excel
+</a>
+
+{# ── Rango a medida ────────────────────────────────────────────── #}
+<div class="overlay" id="hoja-rango" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="sheet">
+    <div class="sheet-titulo">Elegir un rango</div>
+    <form method="get" action="{{ url_for('admin_reportes') }}">
+      <input type="hidden" name="periodo" value="rango">
+      <label class="form-label">Desde</label>
+      <input class="form-input" type="date" name="d1" value="{{ d1 }}" required>
+      <label class="form-label mt-12">Hasta</label>
+      <input class="form-input" type="date" name="d2" value="{{ d2 }}" required>
+      <button type="submit" class="btn btn-primary btn-full btn-lg mt-12">Ver</button>
+      <button type="button" class="btn btn-ghost btn-full mt-8"
+              onclick="document.getElementById('hoja-rango').classList.remove('open')">Cancelar</button>
+    </form>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-{% if data.por_dia %}
-const diasData = {{ data.por_dia | tojson }};
-const labels = Object.keys(diasData);
-const valores = Object.values(diasData);
-const ctx = document.getElementById('chartDia').getContext('2d');
-new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels,
-    datasets: [{
-      data: valores,
-      backgroundColor: 'rgba(199,24,126,.7)',
-      borderColor: '#c7187e',
-      borderWidth: 1.5,
-      borderRadius: 6,
-    }]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { color: '#9e9a97', font:{size:10} }, grid:{color:'rgba(255,255,255,.05)'} },
-      y: { ticks: { color: '#9e9a97', font:{size:10},
-                    callback: v => '$'+Math.round(v/1000)+'k' },
-           grid:{color:'rgba(255,255,255,.05)'} }
-    }
-  }
-});
-{% endif %}
+function verCanales() {
+  var c = document.getElementById('rep-canales');
+  var abierto = c.classList.toggle('abierto');
+  document.getElementById('rep-ver').textContent = abierto ? 'ocultar' : 'ver canales';
+}
 </script>
 {% endblock %}

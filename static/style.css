@@ -1019,3 +1019,94 @@ a.nav-brand:active { opacity: .7; }
   box-shadow: 0 6px 20px rgba(0,0,0,.35);
 }
 .fab:active { background: var(--acc2); transform: scale(.96); }
+
+/* ── TABLERO DE REPORTES ───────────────────────────── */
+.rep-periodos { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s2); }
+.rep-chip {
+  min-height: var(--tap-min); padding: var(--s2) var(--s4);
+  background: var(--card); color: var(--gray2);
+  border: 1.5px solid transparent; border-radius: var(--r-full);
+  font-family: inherit; font-size: var(--t-sm); font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  display: inline-flex; align-items: center;
+}
+.rep-chip.activo { background: rgba(199,24,126,.14); color: var(--brand-text); border-color: var(--accent); }
+.rep-rango { font-size: var(--t-sm); color: var(--gray2); margin-bottom: var(--s3); }
+
+.rep-tarjeta {
+  display: block; width: 100%; text-align: left;
+  background: var(--card); border: none; border-radius: var(--r-md);
+  padding: var(--s4); margin-bottom: var(--s2);
+  color: var(--white); font-family: inherit;
+}
+.rep-ingresos { cursor: pointer; }
+.rep-ingresos:active { background: var(--card2); }
+.rep-cab { display: flex; justify-content: space-between; align-items: baseline; }
+.rep-etiqueta {
+  display: flex; align-items: center; gap: var(--s2);
+  font-size: var(--t-xs); color: var(--gray2);
+  text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
+}
+.rep-ver { font-size: var(--t-xs); color: var(--brand-text); font-weight: 600; }
+.rep-grande { font-size: 2.2rem; font-weight: 700; line-height: 1.1; margin: var(--s2) 0 2px; }
+.rep-medio  { font-size: 1.8rem; font-weight: 700; line-height: 1.1; margin: var(--s2) 0 2px; }
+.rep-sub { font-size: var(--t-xs); color: var(--gray2); }
+
+/* El desglose de canales se despliega al tocar los ingresos */
+.rep-canales { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
+.rep-canales.abierto { max-height: 900px; margin-bottom: var(--s2); }
+.rep-canal { background: var(--card); padding: var(--s3) var(--s4); }
+.rep-canal:first-child { border-radius: var(--r-md) var(--r-md) 0 0; }
+.rep-canal-cab {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: var(--t-sm); margin-bottom: var(--s2);
+}
+
+.rep-duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.rep-duo .rep-tarjeta { margin-bottom: var(--s2); }
+
+.rep-titulo { font-size: var(--t-md); font-weight: 700; margin: var(--s5) 0 var(--s3); }
+.rep-item { margin-bottom: var(--s3); }
+.rep-item:last-of-type { margin-bottom: 0; }
+.rep-item-cab {
+  display: flex; justify-content: space-between; gap: var(--s3);
+  font-size: var(--t-sm); margin-bottom: 5px;
+}
+.rep-item-cab span:first-child { min-width: 0; overflow-wrap: anywhere; }
+
+.rep-barra { height: 7px; background: var(--card2); border-radius: var(--r-full); overflow: hidden; }
+.rep-barra-fill { height: 100%; background: var(--accent); border-radius: var(--r-full); }
+.rep-barra-azul  { background: var(--blue); }
+.rep-barra-verde { background: var(--green); }
+
+.rep-linea {
+  display: flex; justify-content: space-between;
+  padding: var(--s2) 0; font-size: var(--t-sm);
+  border-bottom: 1px solid var(--card2);
+}
+.rep-linea:last-child { border-bottom: none; }
+.rep-subtitulo {
+  font-size: var(--t-xs); color: var(--gray2); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  margin: var(--s3) 0 var(--s2);
+}
+.rep-nota {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  background: rgba(245,166,35,.12); color: var(--orange);
+  padding: var(--s3); border-radius: 0 0 var(--r-md) var(--r-md);
+  font-size: var(--t-xs); line-height: 1.5;
+}
+.rep-pie { font-size: var(--t-xs); color: var(--gray2); margin-top: var(--s3); line-height: 1.5; }
+
+/* ── REPARTO DE PIZZAS ─────────────────────────────── */
+.rep-reparto { display: flex; gap: var(--s3); margin-bottom: var(--s3); }
+.rep-reparto-lado { flex: 1; }
+.rep-reparto-n { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+.rep-reparto-lbl { font-size: var(--t-xs); color: var(--gray2); margin-top: 2px; }
+.rep-reparto-lado:nth-child(1) .rep-reparto-n { color: var(--brand-text); }
+.rep-reparto-lado:nth-child(2) .rep-reparto-n { color: var(--blue); }
+/* Una sola barra con los dos trozos: se ve la proporcion de un vistazo */
+.rep-barra-doble { display: flex; height: 10px; }
+.rep-barra-doble .rep-barra-fill { border-radius: 0; }
+.rep-barra-doble .rep-barra-fill:first-child { border-radius: var(--r-full) 0 0 var(--r-full); }
+.rep-barra-doble .rep-barra-fill:last-child { border-radius: 0 var(--r-full) var(--r-full) 0; }

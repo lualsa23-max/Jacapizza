@@ -54,6 +54,16 @@ def fecha_a_iso(fecha_str, por_defecto=None):
         return por_defecto
 
 
+def iso_a_fecha(iso):
+    """'yyyy-mm-dd' -> 'dd/mm/yyyy'. Los campos de fecha del navegador mandan
+    ISO; el resto de la app trabaja en el formato de siempre."""
+    try:
+        y, m, d = str(iso).strip().split("-")
+        return f"{int(d):02d}/{int(m):02d}/{int(y):04d}"
+    except Exception:
+        return ""
+
+
 def rango_iso(fecha_ini, fecha_fin):
     """Convierte un rango de la interfaz a ISO.
 
@@ -1141,31 +1151,125 @@ def get_notificaciones_nuevas():
         return [{"pid": r["pid"], "codigo": r["codigo"], "detalle": r["detalle"], "total": r["total"]} for r in rows]
 
 # ── INVENTARIO ────────────────────────────────────────
+def _producto_base(nombre, catalogo):
+    """Quita la variante del nombre para poder agrupar.
+
+    'Jugo Natural — Maracuyá — en agua'  ->  'Jugo Natural — Maracuyá'
+    'Cerveza Poker — Michelada'          ->  'Cerveza Poker'
+
+    Se resuelve contra el catalogo (el prefijo mas largo que sea un producto
+    real) en vez de cortar por el separador: hay productos que YA llevan un
+    guion en su nombre, como los jugos.
+    """
+    if nombre in catalogo:
+        return nombre
+    mejor = None
+    for prod in catalogo:
+        if nombre.startswith(prod) and (mejor is None or len(prod) > len(mejor)):
+            mejor = prod
+    return mejor or nombre.split(" — ")[0]
+
+
 def get_reporte(fecha_ini, fecha_fin):
+    """Tablero de ventas de un rango.
+
+    Tres cosas que antes estaban mal:
+    1. El dinero por canal salia de `pedidos.pago`, que guarda el ULTIMO metodo
+       usado. Con un pago dividido (mitad efectivo, mitad Nequi) atribuia el
+       total a uno solo. Ahora sale de la tabla `pagos`, que es la verdad.
+    2. Los productos se agrupaban por el nombre crudo, asi que 'Criolla /
+       Mexicana' y 'Hawaiana / Criolla' eran filas distintas y los sabores no
+       se veian por ningun lado.
+    3. No habia cuenta de pizzas ni de bebidas.
+    """
+    fi, ff = rango_iso(fecha_ini, fecha_fin)
     with _conn() as c:
         pagados = c.execute(
             f"SELECT * FROM pedidos WHERE estado='Pagado' AND {sql_iso()} BETWEEN ? AND ?",
-            rango_iso(fecha_ini, fecha_fin)).fetchall()
-        total_ventas = sum(r["total"] for r in pagados)
-        n_pedidos    = len(pagados)
-        ticket_prom  = total_ventas / n_pedidos if n_pedidos else 0
-        por_metodo = {}
-        for r in pagados:
-            m = r["pago"] or "N/A"
-            por_metodo[m] = por_metodo.get(m, 0) + r["total"]
-        por_dia = {}
-        for r in pagados:
-            por_dia[r["fecha"]] = por_dia.get(r["fecha"], 0) + r["total"]
+            (fi, ff)).fetchall()
         ids = [r["id"] for r in pagados]
-        top_items = []
+
+        # ── Dinero: de la tabla de pagos, no de la columna del pedido ──
+        por_metodo, por_cobrador = {}, {}
+        try:
+            for r in c.execute(
+                    f"SELECT metodo, cobrado_por, monto FROM pagos "
+                    f"WHERE {sql_iso()} BETWEEN ? AND ?", (fi, ff)):
+                por_metodo[r["metodo"]] = por_metodo.get(r["metodo"], 0) + r["monto"]
+                por_cobrador[r["cobrado_por"]] = por_cobrador.get(r["cobrado_por"], 0) + r["monto"]
+        except Exception:
+            pass
+
+        # ── Productos ──────────────────────────────────────────────────
+        filas = []
         if ids:
-            ph = ",".join("?" * len(ids))
-            rows = c.execute(
-                f"SELECT nombre, tipo, SUM(cantidad) as tc, SUM(cantidad*precio_unit) as tv "
-                f"FROM items WHERE pedido_id IN ({ph}) GROUP BY nombre ORDER BY tc DESC", ids).fetchall()
-            top_items = [{"nombre": r["nombre"], "tipo": r["tipo"], "cantidad": r["tc"], "valor": r["tv"]} for r in rows]
-        return {"total_ventas": total_ventas, "n_pedidos": n_pedidos, "ticket_prom": ticket_prom,
-                "por_metodo": por_metodo, "por_dia": por_dia, "top_items": top_items}
+            for bloque in _en_bloques(ids):
+                ph = ",".join("?" * len(bloque))
+                filas += c.execute(
+                    f"SELECT nombre, tipo, cantidad, precio_unit FROM items "
+                    f"WHERE pedido_id IN ({ph})", bloque).fetchall()
+
+    catalogo = set(get_catalogo_bebidas()) | set(get_catalogo_pizzas())
+
+    n_pizzas = n_bebidas = val_pizzas = val_bebidas = 0
+    n_un_sabor = n_dos_sabores = 0
+    un_sabor, dos_sabores, bebidas = {}, {}, {}
+    for r in filas:
+        val = r["cantidad"] * r["precio_unit"]
+        if r["tipo"] == "Pizza":
+            n_pizzas += r["cantidad"]
+            val_pizzas += val
+            # Una pizza de dos sabores es UNA pizza, no dos. Se separan las de
+            # un sabor de las de dos, que es lo que de verdad dice que se pide.
+            partes = [x.strip() for x in r["nombre"].split("/") if x.strip()]
+            if len(partes) > 1:
+                n_dos_sabores += r["cantidad"]
+                # 'Criolla / Mexicana' y 'Mexicana / Criolla' son la MISMA
+                # pizza: se ordenan los sabores para que no salgan en dos filas.
+                combo = " / ".join(sorted(partes))
+                dos_sabores[combo] = dos_sabores.get(combo, 0) + r["cantidad"]
+            else:
+                n_un_sabor += r["cantidad"]
+                s = partes[0] if partes else r["nombre"]
+                un_sabor[s] = un_sabor.get(s, 0) + r["cantidad"]
+        else:
+            n_bebidas += r["cantidad"]
+            val_bebidas += val
+            base = _producto_base(r["nombre"], catalogo)
+            d = bebidas.setdefault(base, {"cantidad": 0, "valor": 0})
+            d["cantidad"] += r["cantidad"]
+            d["valor"] += val
+
+    total_ventas = sum(r["total"] for r in pagados)
+    total_cobrado = sum(por_metodo.values())
+    por_dia = {}
+    for r in pagados:
+        por_dia[r["fecha"]] = por_dia.get(r["fecha"], 0) + r["total"]
+
+    return {
+        "total_ventas": total_ventas,
+        "total_cobrado": total_cobrado,
+        "n_pedidos": len(pagados),
+        "ticket_prom": total_ventas / len(pagados) if pagados else 0,
+        "n_pizzas": n_pizzas, "n_bebidas": n_bebidas,
+        "n_un_sabor": n_un_sabor, "n_dos_sabores": n_dos_sabores,
+        "val_pizzas": val_pizzas, "val_bebidas": val_bebidas,
+        "por_metodo": dict(sorted(por_metodo.items(), key=lambda x: -x[1])),
+        "por_cobrador": dict(sorted(por_cobrador.items(), key=lambda x: -x[1])),
+        "un_sabor": sorted(({"nombre": k, "cantidad": v} for k, v in un_sabor.items()),
+                           key=lambda x: -x["cantidad"]),
+        "dos_sabores": sorted(({"nombre": k, "cantidad": v} for k, v in dos_sabores.items()),
+                              key=lambda x: -x["cantidad"]),
+        "bebidas": sorted(({"nombre": k, **v} for k, v in bebidas.items()),
+                          key=lambda x: -x["cantidad"]),
+        "por_dia": dict(sorted(por_dia.items(),
+                               key=lambda x: fecha_a_iso(x[0], "0000-00-00"))),
+        # Compatibilidad con el CSV y pantallas viejas
+        "top_items": sorted(({"nombre": k, "tipo": "Bebida", "cantidad": v["cantidad"],
+                              "valor": v["valor"]} for k, v in bebidas.items()),
+                            key=lambda x: -x["cantidad"]),
+    }
+
 
 def get_inventario_hoy():
     hoy = ahora().strftime("%d/%m/%Y")
@@ -1795,18 +1899,36 @@ def admin_reabrir_pedido(pid):
 @app.route('/admin/reportes')
 @rol_required('Administrador')
 def admin_reportes():
-    hoy     = ahora().strftime("%d/%m/%Y")
-    periodo = request.args.get('periodo','hoy')
-    fi      = request.args.get('fi', hoy)
-    ff      = request.args.get('ff', hoy)
-    if periodo == 'hoy':     fi = ff = hoy
+    hoy = ahora().strftime("%d/%m/%Y")
+    periodo = request.args.get('periodo', 'hoy')
+    now = ahora()
+
+    if periodo == 'ayer':
+        d = now - timedelta(days=1)
+        fi = ff = d.strftime("%d/%m/%Y")
+        titulo = f"Ayer, {d.day} de {_MESES[d.month - 1]}"
     elif periodo == 'semana':
-        now = ahora()
-        fi  = (now - timedelta(days=now.weekday())).strftime("%d/%m/%Y"); ff = hoy
+        ini_s = now - timedelta(days=now.weekday())
+        fi, ff = ini_s.strftime("%d/%m/%Y"), hoy
+        titulo = f"Del {ini_s.day} de {_MESES[ini_s.month - 1]} a hoy"
     elif periodo == 'mes':
-        now = ahora(); fi = f"01/{now.month:02d}/{now.year}"; ff = hoy
-    data = get_reporte(fi, ff)
-    return render_template('admin_reportes.html', data=data, periodo=periodo, fi=fi, ff=ff, hoy=hoy)
+        fi, ff = f"01/{now.month:02d}/{now.year}", hoy
+        titulo = f"{_MESES[now.month - 1].capitalize()} de {now.year}"
+    elif periodo == 'rango':
+        # Los campos de fecha del navegador vienen en ISO
+        fi = iso_a_fecha(request.args.get('d1', '')) or hoy
+        ff = iso_a_fecha(request.args.get('d2', '')) or hoy
+        titulo = f"Del {fi} al {ff}"
+    else:
+        periodo = 'hoy'
+        fi = ff = hoy
+        titulo = f"Hoy, {now.day} de {_MESES[now.month - 1]}"
+
+    return render_template('admin_reportes.html',
+        data=get_reporte(fi, ff), periodo=periodo, fi=fi, ff=ff, hoy=hoy,
+        titulo_rango=titulo, metodos=METODOS_PAGO,
+        d1=fecha_a_iso(fi, ""), d2=fecha_a_iso(ff, ""))
+
 
 @app.route('/admin/reportes/csv')
 @rol_required('Administrador')
