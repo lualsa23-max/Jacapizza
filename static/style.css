@@ -1065,6 +1065,17 @@ a.nav-brand:active { opacity: .7; }
 .rep-duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
 .rep-duo .rep-tarjeta { margin-bottom: var(--s2); }
 
+/* Rango sin ventas. No es un error: el negocio abre solo algunas noches, y la
+   pantalla tiene que decirlo en vez de dejar un $0 que parece una averia. */
+.rep-vacio { text-align: center; padding: var(--s6) var(--s4); color: var(--gray2); }
+.rep-vacio svg { color: var(--gray2); opacity: .6; }
+.rep-vacio-tit {
+  font-size: var(--t-lg); font-weight: 600;
+  color: var(--white); margin-top: var(--s3);
+}
+.rep-vacio-txt { font-size: var(--t-sm); margin-top: var(--s2); line-height: 1.5; }
+.rep-vacio-txt strong { color: var(--white); }
+
 .rep-titulo { font-size: var(--t-md); font-weight: 700; margin: var(--s5) 0 var(--s3); }
 .rep-item { margin-bottom: var(--s3); }
 .rep-item:last-of-type { margin-bottom: 0; }

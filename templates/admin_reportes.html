@@ -15,6 +15,27 @@
 
 <div class="rep-rango">{{ titulo_rango }}</div>
 
+{% if not data.n_pedidos %}
+{# Un "$0" a secas se lee como que el sistema esta roto. El negocio abre solo
+   algunas noches, asi que lo normal es que muchos dias no tengan venta: la
+   pantalla lo dice con todas sus letras y ofrece el atajo al ultimo servicio. #}
+<div class="rep-tarjeta rep-vacio">
+  {{ icono('calendario', 32) }}
+  <div class="rep-vacio-tit">No hubo ventas en este periodo</div>
+  {% if ultima_venta %}
+  <div class="rep-vacio-txt">
+    La ultima noche con ventas fue el <strong>{{ ultima_venta }}</strong>.
+  </div>
+  <a class="btn btn-primary btn-full btn-lg mt-12"
+     href="{{ url_for('admin_reportes', periodo='rango', d1=ultima_iso, d2=ultima_iso) }}">
+    Ver esa noche
+  </a>
+  {% endif %}
+  <a class="btn btn-ghost btn-full mt-8"
+     href="{{ url_for('admin_reportes', periodo='mes') }}">Ver el mes completo</a>
+</div>
+{% else %}
+
 {# ── Ingresos: el numero grande, y el desglose al tocarlo ──────── #}
 <button type="button" class="rep-tarjeta rep-ingresos" onclick="verCanales()">
   <div class="rep-cab">
@@ -176,6 +197,8 @@
   </div>
   {% endfor %}
 </div>
+{% endif %}
+
 {% endif %}
 
 <a href="{{ url_for('admin_csv', fi=fi, ff=ff) }}" class="btn btn-ghost btn-full mt-16">

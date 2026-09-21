@@ -1194,6 +1194,24 @@ def _producto_base(nombre, catalogo):
     return mejor or nombre.split(" — ")[0]
 
 
+def ultima_jornada_con_ventas():
+    """La ultima fecha 'dd/mm/yyyy' en la que se vendio algo, o None.
+
+    Sirve para que una pantalla vacia pueda decir POR QUE esta vacia. El
+    negocio abre solo algunas noches, asi que un lunes sin ventas es lo
+    normal, no una falla — pero un $0 a secas se lee como que el sistema
+    no funciona.
+    """
+    try:
+        with _conn() as c:
+            r = c.execute(
+                f"SELECT fecha FROM pedidos WHERE estado='Pagado' "
+                f"ORDER BY {sql_iso()} DESC LIMIT 1").fetchone()
+        return r["fecha"] if r else None
+    except Exception:
+        return None
+
+
 def get_reporte(fecha_ini, fecha_fin):
     """Tablero de ventas de un rango.
 
@@ -1856,9 +1874,12 @@ def admin_reportes():
         fi = ff = d.strftime("%d/%m/%Y")
         titulo = f"Ayer, {d.day} de {_MESES[d.month - 1]}"
     elif periodo == 'semana':
-        ini_s = now - timedelta(days=now.weekday())
+        # Ultimos 7 dias, NO "desde el lunes". La pizzeria abre solo algunas
+        # noches: un lunes, "desde el lunes" es siempre hoy, y el reporte
+        # salia en $0 aunque el viernes y el sabado se hubiera vendido.
+        ini_s = now - timedelta(days=6)
         fi, ff = ini_s.strftime("%d/%m/%Y"), hoy
-        titulo = f"Del {ini_s.day} de {_MESES[ini_s.month - 1]} a hoy"
+        titulo = f"Ultimos 7 dias — del {ini_s.day} de {_MESES[ini_s.month - 1]} a hoy"
     elif periodo == 'mes':
         fi, ff = f"01/{now.month:02d}/{now.year}", hoy
         titulo = f"{_MESES[now.month - 1].capitalize()} de {now.year}"
@@ -1884,9 +1905,15 @@ def admin_reportes():
         except Exception:
             pass
 
+    data = get_reporte(fi, ff)
+    # Si el rango sale vacio, la pantalla necesita poder decir por que: cuando
+    # fue la ultima noche con ventas, para no parecer averiada.
+    ultima = ultima_jornada_con_ventas() if not data["n_pedidos"] else None
+
     return render_template('admin_reportes.html',
-        data=get_reporte(fi, ff), periodo=periodo, fi=fi, ff=ff, hoy=hoy,
+        data=data, periodo=periodo, fi=fi, ff=ff, hoy=hoy,
         titulo_rango=titulo, metodos=METODOS_PAGO, masas=masas,
+        ultima_venta=ultima, ultima_iso=fecha_a_iso(ultima or "", ""),
         d1=fecha_a_iso(fi, ""), d2=fecha_a_iso(ff, ""))
 
 
