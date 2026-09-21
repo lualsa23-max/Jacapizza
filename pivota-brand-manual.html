@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pivota — Manual de Marca</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --black:   #0D0D0D;
+  --red:     #ED2611;
+  --white:   #F4F3EF;
+  --surf:    #161619;
+  --surf2:   #1E1E24;
+  --border:  #2A2A32;
+  --muted:   #555560;
+  --light:   #C8C6C0;
+  --J: 'Plus Jakarta Sans', sans-serif;
+  --M: 'Manrope', sans-serif;
+}
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--M);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.page { max-width: 960px; margin: 0 auto; padding: 0 32px 100px; }
+
+/* ── COVER ── */
+.cover {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 56px 0 48px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.cover-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 50% 40% at 15% 60%, rgba(237,38,17,.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+.cover-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.cover-tag {
+  font-family: var(--M);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cover-meta {
+  font-family: var(--M);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: right;
+  line-height: 1.9;
+  letter-spacing: .06em;
+}
+.cover-center { position: relative; text-align: left; }
+.cover-ghost {
+  position: absolute;
+  top: 50%; left: -10px;
+  transform: translateY(-50%);
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: 200px;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255,255,255,.04);
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+.cover-logo-big {
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: clamp(72px, 14vw, 130px);
+  color: var(--white);
+  letter-spacing: -.025em;
+  line-height: 1;
+  position: relative;
+}
+.cover-logo-big .dot { color: var(--red); }
+.cover-sub {
+  font-family: var(--M);
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  margin-top: 14px;
+}
+.cover-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.cover-title {
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--white);
+  letter-spacing: -.01em;
+}
+.cover-title span { color: var(--red); }
+
+/* ── SECTION ── */
+.sec {
+  font-family: var(--M);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 72px 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sec::before { content: ''; width: 20px; height: 2px; background: var(--red); flex-shrink: 0; }
+.sec::after  { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.sec-number {
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--red);
+}
+
+/* ── CARD ── */
+.card {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--red);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+/* ── LOGO SYSTEM ── */
+.logo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.logo-var {
+  border-radius: 14px;
+  height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.lv-dark  { background: var(--black); border: 1px solid var(--border); }
+.lv-red   { background: var(--red); }
+.lv-light { background: var(--white); }
+
+.lv-wordmark {
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -.025em;
+  line-height: 1;
+}
+.lv-dark .lv-wordmark  { color: var(--white); }
+.lv-red .lv-wordmark   { color: #fff; }
+.lv-light .lv-wordmark { color: var(--black); }
+.lv-dark .dot  { color: var(--red); }
+.lv-red .dot   { color: rgba(0,0,0,.3); }
+.lv-light .dot { color: var(--red); }
+
+.lv-label {
+  font-family: var(--M);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.lv-dark .lv-label  { color: var(--muted); }
+.lv-red .lv-label   { color: rgba(255,255,255,.45); }
+.lv-light .lv-label { color: #aaa; }
+
+/* ── SVG EXPORT BOXES ── */
+.svg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.svg-box {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.svg-box-label {
+  font-family: var(--M);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.svg-box-preview {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+}
+.svg-code {
+  background: #0a0a0d;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #666;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+}
+.svg-code .tag  { color: #888; }
+.svg-code .attr { color: #ED2611; }
+.svg-code .val  { color: #C8C6C0; }
+
+/* ── COPY BUTTON ── */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--M);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--light);
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background .15s, border-color .15s;
+  letter-spacing: .04em;
+}
+.copy-btn:hover { background: #2a2a35; border-color: #3a3a45; }
+.copy-btn.copied { background: rgba(237,38,17,.15); border-color: var(--red); color: var(--red); }
+
+/* ── POWERED BY ── */
+.powered-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.powered-card {
+  border-radius: 14px;
+  padding: 28px 32px;
+  position: relative;
+  overflow: hidden;
+}
+.pc-dark  { background: var(--black); border: 1px solid var(--border); }
+.pc-light { background: #F0EEE9; }
+.pc-red   { background: var(--red); }
+.pc-surf  { background: var(--surf2); border: 1px solid var(--border); }
+
+.powered-label {
+  font-family: var(--M);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.pc-dark .powered-label  { color: var(--muted); }
+.pc-light .powered-label { color: #aaa; }
+.pc-red .powered-label   { color: rgba(255,255,255,.4); }
+.pc-surf .powered-label  { color: var(--muted); }
+
+.powered-by-component {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pbc-text {
+  font-family: var(--M);
+  font-size: 11px;
+  font-weight: 400;
+}
+.pc-dark .pbc-text  { color: var(--muted); }
+.pc-light .pbc-text { color: #999; }
+.pc-red .pbc-text   { color: rgba(255,255,255,.6); }
+.pc-surf .pbc-text  { color: var(--muted); }
+
+.pbc-brand {
+  font-family: var(--J);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -.01em;
+  line-height: 1;
+}
+.pc-dark .pbc-brand  { color: var(--white); }
+.pc-light .pbc-brand { color: var(--black); }
+.pc-red .pbc-brand   { color: #fff; }
+.pc-surf .pbc-brand  { color: var(--white); }
+
+.pc-dark .pbc-brand .dot  { color: var(--red); }
+.pc-light .pbc-brand .dot { color: var(--red); }
+.pc-red .pbc-brand .dot   { color: rgba(0,0,0,.3); }
+.pc-surf .pbc-brand .dot  { color: var(--red); }
+
+/* Isotipo mini */
+.pbc-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pc-dark .pbc-mark  { background: var(--red); }
+.pc-light .pbc-mark { background: var(--red); }
+.pc-red .pbc-mark   { background: rgba(0,0,0,.2); }
+.pc-surf .pbc-mark  { background: var(--red); }
+
+.pbc-sep {
+  width: 1px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.pc-dark .pbc-sep  { background: var(--border); }
+.pc-light .pbc-sep { background: #ddd; }
+.pc-red .pbc-sep   { background: rgba(255,255,255,.2); }
+.pc-surf .pbc-sep  { background: var(--border); }
+
+/* ── PALETTE ── */
+.palette-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sw {
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1.1;
+}
+.sw-body {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 12px;
+  background: linear-gradient(to top, rgba(0,0,0,.55), transparent);
+}
+.sw-hex  { font-family: var(--M); font-size: 11px; font-weight: 600; color: #fff; display: block; }
+.sw-name { font-family: var(--M); font-size: 9px; color: rgba(255,255,255,.5); display: block; margin-top: 1px; }
+.sw-role { position: absolute; top: 10px; left: 12px; font-family: var(--M); font-size: 8px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.3); }
+
+/* ── TYPOGRAPHY ── */
+.type-system {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.type-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 28px;
+  border-bottom: 1px solid var(--border);
+}
+.type-row:last-child { border-bottom: none; }
+.type-meta { flex-shrink: 0; text-align: right; }
+.tm-name { font-family: var(--M); font-size: 11px; font-weight: 600; color: var(--white); display: block; }
+.tm-spec { font-family: var(--M); font-size: 9px; color: var(--muted); display: block; margin-top: 2px; letter-spacing: .04em; }
+.tm-use  { font-family: var(--M); font-size: 9px; color: var(--red); display: block; margin-top: 3px; letter-spacing: .08em; text-transform: uppercase; }
+
+.ts-logo { font-family: var(--J); font-weight: 800; font-size: 48px; color: var(--white); letter-spacing: -.025em; line-height: 1; }
+.ts-logo .dot { color: var(--red); }
+.ts-h1   { font-family: var(--J); font-weight: 800; font-size: 28px; color: var(--white); letter-spacing: -.02em; }
+.ts-h1 .hl { color: var(--red); }
+.ts-h2   { font-family: var(--J); font-weight: 800; font-size: 18px; color: var(--white); letter-spacing: -.01em; }
+.ts-nav  { font-family: var(--J); font-weight: 500; font-size: 14px; color: var(--light); }
+.ts-body { font-family: var(--M); font-weight: 400; font-size: 15px; color: var(--light); line-height: 1.75; max-width: 480px; }
+.ts-body em { color: var(--white); font-style: normal; font-weight: 500; }
+.ts-sm   { font-family: var(--M); font-weight: 400; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.ts-lb   { font-family: var(--M); font-weight: 500; font-size: 10px; color: var(--muted); letter-spacing: .18em; text-transform: uppercase; }
+
+/* ── RULES ── */
+.rules-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.rule-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+.rule-card h4 {
+  font-family: var(--M);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.rule-card.do h4   { color: #4ade80; }
+.rule-card.dont h4 { color: var(--red); }
+.rule-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--light);
+  line-height: 1.55;
+  margin-bottom: 8px;
+  font-family: var(--M);
+}
+.rule-item:last-child { margin-bottom: 0; }
+.rule-item .ic { flex-shrink: 0; font-size: 11px; margin-top: 1px; }
+.rule-card.do .ic   { color: #4ade80; }
+.rule-card.dont .ic { color: var(--red); }
+.rule-card.do .rule-item span   { color: #bbf7d0; }
+.rule-card.dont .rule-item span { color: #fca5a5; }
+
+/* ── CODE BLOCK ── */
+.code-block {
+  background: #060609;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+  position: relative;
+}
+.code-lang {
+  position: absolute;
+  top: 12px; right: 16px;
+  font-family: var(--M);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.code-block pre {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #888;
+  overflow-x: auto;
+  white-space: pre;
+}
+.code-block pre .kw   { color: #ED2611; }
+.code-block pre .str  { color: #C8C6C0; }
+.code-block pre .com  { color: #444455; }
+.code-block pre .prop { color: #888; }
+
+/* ── FOOTER ── */
+.kit-footer {
+  margin-top: 80px;
+  border-top: 1px solid var(--border);
+  padding-top: 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.kf-logo { font-family: var(--J); font-weight: 800; font-size: 28px; color: var(--white); letter-spacing: -.02em; }
+.kf-logo .dot { color: var(--red); }
+.kf-meta { font-family: var(--M); font-size: 10px; color: var(--muted); text-align: right; line-height: 1.9; letter-spacing: .06em; text-transform: uppercase; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cover-logo-big { animation: fadeUp .6s ease both; }
+.cover-title    { animation: fadeUp .6s .15s ease both; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- COVER -->
+  <div class="cover">
+    <div class="cover-glow"></div>
+    <div class="cover-top">
+      <div class="cover-tag">Manual de Marca · v1.0 · 2026</div>
+      <div class="cover-meta">
+        Plus Jakarta Sans 800<br>
+        Manrope 400 / 500<br>
+        #0D0D0D · #ED2611 · #F4F3EF
+      </div>
+    </div>
+    <div class="cover-center">
+      <div class="cover-ghost">PIVOTA</div>
+      <div class="cover-logo-big">PIVOTA<span class="dot">.</span></div>
+      <div class="cover-sub">Identidad de marca · Activos digitales · Componente Powered by</div>
+    </div>
+    <div class="cover-bottom">
+      <div class="cover-title">Todo lo que necesitas para<br><span>usar la marca correctamente.</span></div>
+      <div class="cover-meta">Luis Sarmiento · Founder<br>pivota.co · Colombia</div>
+    </div>
+  </div>
+
+  <!-- 01 LOGO -->
+  <div class="sec"><span class="sec-number">01</span> Sistema de logo</div>
+
+  <div class="logo-grid">
+    <div class="logo-var lv-dark">
+      <div class="lv-wordmark">PIVOTA<span class="dot">.</span></div>
+      <div class="lv-label">Versión principal · Fondo oscuro</div>
+    </div>
+    <div class="logo-var lv-red">
+      <div class="lv-wordmark">PIVOTA<span class="dot">.</span></div>
+      <div class="lv-label">Versión roja · Fondos de color</div>
+    </div>
+    <div class="logo-var lv-light">
+      <div class="lv-wordmark">PIVOTA<span class="dot">.</span></div>
+      <div class="lv-label">Versión clara · Fondos blancos</div>
+    </div>
+  </div>
+
+  <!-- SVG ASSETS -->
+  <div class="sec"><span class="sec-number">02</span> Activos SVG — copia y usa</div>
+
+  <div class="svg-grid">
+
+    <!-- SVG 1: Logo oscuro -->
+    <div class="svg-box">
+      <div class="svg-box-label">Logo · Versión principal</div>
+      <div class="svg-box-preview">
+        <svg viewBox="0 0 200 48" xmlns="http://www.w3.org/2000/svg" style="width:160px">
+          <text x="0" y="40" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="800" font-size="44" fill="#F4F3EF" letter-spacing="-1">PIVOTA</text>
+          <text x="170" y="40" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="800" font-size="44" fill="#ED2611">.</text>
+        </svg>
+      </div>
+      <div class="svg-code" id="svg1"><span class="tag">&lt;svg</span> <span class="attr">viewBox</span>=<span class="val">"0 0 200 48"</span>
+     <span class="attr">xmlns</span>=<span class="val">"http://www.w3.org/2000/svg"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;text</span> <span class="attr">x</span>=<span class="val">"0"</span> <span class="attr">y</span>=<span class="val">"40"</span>
+    <span class="attr">font-family</span>=<span class="val">"'Plus Jakarta Sans',Arial"</span>
+    <span class="attr">font-weight</span>=<span class="val">"800"</span> <span class="attr">font-size</span>=<span class="val">"44"</span>
+    <span class="attr">fill</span>=<span class="val">"#F4F3EF"</span><span class="tag">&gt;</span>PIVOTA<span class="tag">&lt;/text&gt;</span>
+  <span class="tag">&lt;text</span> <span class="attr">x</span>=<span class="val">"170"</span> <span class="attr">y</span>=<span class="val">"40"</span>
+    <span class="attr">font-weight</span>=<span class="val">"800"</span> <span class="attr">font-size</span>=<span class="val">"44"</span>
+    <span class="attr">fill</span>=<span class="val">"#ED2611"</span><span class="tag">&gt;</span>.<span class="tag">&lt;/text&gt;</span>
+<span class="tag">&lt;/svg&gt;</span></div>
+      <button class="copy-btn" onclick="copySVG('svg-dark')">⎘ Copiar SVG</button>
+      <textarea id="svg-dark" style="display:none"><svg viewBox="0 0 200 48" xmlns="http://www.w3.org/2000/svg"><text x="0" y="40" font-family="'Plus Jakarta Sans',Arial,sans-serif" font-weight="800" font-size="44" fill="#F4F3EF" letter-spacing="-1">PIVOTA</text><text x="170" y="40" font-family="'Plus Jakarta Sans',Arial,sans-serif" font-weight="800" font-size="44" fill="#ED2611">.</text></svg></textarea>
+    </div>
+
+    <!-- SVG 2: Logo claro -->
+    <div class="svg-box">
+      <div class="svg-box-label">Logo · Versión clara</div>
+      <div class="svg-box-preview" style="background:#F4F3EF; border-radius:8px; padding:12px;">
+        <svg viewBox="0 0 200 48" xmlns="http://www.w3.org/2000/svg" style="width:160px">
+          <text x="0" y="40" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="800" font-size="44" fill="#0D0D0D" letter-spacing="-1">PIVOTA</text>
+          <text x="170" y="40" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="800" font-size="44" fill="#ED2611">.</text>
+        </svg>
+      </div>
+      <div class="svg-code"><span class="tag">&lt;svg</span> <span class="attr">viewBox</span>=<span class="val">"0 0 200 48"</span>
+     <span class="attr">xmlns</span>=<span class="val">"http://www.w3.org/2000/svg"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;text</span> <span class="attr">x</span>=<span class="val">"0"</span> <span class="attr">y</span>=<span class="val">"40"</span>
+    <span class="attr">font-weight</span>=<span class="val">"800"</span> <span class="attr">font-size</span>=<span class="val">"44"</span>
+    <span class="attr">fill</span>=<span class="val">"#0D0D0D"</span><span class="tag">&gt;</span>PIVOTA<span class="tag">&lt;/text&gt;</span>
+  <span class="tag">&lt;text</span> <span class="attr">x</span>=<span class="val">"170"</span> <span class="attr">y</span>=<span class="val">"40"</span>
+    <span class="attr">font-weight</span>=<span class="val">"800"</span> <span class="attr">font-size</span>=<span class="val">"44"</span>
+    <span class="attr">fill</span>=<span class="val">"#ED2611"</span><span class="tag">&gt;</span>.<span class="tag">&lt;/text&gt;</span>
+<span class="tag">&lt;/svg&gt;</span></div>
+      <button class="copy-btn" onclick="copySVG('svg-light')">⎘ Copiar SVG</button>
+      <textarea id="svg-light" style="display:none"><svg viewBox="0 0 200 48" xmlns="http://www.w3.org/2000/svg"><text x="0" y="40" font-family="'Plus Jakarta Sans',Arial,sans-serif" font-weight="800" font-size="44" fill="#0D0D0D" letter-spacing="-1">PIVOTA</text><text x="170" y="40" font-family="'Plus Jakarta Sans',Arial,sans-serif" font-weight="800" font-size="44" fill="#ED2611">.</text></svg></textarea>
+    </div>
+
+    <!-- SVG 3: Isotipo -->
+    <div class="svg-box">
+      <div class="svg-box-label">Isotipo · Ícono solo</div>
+      <div class="svg-box-preview">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="width:60px">
+          <rect width="48" height="48" rx="10" fill="#ED2611"/>
+          <path d="M14 24 L24 14 L34 24" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="24" y1="14" x2="24" y2="34" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="24" cy="34" r="3.5" fill="white"/>
+        </svg>
+      </div>
+      <div class="svg-code"><span class="tag">&lt;svg</span> <span class="attr">viewBox</span>=<span class="val">"0 0 48 48"</span>
+     <span class="attr">xmlns</span>=<span class="val">"http://www.w3.org/2000/svg"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;rect</span> <span class="attr">width</span>=<span class="val">"48"</span> <span class="attr">height</span>=<span class="val">"48"</span>
+    <span class="attr">rx</span>=<span class="val">"10"</span> <span class="attr">fill</span>=<span class="val">"#ED2611"</span><span class="tag">/&gt;</span>
+  <span class="tag">&lt;path</span> <span class="attr">d</span>=<span class="val">"M14 24 L24 14 L34 24"</span>
+    <span class="attr">stroke</span>=<span class="val">"white"</span> <span class="attr">stroke-width</span>=<span class="val">"3.5"</span>
+    <span class="attr">fill</span>=<span class="val">"none"</span><span class="tag">/&gt;</span>
+  <span class="tag">&lt;line</span> <span class="attr">x1</span>=<span class="val">"24"</span> <span class="attr">y1</span>=<span class="val">"14"</span>
+    <span class="attr">x2</span>=<span class="val">"24"</span> <span class="attr">y2</span>=<span class="val">"34"</span>
+    <span class="attr">stroke</span>=<span class="val">"white"</span> <span class="attr">stroke-width</span>=<span class="val">"3.5"</span><span class="tag">/&gt;</span>
+  <span class="tag">&lt;circle</span> <span class="attr">cx</span>=<span class="val">"24"</span> <span class="attr">cy</span>=<span class="val">"34"</span>
+    <span class="attr">r</span>=<span class="val">"3.5"</span> <span class="attr">fill</span>=<span class="val">"white"</span><span class="tag">/&gt;</span>
+<span class="tag">&lt;/svg&gt;</span></div>
+      <button class="copy-btn" onclick="copySVG('svg-icon')">⎘ Copiar SVG</button>
+      <textarea id="svg-icon" style="display:none"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="10" fill="#ED2611"/><path d="M14 24 L24 14 L34 24" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="24" y1="14" x2="24" y2="34" stroke="white" stroke-width="3.5" stroke-linecap="round"/><circle cx="24" cy="34" r="3.5" fill="white"/></svg></textarea>
+    </div>
+
+  </div>
+
+  <!-- 03 POWERED BY -->
+  <div class="sec"><span class="sec-number">03</span> Componente "Powered by PIVOTA."</div>
+
+  <div class="powered-grid">
+    <div class="powered-card pc-dark">
+      <div class="powered-label">Sobre fondo oscuro · Principal</div>
+      <div class="powered-by-component">
+        <div class="pbc-mark">
+          <svg viewBox="0 0 20 20" fill="none" style="width:12px;height:12px">
+            <path d="M5 10 L10 5 L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="10" y1="5" x2="10" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pbc-sep"></div>
+        <span class="pbc-text">Powered by</span>
+        <span class="pbc-brand">PIVOTA<span class="dot">.</span></span>
+      </div>
+    </div>
+    <div class="powered-card pc-light">
+      <div class="powered-label">Sobre fondo claro</div>
+      <div class="powered-by-component">
+        <div class="pbc-mark">
+          <svg viewBox="0 0 20 20" fill="none" style="width:12px;height:12px">
+            <path d="M5 10 L10 5 L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="10" y1="5" x2="10" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pbc-sep"></div>
+        <span class="pbc-text">Powered by</span>
+        <span class="pbc-brand">PIVOTA<span class="dot">.</span></span>
+      </div>
+    </div>
+    <div class="powered-card pc-red">
+      <div class="powered-label">Sobre fondo rojo</div>
+      <div class="powered-by-component">
+        <div class="pbc-mark">
+          <svg viewBox="0 0 20 20" fill="none" style="width:12px;height:12px">
+            <path d="M5 10 L10 5 L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="10" y1="5" x2="10" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pbc-sep"></div>
+        <span class="pbc-text">Powered by</span>
+        <span class="pbc-brand">PIVOTA<span class="dot">.</span></span>
+      </div>
+    </div>
+    <div class="powered-card pc-surf">
+      <div class="powered-label">Sobre superficie oscura · UI</div>
+      <div class="powered-by-component">
+        <div class="pbc-mark">
+          <svg viewBox="0 0 20 20" fill="none" style="width:12px;height:12px">
+            <path d="M5 10 L10 5 L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="10" y1="5" x2="10" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pbc-sep"></div>
+        <span class="pbc-text">Powered by</span>
+        <span class="pbc-brand">PIVOTA<span class="dot">.</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CÓDIGO POWERED BY -->
+  <div class="card">
+    <div class="card-title">Código listo para pegar — HTML + CSS</div>
+    <div class="code-block">
+      <div class="code-lang">HTML</div>
+      <pre><span class="com">&lt;!-- Componente Powered by PIVOTA. --&gt;</span>
+<span class="kw">&lt;div</span> <span class="prop">class</span>=<span class="str">"pivota-powered"</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;div</span> <span class="prop">class</span>=<span class="str">"pivota-mark"</span><span class="kw">&gt;</span>
+    <span class="kw">&lt;svg</span> <span class="prop">viewBox</span>=<span class="str">"0 0 20 20"</span> <span class="prop">fill</span>=<span class="str">"none"</span><span class="kw">&gt;</span>
+      <span class="kw">&lt;path</span> <span class="prop">d</span>=<span class="str">"M5 10 L10 5 L15 10"</span> <span class="prop">stroke</span>=<span class="str">"white"</span> <span class="prop">stroke-width</span>=<span class="str">"2"</span>
+        <span class="prop">stroke-linecap</span>=<span class="str">"round"</span> <span class="prop">stroke-linejoin</span>=<span class="str">"round"</span><span class="kw">/&gt;</span>
+      <span class="kw">&lt;line</span> <span class="prop">x1</span>=<span class="str">"10"</span> <span class="prop">y1</span>=<span class="str">"5"</span> <span class="prop">x2</span>=<span class="str">"10"</span> <span class="prop">y2</span>=<span class="str">"15"</span>
+        <span class="prop">stroke</span>=<span class="str">"white"</span> <span class="prop">stroke-width</span>=<span class="str">"2"</span> <span class="prop">stroke-linecap</span>=<span class="str">"round"</span><span class="kw">/&gt;</span>
+    <span class="kw">&lt;/svg&gt;</span>
+  <span class="kw">&lt;/div&gt;</span>
+  <span class="kw">&lt;span</span> <span class="prop">class</span>=<span class="str">"pivota-text"</span><span class="kw">&gt;</span>Powered by<span class="kw">&lt;/span&gt;</span>
+  <span class="kw">&lt;span</span> <span class="prop">class</span>=<span class="str">"pivota-brand"</span><span class="kw">&gt;</span>PIVOTA<span class="kw">&lt;span</span> <span class="prop">class</span>=<span class="str">"pivota-dot"</span><span class="kw">&gt;</span>.<span class="kw">&lt;/span&gt;&lt;/span&gt;</span>
+<span class="kw">&lt;/div&gt;</span></pre>
+    </div>
+    <div class="code-block">
+      <div class="code-lang">CSS</div>
+      <pre><span class="com">/* Powered by PIVOTA — pega en tu stylesheet */</span>
+<span class="kw">.pivota-powered</span> {
+  <span class="prop">display</span>: <span class="str">inline-flex</span>;
+  <span class="prop">align-items</span>: <span class="str">center</span>;
+  <span class="prop">gap</span>: <span class="str">8px</span>;
+}
+<span class="kw">.pivota-mark</span> {
+  <span class="prop">width</span>: <span class="str">20px</span>;
+  <span class="prop">height</span>: <span class="str">20px</span>;
+  <span class="prop">background</span>: <span class="str">#ED2611</span>;
+  <span class="prop">border-radius</span>: <span class="str">4px</span>;
+  <span class="prop">display</span>: <span class="str">flex</span>;
+  <span class="prop">align-items</span>: <span class="str">center</span>;
+  <span class="prop">justify-content</span>: <span class="str">center</span>;
+}
+<span class="kw">.pivota-mark svg</span> { <span class="prop">width</span>: <span class="str">12px</span>; <span class="prop">height</span>: <span class="str">12px</span>; }
+<span class="kw">.pivota-text</span> {
+  <span class="prop">font-family</span>: <span class="str">'Manrope', sans-serif</span>;
+  <span class="prop">font-size</span>: <span class="str">11px</span>;
+  <span class="prop">font-weight</span>: <span class="str">400</span>;
+  <span class="prop">color</span>: <span class="str">#555560</span>; <span class="com">/* ajusta según fondo */</span>
+}
+<span class="kw">.pivota-brand</span> {
+  <span class="prop">font-family</span>: <span class="str">'Plus Jakarta Sans', sans-serif</span>;
+  <span class="prop">font-size</span>: <span class="str">14px</span>;
+  <span class="prop">font-weight</span>: <span class="str">800</span>;
+  <span class="prop">color</span>: <span class="str">#F4F3EF</span>; <span class="com">/* ajusta según fondo */</span>
+  <span class="prop">letter-spacing</span>: <span class="str">-0.01em</span>;
+}
+<span class="kw">.pivota-dot</span> { <span class="prop">color</span>: <span class="str">#ED2611</span>; }
+
+<span class="com">/* Variante clara (sobre fondos blancos) */</span>
+<span class="kw">.pivota-powered.light .pivota-text</span>  { <span class="prop">color</span>: <span class="str">#999</span>; }
+<span class="kw">.pivota-powered.light .pivota-brand</span> { <span class="prop">color</span>: <span class="str">#0D0D0D</span>; }</pre>
+    </div>
+    <button class="copy-btn" onclick="copyCSS()">⎘ Copiar CSS completo</button>
+  </div>
+
+  <!-- FOOTER SNIPPET -->
+  <div class="card">
+    <div class="card-title">Footer snippet — listo para pegar en cualquier proyecto</div>
+    <div class="code-block">
+      <div class="code-lang">HTML</div>
+      <pre><span class="kw">&lt;footer</span> <span class="prop">style</span>=<span class="str">"text-align:center; padding:16px; border-top:1px solid #2A2A32;"</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;div</span> <span class="prop">class</span>=<span class="str">"pivota-powered"</span> <span class="prop">style</span>=<span class="str">"justify-content:center;"</span><span class="kw">&gt;</span>
+    <span class="kw">&lt;div</span> <span class="prop">class</span>=<span class="str">"pivota-mark"</span><span class="kw">&gt;</span>
+      <span class="kw">&lt;svg</span> <span class="prop">viewBox</span>=<span class="str">"0 0 20 20"</span> <span class="prop">fill</span>=<span class="str">"none"</span><span class="kw">&gt;</span>
+        <span class="kw">&lt;path</span> <span class="prop">d</span>=<span class="str">"M5 10 L10 5 L15 10"</span> <span class="prop">stroke</span>=<span class="str">"white"</span> <span class="prop">stroke-width</span>=<span class="str">"2"</span>
+          <span class="prop">stroke-linecap</span>=<span class="str">"round"</span> <span class="prop">stroke-linejoin</span>=<span class="str">"round"</span><span class="kw">/&gt;</span>
+        <span class="kw">&lt;line</span> <span class="prop">x1</span>=<span class="str">"10"</span> <span class="prop">y1</span>=<span class="str">"5"</span> <span class="prop">x2</span>=<span class="str">"10"</span> <span class="prop">y2</span>=<span class="str">"15"</span>
+          <span class="prop">stroke</span>=<span class="str">"white"</span> <span class="prop">stroke-width</span>=<span class="str">"2"</span> <span class="prop">stroke-linecap</span>=<span class="str">"round"</span><span class="kw">/&gt;</span>
+      <span class="kw">&lt;/svg&gt;</span>
+    <span class="kw">&lt;/div&gt;</span>
+    <span class="kw">&lt;span</span> <span class="prop">class</span>=<span class="str">"pivota-text"</span><span class="kw">&gt;</span>Powered by<span class="kw">&lt;/span&gt;</span>
+    <span class="kw">&lt;span</span> <span class="prop">class</span>=<span class="str">"pivota-brand"</span><span class="kw">&gt;</span>PIVOTA<span class="kw">&lt;span</span> <span class="prop">class</span>=<span class="str">"pivota-dot"</span><span class="kw">&gt;</span>.<span class="kw">&lt;/span&gt;&lt;/span&gt;</span>
+  <span class="kw">&lt;/div&gt;</span>
+<span class="kw">&lt;/footer&gt;</span></pre>
+    </div>
+    <button class="copy-btn" onclick="copyFooter()">⎘ Copiar footer completo</button>
+  </div>
+
+  <!-- 04 PALETA -->
+  <div class="sec"><span class="sec-number">04</span> Paleta de color</div>
+  <div class="palette-row">
+    <div class="sw" style="background:#0D0D0D; border:1px solid #222;">
+      <div class="sw-role">Dominante</div>
+      <div class="sw-body"><span class="sw-hex">#0D0D0D</span><span class="sw-name">Negro Pivota</span></div>
+    </div>
+    <div class="sw" style="background:#ED2611;">
+      <div class="sw-role">Acento</div>
+      <div class="sw-body"><span class="sw-hex">#ED2611</span><span class="sw-name">Rojo Acción</span></div>
+    </div>
+    <div class="sw" style="background:#F4F3EF; border:1px solid #ddd;">
+      <div class="sw-role">Texto</div>
+      <div class="sw-body" style="background:linear-gradient(to top,rgba(0,0,0,.12),transparent)"><span class="sw-hex" style="color:#333">#F4F3EF</span><span class="sw-name" style="color:#888">Blanco Cálido</span></div>
+    </div>
+    <div class="sw" style="background:#161619;">
+      <div class="sw-role">Superficie</div>
+      <div class="sw-body"><span class="sw-hex">#161619</span><span class="sw-name">Negro UI</span></div>
+    </div>
+    <div class="sw" style="background:#555560;">
+      <div class="sw-role">Apagado</div>
+      <div class="sw-body"><span class="sw-hex">#555560</span><span class="sw-name">Gris Sistema</span></div>
+    </div>
+  </div>
+
+  <!-- 05 TIPOGRAFÍA -->
+  <div class="sec"><span class="sec-number">05</span> Sistema tipográfico</div>
+  <div class="type-system">
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-logo">PIVOTA<span class="dot">.</span></div></div>
+      <div class="type-meta"><span class="tm-name">Plus Jakarta Sans 800</span><span class="tm-spec">Display grande · Logo</span><span class="tm-use">Logo · Hero · Portadas</span></div>
+    </div>
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-h1">Tecnología que <span class="hl">mueve negocios.</span></div></div>
+      <div class="type-meta"><span class="tm-name">Plus Jakarta Sans 800</span><span class="tm-spec">28–48px · tracking −0.02em</span><span class="tm-use">Titulares · Taglines</span></div>
+    </div>
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-h2">Soluciones de IA a la medida</div></div>
+      <div class="type-meta"><span class="tm-name">Plus Jakarta Sans 800</span><span class="tm-spec">18–22px</span><span class="tm-use">Subtítulos · Secciones</span></div>
+    </div>
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-nav">Inicio · Soluciones · Contacto</div></div>
+      <div class="type-meta"><span class="tm-name">Plus Jakarta Sans 500</span><span class="tm-spec">14–16px</span><span class="tm-use">Navegación · UI medio</span></div>
+    </div>
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-body">Construimos productos con <em>inteligencia artificial</em> a la medida. Sin burocracia, solo tecnología que funciona.</div></div>
+      <div class="type-meta"><span class="tm-name">Manrope 400</span><span class="tm-spec">15px · leading 1.75</span><span class="tm-use">Cuerpo · Párrafos · Email</span></div>
+    </div>
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-sm">Resultados en 4–8 semanas · Sin contratos anuales</div></div>
+      <div class="type-meta"><span class="tm-name">Manrope 400</span><span class="tm-spec">12px · secondary text</span><span class="tm-use">Notas · Footers · Helpers</span></div>
+    </div>
+    <div class="type-row">
+      <div class="type-sample"><div class="ts-lb">Startup de IA · Colombia · 2026</div></div>
+      <div class="type-meta"><span class="tm-name">Manrope 500</span><span class="tm-spec">10px · tracking 0.18em · uppercase</span><span class="tm-use">Labels · Badges · Tags</span></div>
+    </div>
+  </div>
+
+  <!-- 06 REGLAS -->
+  <div class="sec"><span class="sec-number">06</span> Reglas de uso</div>
+  <div class="rules-grid">
+    <div class="rule-card do">
+      <h4>✓ Siempre</h4>
+      <div class="rule-item"><span class="ic">→</span><span>El punto siempre es rojo #ED2611 — en todas las versiones del logo</span></div>
+      <div class="rule-item"><span class="ic">→</span><span>Fondo negro como base dominante en toda comunicación de marca</span></div>
+      <div class="rule-item"><span class="ic">→</span><span>Plus Jakarta Sans 800 exclusivo para display, logo y titulares grandes</span></div>
+      <div class="rule-item"><span class="ic">→</span><span>Manrope para todo el texto de cuerpo, labels y microcopy</span></div>
+      <div class="rule-item"><span class="ic">→</span><span>El isotipo rojo puede usarse solo como favicon o avatar</span></div>
+    </div>
+    <div class="rule-card dont">
+      <h4>✗ Nunca</h4>
+      <div class="rule-item"><span class="ic">✕</span><span>Cambiar el rojo del punto por otro color o dejarlo en blanco</span></div>
+      <div class="rule-item"><span class="ic">✕</span><span>Usar el logo sobre fondos de color que generen bajo contraste</span></div>
+      <div class="rule-item"><span class="ic">✕</span><span>Deformar, estirar o aplicar sombras al logotipo</span></div>
+      <div class="rule-item"><span class="ic">✕</span><span>Usar blanco puro #FFFFFF — siempre el blanco cálido #F4F3EF</span></div>
+      <div class="rule-item"><span class="ic">✕</span><span>Aplicar gradientes, efectos o transparencias al logo</span></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="kit-footer">
+    <div class="kf-logo">PIVOTA<span class="dot">.</span></div>
+    <div class="kf-meta">
+      Manual de Marca · v1.0 · 2026<br>
+      Plus Jakarta Sans 800 · Manrope 400/500<br>
+      #0D0D0D · #ED2611 · #F4F3EF
+    </div>
+  </div>
+
+</div>
+
+<script>
+function copySVG(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.value.trim()).then(() => {
+    const btns = document.querySelectorAll('.copy-btn');
+    btns.forEach(b => {
+      if (b.onclick && b.onclick.toString().includes(id)) {
+        b.textContent = '✓ Copiado';
+        b.classList.add('copied');
+        setTimeout(() => { b.textContent = '⎘ Copiar SVG'; b.classList.remove('copied'); }, 2000);
+      }
+    });
+  });
+}
+
+function copyCSS() {
+  const css = `.pivota-powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pivota-mark {
+  width: 20px;
+  height: 20px;
+  background: #ED2611;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pivota-mark svg { width: 12px; height: 12px; }
+.pivota-text {
+  font-family: 'Manrope', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  color: #555560;
+}
+.pivota-brand {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: #F4F3EF;
+  letter-spacing: -0.01em;
+}
+.pivota-dot { color: #ED2611; }
+.pivota-powered.light .pivota-text  { color: #999; }
+.pivota-powered.light .pivota-brand { color: #0D0D0D; }`;
+  navigator.clipboard.writeText(css).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '⎘ Copiar CSS completo'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function copyFooter() {
+  const footer = `<footer style="text-align:center; padding:16px; border-top:1px solid #2A2A32;">
+  <div class="pivota-powered" style="justify-content:center;">
+    <div class="pivota-mark">
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M5 10 L10 5 L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="10" y1="5" x2="10" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="pivota-text">Powered by</span>
+    <span class="pivota-brand">PIVOTA<span class="pivota-dot">.</span></span>
+  </div>
+</footer>`;
+  navigator.clipboard.writeText(footer).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '⎘ Copiar footer completo'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>

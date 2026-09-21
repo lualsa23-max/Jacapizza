@@ -1,6 +1,6 @@
 /* Solo DM Sans. Syne se elimino: era una familia entera descargada para el
    logo, y el logo ahora usa Verdana, que ya esta en todos los aparatos. */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Manrope:wght@400&family=Plus+Jakarta+Sans:wght@800&display=swap');
 
 :root {
   /* ── Superficies: la elevacion se hace con el FONDO, no con bordes.
@@ -1118,4 +1118,54 @@ a.nav-brand:active { opacity: .7; }
   font-family: Verdana, Geneva, sans-serif;
   font-weight: 700; font-size: 2rem; letter-spacing: -.02em;
   color: var(--brand-text); text-align: center;
+}
+
+/* ── POWERED BY PIVOTA ─────────────────────────────────────────────
+   Componente tomado del manual de marca de PIVOTA, tal cual.
+   Dos ajustes, ambos contemplados por el propio manual:
+
+   1. El color del texto "Powered by". El manual trae --muted #555560 y dice
+      "ajusta segun fondo": sobre nuestro marron #292723 da 2.03 de contraste,
+      ilegible. Se usa --light #C8C6C0, que SI esta en su paleta y da 8.73.
+   2. La flecha del isotipo. El codigo del manual la trae en `white`, pero sus
+      propias reglas prohiben el blanco puro y mandan el blanco calido
+      #F4F3EF. Se respeta la regla escrita.
+
+   Lo que NO se toca, porque el manual es explicito:
+   · el punto siempre rojo #ED2611
+   · Plus Jakarta Sans 800 para el logotipo
+   · sin gradientes, sombras, transparencias ni deformaciones            */
+.pivota-powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pivota-mark {
+  width: 20px; height: 20px;
+  background: #ED2611;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pivota-mark svg { width: 12px; height: 12px; }
+.pivota-text {
+  font-family: 'Manrope', sans-serif;
+  font-size: 11px; font-weight: 400;
+  color: #C8C6C0;
+}
+.pivota-brand {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px; font-weight: 800;
+  color: #F4F3EF;
+  letter-spacing: -0.01em;
+}
+.pivota-dot { color: #ED2611; }
+
+.pivota-powered.light .pivota-text  { color: #555560; }
+.pivota-powered.light .pivota-brand { color: #0D0D0D; }
+
+/* Aire alrededor de la firma, para que no quede pegada al contenido */
+.pivota-pie {
+  display: flex; justify-content: center;
+  padding: var(--s5) 0 var(--s4);
 }

@@ -91,6 +91,9 @@
       {% endif %}
       <a href="{{ url_for('logout') }}" class="mas-item mas-salir">{{ icono('salir', 28) }}<span>Salir</span></a>
     </div>
+    <div class="pivota-pie">
+      {% include "_pivota.html" %}
+    </div>
   </div>
 </div>
 {% endif %}
