@@ -124,11 +124,38 @@ def manifest():
 def robots():
     return Response("User-agent: *\nAllow: /\n", mimetype='text/plain')
 
+# ── DONDE VIVE LA BASE ─────────────────────────────────
+# Esto ya fallo una vez, en silencio, y costo caro: si el volumen persistente
+# no esta montado, `makedirs` crea un /data vacio DENTRO del contenedor y la
+# app arranca contra una base nueva, sin pedidos. Reportes queda en $0 y parece
+# que el negocio no vendio, cuando lo que pasa es que estamos mirando OTRA
+# base. Nada en la pantalla lo delataba. Ahora se grita en el log y se ve en
+# la pantalla de reportes.
 DB_PATH = os.environ.get('DB_PATH', '/data/pizza_data.db')
+DB_ALERTA = ""   # no vacio => la base no es la que deberia ser
+
 _db_dir = os.path.dirname(DB_PATH)
-if _db_dir and not os.path.exists(_db_dir):
-    try: os.makedirs(_db_dir, exist_ok=True)
-    except: DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pizza_data.db')
+_dir_existia = (not _db_dir) or os.path.isdir(_db_dir)
+if not _dir_existia:
+    try:
+        os.makedirs(_db_dir, exist_ok=True)
+        DB_ALERTA = (f"El directorio {_db_dir} no existia y se acaba de crear "
+                     f"vacio: el volumen persistente NO esta montado. Lo que se "
+                     f"registre aqui se pierde en el proximo despliegue.")
+    except Exception as e:
+        DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               'pizza_data.db')
+        DB_ALERTA = (f"No se pudo usar {_db_dir} ({e}). Se esta escribiendo en "
+                     f"{DB_PATH}, junto al codigo, que es efimero.")
+elif not os.path.exists(DB_PATH):
+    DB_ALERTA = (f"{DB_PATH} no existe todavia: se va a crear una base vacia. "
+                 f"Si esto no es una instalacion nueva, la base real esta en "
+                 f"otro lado.")
+
+print(f"[BOOT] DB_PATH efectivo: {DB_PATH}", flush=True)
+print(f"[BOOT] volumen montado: {'si' if _dir_existia else 'NO'}", flush=True)
+if DB_ALERTA:
+    print(f"[BOOT] *** ALERTA DE BASE DE DATOS *** {DB_ALERTA}", flush=True)
 
 USUARIOS = {
     "admin":   {"password": "admin123",  "rol": "Administrador", "nombre": "Natalia de Sarmiento"},
@@ -442,6 +469,34 @@ try:
 except Exception as e:
     print(f"[BOOT] init_db failed (non-fatal): {e}", flush=True)
     traceback.print_exc()
+
+
+def _censo_arranque():
+    """Cuenta lo que hay en la base recien abierta y lo deja en el log.
+
+    Una linea en el arranque que diga "0 pedidos" habria ahorrado meses de
+    reportes en $0: es la forma mas barata de notar que la app se conecto a
+    la base equivocada.
+    """
+    global DB_ALERTA
+    try:
+        with _conn() as c:
+            n = c.execute("SELECT COUNT(*) FROM pedidos").fetchone()[0]
+            ult = c.execute(
+                f"SELECT fecha FROM pedidos WHERE estado='Pagado' "
+                f"ORDER BY {sql_iso()} DESC LIMIT 1").fetchone()
+        print(f"[BOOT] base abierta: {n} pedidos, ultima venta "
+              f"{ult['fecha'] if ult else 'ninguna'}", flush=True)
+        if n == 0 and not DB_ALERTA:
+            DB_ALERTA = (f"{DB_PATH} no tiene ni un pedido. Si el negocio ya "
+                         f"vendio alguna vez, esta no es la base correcta.")
+            print(f"[BOOT] *** ALERTA DE BASE DE DATOS *** {DB_ALERTA}",
+                  flush=True)
+    except Exception as e:
+        print(f"[BOOT] censo de arranque fallido: {e}", flush=True)
+
+
+_censo_arranque()
 
 def _seed_catalogo():
     try:
@@ -1914,6 +1969,7 @@ def admin_reportes():
         data=data, periodo=periodo, fi=fi, ff=ff, hoy=hoy,
         titulo_rango=titulo, metodos=METODOS_PAGO, masas=masas,
         ultima_venta=ultima, ultima_iso=fecha_a_iso(ultima or "", ""),
+        db_alerta=DB_ALERTA, db_path=DB_PATH,
         d1=fecha_a_iso(fi, ""), d2=fecha_a_iso(ff, ""))
 
 

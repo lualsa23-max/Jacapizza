@@ -15,6 +15,19 @@
 
 <div class="rep-rango">{{ titulo_rango }}</div>
 
+{# Si la app se conecto a una base que no es la del negocio, el reporte sale
+   en $0 y parece que no se vendio. Eso ya paso y nadie lo noto en meses: aqui
+   se dice, porque un cero mentiroso es peor que un error. #}
+{% if db_alerta %}
+<div class="rep-tarjeta" style="border:2px solid #c0392b;background:#fdf0ee">
+  <div style="font-weight:700;color:#c0392b;margin-bottom:6px">
+    Estos numeros pueden no ser los del negocio
+  </div>
+  <div style="font-size:13px;line-height:1.45">{{ db_alerta }}</div>
+  <div style="font-size:12px;opacity:.7;margin-top:6px">Base en uso: {{ db_path }}</div>
+</div>
+{% endif %}
+
 {% if not data.n_pedidos %}
 {# Un "$0" a secas se lee como que el sistema esta roto. El negocio abre solo
    algunas noches, asi que lo normal es que muchos dias no tengan venta: la
