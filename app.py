@@ -454,7 +454,10 @@ def init_db():
                         "ALTER TABLE pagos ADD COLUMN jornada TEXT DEFAULT ''",
                         "ALTER TABLE gastos ADD COLUMN jornada TEXT DEFAULT ''",
                         "ALTER TABLE cierres_inventario ADD COLUMN jornada TEXT DEFAULT ''",
-                        "ALTER TABLE catalogo ADD COLUMN categoria TEXT DEFAULT ''"]:
+                        "ALTER TABLE catalogo ADD COLUMN categoria TEXT DEFAULT ''",
+                        # Contraseña puesta por un administrador: la persona
+                        # tiene que cambiarla al entrar.
+                        "ALTER TABLE usuarios ADD COLUMN debe_cambiar INTEGER DEFAULT 0"]:
                 try: c.execute(col)
                 except: pass
             _aplicar_pragmas(c)
@@ -643,7 +646,8 @@ def verificar_credenciales(usuario, password):
         # La consulta funciono: la tabla MANDA. Si aqui no esta, no entra —
         # aunque siga en el diccionario viejo (cuentas fusionadas o dadas de baja).
         if r and check_password_hash(r["password_hash"], password):
-            return {"usuario": r["usuario"], "nombre": r["nombre"], "rol": r["rol"]}
+            return {"usuario": r["usuario"], "nombre": r["nombre"], "rol": r["rol"],
+                    "debe_cambiar": bool(r["debe_cambiar"]) if "debe_cambiar" in r.keys() else False}
         return None
     except Exception as e:
         print(f"[AUTH] tabla usuarios no disponible ({e}); usando respaldo", flush=True)
@@ -1643,9 +1647,51 @@ def login():
             session['usuario'] = datos['usuario']
             session['nombre']  = datos['nombre']
             session['rol']     = datos['rol']
+            if datos.get('debe_cambiar'):
+                session['debe_cambiar'] = True
+                return redirect(url_for('cambiar_clave'))
             return redirect(url_for('dashboard'))
         error = "Usuario o contraseña incorrectos"
     return render_template('login.html', error=error)
+
+
+# Mientras la contraseña sea la temporal, la unica pantalla abierta es la de
+# cambiarla. Se hace aqui y no en cada decorador para que no quede ninguna
+# ruta (ni las de /api) por la que se pueda seguir usando la temporal.
+_LIBRES_CON_TEMPORAL = {'cambiar_clave', 'logout', 'login', 'static', 'manifest', 'robots'}
+
+@app.before_request
+def _exigir_cambio_de_clave():
+    if session.get('debe_cambiar') and request.endpoint not in _LIBRES_CON_TEMPORAL:
+        return redirect(url_for('cambiar_clave'))
+
+
+@app.route('/cambiar-clave', methods=['GET', 'POST'])
+@login_required
+def cambiar_clave():
+    error = None
+    if request.method == 'POST':
+        actual = request.form.get('actual', '').strip()
+        nueva  = request.form.get('nueva', '').strip()
+        repite = request.form.get('repite', '').strip()
+        usuario = session['usuario']
+        if not verificar_credenciales(usuario, actual):
+            error = "La contraseña actual no es correcta"
+        elif len(nueva) < 6:
+            error = "La contraseña nueva debe tener al menos 6 caracteres"
+        elif nueva != repite:
+            error = "Las dos contraseñas nuevas no coinciden"
+        elif nueva == actual:
+            error = "La contraseña nueva tiene que ser distinta a la actual"
+        else:
+            with _conn() as c:
+                c.execute("UPDATE usuarios SET password_hash=?, debe_cambiar=0 WHERE usuario=?",
+                          (generate_password_hash(nueva), usuario))
+            session.pop('debe_cambiar', None)
+            flash('Listo, tu contraseña quedó cambiada', 'success')
+            return redirect(url_for('dashboard'))
+    return render_template('cambiar_clave.html', error=error,
+                           obligatorio=bool(session.get('debe_cambiar')))
 
 
 @app.route('/logout')
@@ -2083,10 +2129,14 @@ def admin_usuarios():
                     c.execute("UPDATE usuarios SET nombre=? WHERE id=?", (nombre, uid))
                 c.execute("UPDATE usuarios SET rol=? WHERE id=?", (rol, uid))
                 if pwd:
-                    c.execute("UPDATE usuarios SET password_hash=? WHERE id=?",
-                              (generate_password_hash(pwd), uid))
+                    # Si se la pone otro, es temporal: se cambia al entrar.
+                    temporal = 1 if actual["usuario"] != session.get('usuario') else 0
+                    c.execute("UPDATE usuarios SET password_hash=?, debe_cambiar=? WHERE id=?",
+                              (generate_password_hash(pwd), temporal, uid))
             flash(f'@{actual["usuario"]} actualizado'
-                  + (' (contraseña nueva)' if pwd else ''), 'success')
+                  + ((' (contraseña temporal: la cambia al entrar)'
+                      if actual["usuario"] != session.get('usuario')
+                      else ' (contraseña nueva)') if pwd else ''), 'success')
 
         elif accion == 'delete' and uid:
             with _conn() as c:
@@ -2119,12 +2169,13 @@ def admin_usuarios():
                     if ex and ex["activo"]:
                         flash(f'El usuario @{u} ya existe', 'error')
                     elif ex:
-                        c.execute("UPDATE usuarios SET nombre=?,password_hash=?,rol=?,activo=1 "
-                                  "WHERE id=?", (nn, generate_password_hash(np), nr, ex["id"]))
+                        c.execute("UPDATE usuarios SET nombre=?,password_hash=?,rol=?,activo=1,"
+                                  "debe_cambiar=1 WHERE id=?",
+                                  (nn, generate_password_hash(np), nr, ex["id"]))
                         flash(f'@{u} reactivado', 'success')
                     else:
-                        c.execute("INSERT INTO usuarios (usuario,nombre,password_hash,rol,activo,creado) "
-                                  "VALUES (?,?,?,?,1,?)",
+                        c.execute("INSERT INTO usuarios (usuario,nombre,password_hash,rol,activo,creado,"
+                                  "debe_cambiar) VALUES (?,?,?,?,1,?,1)",
                                   (u, nn, generate_password_hash(np), nr,
                                    ahora().strftime("%d/%m/%Y %H:%M")))
                         flash(f'@{u} creado como {nr}', 'success')

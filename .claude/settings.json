@@ -3,7 +3,10 @@
     "allow": [
       "Bash(python3 -m venv venv)",
       "Bash(./venv/bin/pip install *)",
-      "Bash(./venv/bin/python -c \"import flask, gunicorn; print\\('flask', flask.__version__\\); print\\('gunicorn ok'\\)\")"
+      "Bash(./venv/bin/python -c \"import flask, gunicorn; print\\('flask', flask.__version__\\); print\\('gunicorn ok'\\)\")",
+      "Bash(sqlite3 /data/pizza_data.db \"SELECT usuario, nombre FROM usuarios WHERE usuario LIKE '%mahecha%' OR nombre LIKE '%mahecha%' OR nombre LIKE '%juan%';\")",
+      "Bash(sqlite3 ./backups/pizza_data_prod_20260919.db \"SELECT usuario, nombre FROM usuarios WHERE usuario LIKE '%mahecha%' OR nombre LIKE '%mahecha%' OR nombre LIKE '%juan%';\")",
+      "Bash(sqlite3 ./backups/pizza_data_20260920_0700.db \"SELECT usuario, nombre FROM usuarios LIMIT 10;\")"
     ]
   }
 }

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+{% include "_head.html" %}
+  <title>JacaPizza — Cambiar contraseña</title>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1 class="wordmark">JacaPizza</h1>
+      {% if obligatorio %}
+      <p>Hola, {{ session.get('nombre') }}. Antes de seguir, crea tu propia contraseña.</p>
+      {% else %}
+      <p>Cambiar mi contraseña</p>
+      {% endif %}
+    </div>
+    <div class="login-card">
+      {% if error %}
+      <div class="login-err">{{ icono('alerta', 18) }} {{ error }}</div>
+      {% endif %}
+      <form method="post">
+        <div class="form-group">
+          <label class="form-label">Contraseña actual</label>
+          <input class="form-input" type="password" name="actual"
+                 autocomplete="current-password" autofocus required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña nueva</label>
+          <input class="form-input" type="password" name="nueva"
+                 autocomplete="new-password" minlength="6" required
+                 placeholder="mínimo 6 caracteres">
+        </div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Repite la contraseña nueva</label>
+          <input class="form-input" type="password" name="repite"
+                 autocomplete="new-password" minlength="6" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full btn-lg">
+          Guardar y entrar →
+        </button>
+      </form>
+      <p class="text-xs c-gray mt-4" style="text-align:center">
+        <a href="{{ url_for('logout') }}" style="color:inherit">Salir</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% include "_iconos.html" ignore missing %}
+</body>
+</html>
