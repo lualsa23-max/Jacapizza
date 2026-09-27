@@ -85,6 +85,24 @@ def sql_iso(alias=""):
     return (f"COALESCE(NULLIF({a}jornada,''), "
             f"substr({a}fecha,7,4)||'-'||substr({a}fecha,4,2)||'-'||substr({a}fecha,1,2))")
 
+
+def sql_vendido(alias=""):
+    """Condicion SQL de "esto fue una venta", para reportes y cierres.
+
+    Antes era `estado='Pagado'` a secas, y esa columna ya casi nadie la
+    escribe: la pantalla de Cobrar registra el pago con marcar_pagado=False y
+    las estaciones entregan con entregar_estacion(), que solo toca las
+    columnas derivadas. Resultado: las pizzas cobradas no llegaban nunca a
+    'Pagado' y el reporte de una noche entera salia con un pedido de bebidas.
+
+    Ahora cuenta como venta la cuenta cerrada por pagos (`estado_cuenta`) o lo
+    que el flujo viejo dejo en 'Pagado'. Quedan fuera los anulados y las
+    cortesias (cerradas a mano), que no son ingreso.
+    """
+    a = f"{alias}." if alias else ""
+    return (f"(COALESCE({a}anulado,0)=0 AND ({a}estado='Pagado' OR "
+            f"({a}estado_cuenta='Cerrada' AND COALESCE({a}cierre_manual,0)=0)))")
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'jacapizza-secret-2024-xK9!')
 
@@ -486,7 +504,7 @@ def _censo_arranque():
         with _conn() as c:
             n = c.execute("SELECT COUNT(*) FROM pedidos").fetchone()[0]
             ult = c.execute(
-                f"SELECT fecha FROM pedidos WHERE estado='Pagado' "
+                f"SELECT fecha FROM pedidos WHERE {sql_vendido()} "
                 f"ORDER BY {sql_iso()} DESC LIMIT 1").fetchone()
         print(f"[BOOT] base abierta: {n} pedidos, ultima venta "
               f"{ult['fecha'] if ult else 'ninguna'}", flush=True)
@@ -1264,7 +1282,7 @@ def ultima_jornada_con_ventas():
     try:
         with _conn() as c:
             r = c.execute(
-                f"SELECT fecha FROM pedidos WHERE estado='Pagado' "
+                f"SELECT fecha FROM pedidos WHERE {sql_vendido()} "
                 f"ORDER BY {sql_iso()} DESC LIMIT 1").fetchone()
         return r["fecha"] if r else None
     except Exception:
@@ -1286,7 +1304,7 @@ def get_reporte(fecha_ini, fecha_fin):
     fi, ff = rango_iso(fecha_ini, fecha_fin)
     with _conn() as c:
         pagados = c.execute(
-            f"SELECT * FROM pedidos WHERE estado='Pagado' AND {sql_iso()} BETWEEN ? AND ?",
+            f"SELECT * FROM pedidos WHERE {sql_vendido()} AND {sql_iso()} BETWEEN ? AND ?",
             (fi, ff)).fetchall()
         ids = [r["id"] for r in pagados]
 
@@ -1518,7 +1536,7 @@ def get_vendido_hoy(fecha):
         rows = c.execute(
             "SELECT i.nombre, i.tipo, SUM(i.cantidad) as total "
             "FROM items i JOIN pedidos p ON p.id=i.pedido_id "
-            "WHERE p.estado='Pagado' AND p.fecha=? "
+            f"WHERE {sql_vendido('p')} AND p.fecha=? "
             "GROUP BY i.nombre, i.tipo", (fecha,)).fetchall()
     for r in rows:
         vendido[r["nombre"]] = {"cantidad": r["total"], "tipo": r["tipo"]}
@@ -2028,7 +2046,7 @@ def admin_csv():
             "SELECT p.id,p.codigo,p.mesero,p.estado,p.total,p.hora,p.fecha,p.pago,"
             "i.nombre,i.tipo,i.cantidad,i.precio_unit "
             "FROM pedidos p JOIN items i ON i.pedido_id=p.id "
-            f"WHERE p.estado='Pagado' AND {sql_iso('p')} BETWEEN ? AND ? ORDER BY p.id",
+            f"WHERE {sql_vendido('p')} AND {sql_iso('p')} BETWEEN ? AND ? ORDER BY p.id",
             rango_iso(fi, ff)).fetchall()
     out = io.StringIO(); w = csv.writer(out)
     w.writerow(["ID","Código","Mesero","Estado","Total","Hora","Fecha","Pago","Ítem","Tipo","Cantidad","Precio"])
