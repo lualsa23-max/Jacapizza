@@ -470,6 +470,8 @@ def init_db():
                         "ALTER TABLE items ADD COLUMN creado_hora TEXT DEFAULT ''",
                         "ALTER TABLE items ADD COLUMN nota TEXT DEFAULT ''",
                         "ALTER TABLE pagos ADD COLUMN jornada TEXT DEFAULT ''",
+                        # Foto del comprobante de un pago electronico
+                        "ALTER TABLE pagos ADD COLUMN comprobante TEXT DEFAULT ''",
                         "ALTER TABLE gastos ADD COLUMN jornada TEXT DEFAULT ''",
                         "ALTER TABLE cierres_inventario ADD COLUMN jornada TEXT DEFAULT ''",
                         "ALTER TABLE catalogo ADD COLUMN categoria TEXT DEFAULT ''",
@@ -753,7 +755,9 @@ def get_inv_estandar():
 # ── PEDIDOS ───────────────────────────────────────────
 def _pagos_de_filas(rows):
     return [{"id": r["id"], "monto": r["monto"], "metodo": r["metodo"],
-             "cobrado_por": r["cobrado_por"], "fecha": r["fecha"], "hora": r["hora"]} for r in rows]
+             "cobrado_por": r["cobrado_por"], "fecha": r["fecha"], "hora": r["hora"],
+             "comprobante": (r["comprobante"] if "comprobante" in r.keys() else "") or ""}
+            for r in rows]
 
 
 def _get_pagos(c, pid):
@@ -1143,15 +1147,16 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
         _sync_estado(c, pid)
     return get_pedido(pid)
 
-def registrar_pago(pid, monto, metodo, cobrado_por, marcar_pagado=True):
-    """Registra un pago. Si marcar_pagado=False, guarda el pago pero no cambia el estado."""
+def registrar_pago(pid, monto, metodo, cobrado_por, marcar_pagado=True, comprobante=""):
+    """Registra un pago. Si marcar_pagado=False, guarda el pago pero no cambia el estado.
+    `comprobante` es el nombre del archivo ya guardado en COMPROBANTES_FOLDER."""
     fecha = ahora().strftime("%d/%m/%Y")
     hora  = ahora().strftime("%H:%M")
     try:
         with _conn() as c:
-            c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora,jornada) "
-                      "VALUES (?,?,?,?,?,?,?)",
-                      (pid, monto, metodo, cobrado_por, fecha, hora, jornada_actual()))
+            c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora,jornada,comprobante) "
+                      "VALUES (?,?,?,?,?,?,?,?)",
+                      (pid, monto, metodo, cobrado_por, fecha, hora, jornada_actual(), comprobante or ""))
             if marcar_pagado:
                 total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
                 total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
@@ -1556,6 +1561,31 @@ except:
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_FACTURA_EXT = {'png','jpg','jpeg','pdf','webp','heic'}
+
+# Comprobantes de pagos electronicos (Nequi, Daviplata, tarjeta, llave). Van en
+# el mismo volumen que la base. El telefono comprime la foto antes de subirla
+# (~150 KB), asi que ocupan poco; el tope protege el volumen si llega un
+# archivo sin comprimir.
+COMPROBANTES_FOLDER = os.path.join(os.path.dirname(UPLOAD_FOLDER), 'comprobantes')
+try: os.makedirs(COMPROBANTES_FOLDER, exist_ok=True)
+except Exception:
+    COMPROBANTES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comprobantes')
+    os.makedirs(COMPROBANTES_FOLDER, exist_ok=True)
+MAX_COMPROBANTE = 8 * 1024 * 1024
+
+
+def guardar_comprobante(archivo, pid):
+    """Guarda el archivo subido y devuelve su nombre, o '' si no hay o no sirve."""
+    if not archivo or not archivo.filename or not _allowed_factura(archivo.filename):
+        return ""
+    datos = archivo.read(MAX_COMPROBANTE + 1)
+    if not datos or len(datos) > MAX_COMPROBANTE:
+        return ""
+    ext = archivo.filename.rsplit('.', 1)[1].lower()
+    nombre = secure_filename(f"pago_{pid}_{uuid.uuid4().hex[:10]}.{ext}")
+    with open(os.path.join(COMPROBANTES_FOLDER, nombre), "wb") as f:
+        f.write(datos)
+    return nombre
 def _allowed_factura(fn):
     return '.' in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_FACTURA_EXT
 
@@ -2478,13 +2508,55 @@ def cajero_pagar(pid):
     else:
         monto = pedido["saldo"]
 
-    registrar_pago(pid, monto, metodo, session['nombre'], marcar_pagado=False)
+    comprobante = ""
+    if metodo != "Efectivo" and request.files.get('comprobante'):
+        comprobante = guardar_comprobante(request.files['comprobante'], pid)
+        if not comprobante:
+            flash('La foto del comprobante no se pudo guardar; el cobro sí quedó. '
+                  'Agrégala desde Caja.', 'error')
+    registrar_pago(pid, monto, metodo, session['nombre'], marcar_pagado=False,
+                   comprobante=comprobante)
     q = get_pedido(pid)
     if q["estado_cuenta"] == "Cerrada":
         flash(f'{q["mesa"]} — {fmt_cop(monto)} en {metodo}. Cuenta cerrada.', 'success')
     else:
         flash(f'{q["mesa"]} — {fmt_cop(monto)} en {metodo}. 'f'Falta {fmt_cop(q["saldo"])}.', 'success')
     return redirect(url_for('cajero_cobrar'))
+
+
+@app.route('/cajero/pago/<int:pago_id>/comprobante', methods=['POST'])
+@login_required
+def adjuntar_comprobante(pago_id):
+    """Agregar o cambiar la foto de un pago ya registrado.
+
+    Los cobros que se hacen desde Pedido o Venta rapida no piden foto; desde
+    Caja se completa despues. Solo quien cobro o un administrador.
+    """
+    vuelta = request.form.get('volver') or url_for('cajero_caja')
+    if not vuelta.startswith('/'):
+        vuelta = url_for('cajero_caja')
+    with _conn() as c:
+        pg = c.execute("SELECT * FROM pagos WHERE id=?", (pago_id,)).fetchone()
+    if not pg:
+        flash('No se encontró ese pago', 'error')
+        return redirect(vuelta)
+    if pg["cobrado_por"] != session.get('nombre') and session.get('rol') != ROL_ADMIN:
+        flash('Solo quien cobró o un administrador puede cambiar el comprobante', 'error')
+        return redirect(vuelta)
+    nombre = guardar_comprobante(request.files.get('comprobante'), pg["pedido_id"])
+    if not nombre:
+        flash('No llegó una foto o archivo válido (jpg, png, webp, heic o pdf)', 'error')
+        return redirect(vuelta)
+    with _conn() as c:
+        c.execute("UPDATE pagos SET comprobante=? WHERE id=?", (nombre, pago_id))
+    flash(f'Comprobante guardado — {fmt_cop(pg["monto"])} en {pg["metodo"]}', 'success')
+    return redirect(vuelta)
+
+
+@app.route('/comprobante/<path:filename>')
+@login_required
+def ver_comprobante(filename):
+    return send_from_directory(COMPROBANTES_FOLDER, filename)
 
 
 @app.route('/cajero/cuenta/<int:pid>/cerrar_manual', methods=['POST'])

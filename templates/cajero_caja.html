@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 {% block title %}— Caja{% endblock %}
 
+{% macro comp(pg) %}
+{% if pg.metodo != 'Efectivo' %}
+  {% if pg.comprobante %}
+  <a class="comp-link" href="{{ url_for('ver_comprobante', filename=pg.comprobante) }}" target="_blank">{{ icono('camara', 14) }} ver</a>
+  {% else %}
+  <form method="post" action="{{ url_for('adjuntar_comprobante', pago_id=pg.id) }}"
+        enctype="multipart/form-data" class="comp-form" style="display:inline">
+    <input type="hidden" name="volver" value="{{ request.full_path }}">
+    <label class="comp-link" style="color:var(--orange);cursor:pointer">
+      {{ icono('camara', 14) }} sin foto
+      <input type="file" name="comprobante" accept="image/*,application/pdf" hidden>
+    </label>
+  </form>
+  {% endif %}
+{% endif %}
+{% endmacro %}
+
 {% macro desglose(r, titulo) %}
 <div class="card">
   <div class="caja-titulo">{{ titulo }}</div>
@@ -92,6 +109,19 @@
   <div class="empty"><span class="e-ico">{{ icono('reloj', 18) }}</span>Nadie ha cobrado todavía hoy</div>
   {% endfor %}
 
+  {% set electronicos = todo.pagos | rejectattr('metodo', 'equalto', 'Efectivo') | list %}
+  {% if electronicos %}
+  <h3 class="sec-title mt-16">Pagos electrónicos y comprobantes</h3>
+  <div class="card">
+    {% for pg in electronicos | reverse %}
+    <div class="caja-linea">
+      <span class="text-sm">{{ pg.hora }} · {{ pg.metodo }} · {{ pg.cobrado_por }} {{ comp(pg) }}</span>
+      <span class="num">{{ pg.monto | cop }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if todo.total %}
   <div class="card mt-12" style="border-left:3px solid var(--accent)">
     <div class="caja-linea caja-total">
@@ -110,7 +140,7 @@
   <div class="card">
     {% for pg in mio.pagos | reverse %}
     <div class="caja-linea">
-      <span class="text-sm">{{ pg.hora }} · {{ metodos_iconos.get(pg.metodo, '•') }} {{ pg.metodo }}</span>
+      <span class="text-sm">{{ pg.hora }} · {{ metodos_iconos.get(pg.metodo, '•') }} {{ pg.metodo }} {{ comp(pg) }}</span>
       <span class="num">{{ pg.monto | cop }}</span>
     </div>
     {% endfor %}
@@ -129,4 +159,21 @@
   {% endif %}
 
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// "sin foto": al elegir la foto se comprime y se sube sola
+document.querySelectorAll('.comp-form input[type=file]').forEach(function (input) {
+  input.addEventListener('change', function () {
+    var f = input.files && input.files[0];
+    if (!f) return;
+    input.closest('label').firstChild.textContent = ' subiendo… ';
+    comprimirFoto(f).then(function (chico) {
+      if (chico !== f) ponerArchivo(input, chico);
+      input.form.submit();
+    });
+  });
+});
+</script>
 {% endblock %}

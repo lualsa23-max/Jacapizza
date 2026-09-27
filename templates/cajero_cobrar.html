@@ -45,17 +45,25 @@
   {% if p.pagos %}
   <div class="cobro-pagos">
     {% for pg in p.pagos %}
-    <div class="text-xs c-gray2">↳ {{ pg.monto | cop }} en {{ pg.metodo }} · {{ pg.cobrado_por }} · {{ pg.hora }}</div>
+    <div class="text-xs c-gray2">↳ {{ pg.monto | cop }} en {{ pg.metodo }} · {{ pg.cobrado_por }} · {{ pg.hora }}
+      {% if pg.comprobante %}· <a class="comp-link" href="{{ url_for('ver_comprobante', filename=pg.comprobante) }}" target="_blank">{{ icono('camara', 14) }} comprobante</a>{% endif %}</div>
     {% endfor %}
   </div>
   {% endif %}
 
   <div class="pay-grid">
     {% for m, icono in metodos.items() %}
+    {% if m == 'Efectivo' %}
     <form method="post" action="{{ url_for('cajero_pagar', pid=p.id) }}">
       <input type="hidden" name="metodo" value="{{ m }}">
       <button type="submit" class="btn btn-green btn-full">{{ icono }} {{ m }}</button>
     </form>
+    {% else %}
+    {# Electronico: primero la foto del comprobante #}
+    <button type="button" class="btn btn-green btn-full"
+            onclick="abrirComprobante({{ p.id }}, '{{ m }}', '', {{ p.saldo | int }}, '{{ p.mesa | replace("'", "") }}')">
+      {{ icono }} {{ m }}</button>
+    {% endif %}
     {% endfor %}
   </div>
 
@@ -146,6 +154,37 @@
   </div>
 </div>
 
+{# ── Hoja del comprobante (pagos electrónicos) ────────────── #}
+<div class="overlay" id="ov-comprobante" onclick="if(event.target===this)cerrar('ov-comprobante')">
+  <div class="sheet">
+    <div class="sheet-titulo" id="comp-titulo">Comprobante</div>
+    <div class="text-xs c-gray2 mb-8" id="comp-sub"></div>
+    <form method="post" id="form-comprobante" enctype="multipart/form-data">
+      <input type="hidden" name="metodo" id="comp-metodo">
+      <input type="hidden" name="monto" id="comp-monto">
+      {# capture="environment" abre directo la cámara trasera en el celular #}
+      <input type="file" id="comp-camara" accept="image/*" capture="environment" hidden>
+      <input type="file" id="comp-archivo" accept="image/*,application/pdf" hidden>
+
+      <div id="comp-vista" class="comp-vista" hidden>
+        <img id="comp-img" alt="Comprobante">
+        <div id="comp-nombre" class="text-xs c-gray2"></div>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-full btn-lg" id="comp-btn-foto"
+              onclick="document.getElementById('comp-camara').click()">
+        {{ icono('camara', 20) }} Tomar foto del comprobante</button>
+      <button type="button" class="btn btn-ghost btn-full mt-8"
+              onclick="document.getElementById('comp-archivo').click()">Subir archivo</button>
+
+      <button type="submit" class="btn btn-green btn-full btn-lg mt-12" id="comp-cobrar" disabled>
+        {{ icono('check', 18) }} Cobrar con comprobante</button>
+      <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cobrarSinFoto()">Cobrar sin foto</button>
+      <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrar('ov-comprobante')">Cancelar</button>
+    </form>
+  </div>
+</div>
+
 {# ── Hoja para cerrar sin cobrar ──────────────────────────── #}
 <div class="overlay" id="ov-cortesia" onclick="if(event.target===this)cerrar('ov-cortesia')">
   <div class="sheet">
@@ -210,5 +249,75 @@ function elegirMetodo(btn) {
   document.getElementById('metodo-input').value = btn.dataset.m;
 }
 document.querySelector('.metodo-op') && elegirMetodo(document.querySelector('.metodo-op'));
+
+document.getElementById('form-parcial').addEventListener('submit', function (ev) {
+  var m = document.getElementById('metodo-input').value;
+  if (m === 'Efectivo' || !monto) return;
+  ev.preventDefault();
+  var pid = this.action.split('/').pop();
+  cerrar('ov-parcial');
+  abrirComprobante(pid, m, monto, parseInt(monto, 10),
+                   document.getElementById('parcial-titulo').textContent);
+});
+
+// ── Comprobante ────────────────────────────────────────────
+function abrirComprobante(pid, metodo, montoParcial, valor, mesa) {
+  var f = document.getElementById('form-comprobante');
+  f.action = '/cajero/cobrar/' + pid;
+  f.reset();
+  document.getElementById('comp-metodo').value = metodo;
+  document.getElementById('comp-monto').value = montoParcial || '';
+  document.getElementById('comp-titulo').textContent = 'Comprobante de ' + metodo;
+  document.getElementById('comp-sub').textContent = mesa + ' — ' + fmt(valor);
+  ['comp-camara', 'comp-archivo'].forEach(function (id) {
+    document.getElementById(id).removeAttribute('name');
+  });
+  document.getElementById('comp-vista').hidden = true;
+  document.getElementById('comp-cobrar').disabled = true;
+  document.getElementById('comp-btn-foto').innerHTML =
+    document.getElementById('comp-btn-foto').innerHTML.replace('Tomar otra foto', 'Tomar foto del comprobante');
+  document.getElementById('ov-comprobante').classList.add('open');
+}
+
+function elegido(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var otro = document.getElementById(input.id === 'comp-camara' ? 'comp-archivo' : 'comp-camara');
+  otro.removeAttribute('name'); otro.value = '';
+  input.setAttribute('name', 'comprobante');
+  var btn = document.getElementById('comp-cobrar');
+  btn.disabled = true;
+  comprimirFoto(file).then(function (chico) {
+    if (chico !== file) ponerArchivo(input, chico);
+    var img = document.getElementById('comp-img');
+    var es_img = /^image\//.test(chico.type);
+    img.hidden = !es_img;
+    if (es_img) img.src = URL.createObjectURL(chico);
+    document.getElementById('comp-nombre').textContent =
+      (es_img ? '' : file.name + ' · ') + Math.round(chico.size / 1024) + ' KB';
+    document.getElementById('comp-vista').hidden = false;
+    var bf = document.getElementById('comp-btn-foto');
+    bf.innerHTML = bf.innerHTML.replace('Tomar foto del comprobante', 'Tomar otra foto');
+    btn.disabled = false;
+  });
+}
+document.getElementById('comp-camara').addEventListener('change', function () { elegido(this); });
+document.getElementById('comp-archivo').addEventListener('change', function () { elegido(this); });
+
+var enviando = false;
+function cobrarSinFoto() {
+  if (enviando) return;
+  enviando = true;
+  ['comp-camara', 'comp-archivo'].forEach(function (id) {
+    var i = document.getElementById(id); i.removeAttribute('name'); i.value = '';
+  });
+  document.getElementById('form-comprobante').submit();
+  setTimeout(function () { enviando = false; }, 4000);
+}
+// Evita el doble cobro por un doble toque mientras sube la foto
+document.getElementById('form-comprobante').addEventListener('submit', function () {
+  var b = document.getElementById('comp-cobrar');
+  b.disabled = true; b.textContent = 'Subiendo…';
+});
 </script>
 {% endblock %}
