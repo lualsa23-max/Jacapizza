@@ -197,6 +197,10 @@ BEBIDAS_DEFAULT = {
     "Jugo Natural — Tamarindo":7000,"Jugo Natural — Maracumango":7000,
     "Jugo Natural — Maracuyá":7000,"Jugo Natural — Piña":7000,
     "Jugo Natural — Piña-Hierbabuena":7000,
+    # Cócteles. Los de sabor llevan "Cóctel de" para no confundirse con el
+    # jugo del mismo nombre en la pantalla de pedido.
+    "Cuba Libre":18000,"Mojito":18000,
+    "Cóctel de Piña-Hierbabuena":18000,"Cóctel de Tamarindo":18000,
 }
 PIZZAS_DEFAULT = {
     "Hawaiana":20000,"Pollo con Champiñones":20000,"Mexicana":20000,
@@ -247,7 +251,7 @@ def categoria_sugerida(nombre):
     if n.startswith(("gaseosa", "soda", "coca", "agua")):
         return "Gaseosas y aguas"
     if n.startswith("cóctel") or n.startswith("coctel") or "cuba libre" in n \
-            or "gin tonic" in n or "cola y pola" in n:
+            or "gin tonic" in n or "cola y pola" in n or "mojito" in n:
         return "Cócteles"
     return "Otros"
 
