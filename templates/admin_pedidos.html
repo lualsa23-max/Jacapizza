@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_hora_entrega.html" import hora_entrega with context %}
 {% block title %}— Todos los Pedidos{% endblock %}
 {% block content %}
 <h2 class="sec-title">{{ icono('menu', 18) }} Todos los Pedidos</h2>
@@ -57,7 +58,7 @@
             <span class="badge">{{ p.estado }}</span>
           {% endif %}
         </td>
-        <td class="text-sm c-accent">{{ p.franja_hora if p.franja_hora else '—' }}</td>
+        <td class="text-sm">{{ hora_entrega(p.id, p.franja_hora, 'admin_pedidos') }}</td>
         <td class="text-sm c-gray">{{ p.hora }}</td>
         <td class="text-sm c-gray">{{ p.fecha }}</td>
         <td style="white-space:nowrap">

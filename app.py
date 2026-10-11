@@ -289,6 +289,10 @@ def _icono():
     return {"icono": icono}
 
 
+# Para el selector de hora de entrega, que aparece en varias pantallas
+app.jinja_env.globals["FRANJAS_HORA"] = FRANJAS_HORA
+
+
 @app.template_filter('cop')
 def fmt_cop(v):
     try: return f"${float(v):,.0f}".replace(",",".")
@@ -924,6 +928,17 @@ def listar_estacion(tipo, jornada=None):
                 minutos = max(0, ahora_min - (int(hh) * 60 + int(mm)))
             except Exception:
                 minutos = 0
+            # Con hora de entrega, el reloj cuenta lo que FALTA para esa hora.
+            # Solo la ronda 1: una adicional se pide despues y su franja ya
+            # paso, asi que ahi sigue contando lo que lleva esperando.
+            franja = _col_de(r, "franja_hora", "")
+            restan = _minutos_hasta(franja, ahora_min) if ronda == 1 else None
+            if restan is not None:
+                urgencia = "roja" if restan <= 5 else ("naranja" if restan <= 15 else "verde")
+                orden = restan
+            else:
+                urgencia = "roja" if minutos >= 20 else ("naranja" if minutos >= 10 else "verde")
+                orden = 20 - minutos
             comandas.append({
                 "pedido_id": r["id"],
                 "codigo": r["codigo"],
@@ -940,10 +955,31 @@ def listar_estacion(tipo, jornada=None):
                 "productos": de_ronda,
                 "otra_estacion": otra,
                 "minutos": minutos,
-                "urgencia": "roja" if minutos >= 20 else ("naranja" if minutos >= 10 else "verde"),
+                "restan": restan,
+                "urgencia": urgencia,
+                "orden": orden,
             })
-    comandas.sort(key=lambda x: -x["minutos"])
+    # Primero lo que hay que entregar antes (o lo que ya va tarde)
+    comandas.sort(key=lambda x: x["orden"])
     return comandas
+
+
+def _minutos_hasta(franja, ahora_min):
+    """Minutos que faltan para una franja tipo "7:30 PM" (negativo = tarde).
+
+    None si la franja no se entiende. La jornada cruza la medianoche, asi que
+    una diferencia de mas de 12 h se interpreta como del otro lado del dia.
+    """
+    try:
+        objetivo = datetime.strptime(franja.strip().upper(), "%I:%M %p")
+    except (ValueError, AttributeError):
+        return None
+    diff = objetivo.hour * 60 + objetivo.minute - ahora_min
+    if diff > 720:
+        diff -= 1440
+    elif diff < -720:
+        diff += 1440
+    return diff
 
 
 def _col_de(row, nombre, defecto):
@@ -2825,6 +2861,34 @@ def deshacer_entrega(cual, pid, ronda):
         _sync_estado(c, pid)
     flash(f'Deshecho: pedido #{pid} vuelve a {"cocina" if tipo == "Pizza" else "barra"}', 'success')
     return redirect(url_for('estacion_pizzas' if tipo == "Pizza" else 'estacion_bebidas'))
+
+
+# Pantallas desde las que se cambia la hora. `volver` se valida contra esta
+# lista para no redirigir a donde diga el formulario.
+_VOLVER_HORA = ('estacion_pizzas', 'estacion_bebidas', 'mesero_pedidos', 'admin_pedidos')
+
+
+@app.route('/pedido/<int:pid>/hora', methods=['POST'])
+@login_required
+def cambiar_hora_entrega(pid):
+    """Corregir solo la hora de entrega.
+
+    No pasa por la edicion completa: esa devuelve y vuelve a descontar
+    inventario y le avisa a cocina de un "pedido modificado". Para mover la
+    hora no hace falta nada de eso, y asi sirve tambien con el pedido pagado.
+    """
+    franja = request.form.get('franja', '').strip()
+    volver = request.form.get('volver', '')
+    if volver not in _VOLVER_HORA:
+        volver = 'mesero_pedidos'
+    if franja and franja not in FRANJAS_HORA:
+        flash('Hora no válida', 'error')
+        return redirect(url_for(volver))
+    with _conn() as c:
+        c.execute("UPDATE pedidos SET franja_hora=? WHERE id=?", (franja, pid))
+    flash(f'Pedido #{pid}: entrega {franja}' if franja else f'Pedido #{pid}: sin hora de entrega',
+          'success')
+    return redirect(url_for(volver))
 
 
 # ── Rutas viejas: se mantienen para las tablets que tengan la pagina

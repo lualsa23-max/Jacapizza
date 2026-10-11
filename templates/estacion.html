@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_hora_entrega.html" import hora_entrega with context %}
 {% block title %}— {{ titulo }}{% endblock %}
 
 {% block content %}
@@ -51,7 +52,7 @@
 
 <div class="k-grid">
 {% for k in comandas %}
-  <div class="k-card est-card" data-min="{{ k.minutos }}"
+  <div class="k-card est-card" data-min="{{ k.minutos }}"{% if k.restan is not none %} data-restan="{{ k.restan }}"{% endif %}
        style="border-top:3px solid {{ color }}">
 
     <div class="k-card-head">
@@ -64,8 +65,12 @@
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div class="k-timer num timer-{{ k.urgencia }}">{{ k.minutos }} min</div>
-        {% if k.franja_hora %}<div class="text-xs c-gray2">{{ icono('reloj', 18) }} {{ k.franja_hora }}</div>{% endif %}
+        <div class="k-timer num timer-{{ k.urgencia }}">
+          {%- if k.restan is none %}{{ k.minutos }} min
+          {%- elif k.restan >= 0 %}faltan {{ k.restan }} min
+          {%- else %}{{ -k.restan }} min tarde{% endif -%}
+        </div>
+        <div class="mt-4">{{ hora_entrega(k.pedido_id, k.franja_hora, 'estacion_pizzas' if es_pizzas else 'estacion_bebidas') }}</div>
       </div>
     </div>
 
@@ -114,14 +119,24 @@
 {% block scripts %}
 <script>
 // ── Cronómetro: sube solo, sin recargar la página ──────────────────
+// Con hora de entrega cuenta hacia atrás lo que falta; sin ella, lo que lleva.
 function tictac() {
   document.querySelectorAll('.est-card').forEach(function (card) {
     var min = parseInt(card.dataset.min || '0', 10) + 1;
     card.dataset.min = min;
     var t = card.querySelector('.k-timer');
     if (!t) return;
-    t.textContent = min + ' min';
-    t.className = 'k-timer num timer-' + (min >= 20 ? 'roja' : (min >= 10 ? 'naranja' : 'verde'));
+    var urg;
+    if (card.dataset.restan !== undefined) {
+      var r = parseInt(card.dataset.restan, 10) - 1;
+      card.dataset.restan = r;
+      t.textContent = r >= 0 ? 'faltan ' + r + ' min' : (-r) + ' min tarde';
+      urg = r <= 5 ? 'roja' : (r <= 15 ? 'naranja' : 'verde');
+    } else {
+      t.textContent = min + ' min';
+      urg = min >= 20 ? 'roja' : (min >= 10 ? 'naranja' : 'verde');
+    }
+    t.className = 'k-timer num timer-' + urg;
   });
 }
 setInterval(tictac, 60000);
@@ -199,7 +214,12 @@ async function revisar() {
   }
 }
 setInterval(revisar, 8000);
-setInterval(function () { location.reload(); }, 45000);
+// Si alguien está eligiendo una hora, no recargar en su cara
+function puedeRecargar() {
+  var a = document.activeElement;
+  return !(a && a.tagName === 'SELECT');
+}
+setInterval(function () { if (puedeRecargar()) location.reload(); }, 45000);
 document.addEventListener('visibilitychange', function () {
   if (!document.hidden) location.reload();   // la tablet despertó: ponerse al día
 });

@@ -1,0 +1,15 @@
+{# Selector para corregir la hora de entrega sin abrir la edicion completa.
+   Guarda al elegir: en la tablet de cocina no hay que buscar un boton. #}
+{% macro hora_entrega(pid, franja, volver) %}
+<form method="post" action="{{ url_for('cambiar_hora_entrega', pid=pid) }}" class="sel-hora-form">
+  <input type="hidden" name="volver" value="{{ volver }}">
+  {{ icono('reloj', 16) }}
+  <select name="franja" class="sel-hora" onchange="this.form.submit()"
+          aria-label="Hora de entrega del pedido #{{ pid }}">
+    <option value="" {% if not franja %}selected{% endif %}>Sin hora</option>
+    {% for f in FRANJAS_HORA %}
+    <option value="{{ f }}" {% if f == franja %}selected{% endif %}>{{ f }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endmacro %}
