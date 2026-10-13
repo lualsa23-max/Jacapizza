@@ -773,8 +773,6 @@ tbody tr:hover td     { background: var(--card2); }
 }
 .ped-qty button:active { transform: scale(.9); }
 
-.ped-check { display: flex; align-items: center; gap: var(--s2); font-weight: 600; cursor: pointer; }
-.ped-check input { width: 22px; height: 22px; }
 
 /* Total y envio siempre a la vista, encima de la barra de navegacion */
 .ped-barra {
@@ -784,7 +782,12 @@ tbody tr:hover td     { background: var(--card2); }
   padding: var(--s3) var(--s4);
   background: var(--panel); border-top: 1px solid var(--card2);
 }
+.ped-barra { flex-wrap: wrap; row-gap: var(--s2); }
 .ped-barra-info { flex: 1; min-width: 0; }
+/* Cobrar o no: dos botones del mismo peso, ninguno escondido */
+.ped-barra-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); width: 100%; }
+.ped-barra-acciones .btn { padding: 12px 8px; font-size: .92rem; justify-content: center; }
+.ped-espacio { height: 64px; }
 .ped-barra-n { font-size: var(--t-xs); color: var(--gray2); }
 .ped-barra-t { font-size: var(--t-lg); font-weight: 700; }
 .page { padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
@@ -824,7 +827,7 @@ a.nav-brand:active { opacity: .7; }
 /* ── DETALLE DESPLEGABLE DEL PEDIDO ────────────────── */
 .ped-panel {
   position: fixed; left: 0; right: 0; z-index: 240;
-  bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(192px + env(safe-area-inset-bottom, 0px));
   max-height: 0; overflow: hidden;
   background: var(--panel);
   border-radius: var(--r-md) var(--r-md) 0 0;
@@ -1183,6 +1186,12 @@ a.nav-brand:active { opacity: .7; }
 
 /* Vista previa del comprobante antes de cobrar */
 .comp-vista { margin-bottom: 10px; text-align: center; }
+/* Editar pedido: lo que debera y las dos salidas */
+.ed-fila { display: flex; justify-content: space-between; gap: var(--s2); padding: 4px 0; font-size: .9rem; }
+.ed-debe { border-top: 1px solid var(--card2); margin-top: 4px; padding-top: 8px; font-weight: 700; font-size: 1rem; }
+.ed-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.ed-acciones .btn { padding: 12px 8px; font-size: .92rem; justify-content: center; }
+.hc-foto-btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
 .comp-vista img { max-width: 100%; max-height: 240px; border-radius: 10px; display: block; margin: 0 auto 6px; }
 .comp-link { color: var(--accent); text-decoration: none; font-size: .8rem; white-space: nowrap; }
 

@@ -104,21 +104,6 @@
     <div class="ped-vacio">Todavía no has agregado nada</div>
   </div>
 
-  <div class="ped-cobro mt-12">
-    <label class="ped-check">
-      <input type="checkbox" id="cobrar-ya" onchange="verPagos()">
-      <span>Cobrar ahora</span>
-    </label>
-    <div id="pagos" style="display:none">
-      <div class="pay-grid mt-8">
-        {% for m, ico in metodos.items() %}
-        <button type="button" class="btn btn-ghost btn-full metodo-op"
-                data-m="{{ m }}" onclick="elegirPago(this)">{{ m }}</button>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-
   <button class="btn btn-ghost btn-full mt-12" onclick="limpiar()">
     {{ icono('borrar', 18) }} Vaciar
   </button>
@@ -126,7 +111,11 @@
 
 {# Barra fija con el total siempre a la vista. Tocando la parte del total se
    despliega hacia arriba el detalle: se revisa el pedido sin perder de vista
-   el boton de enviar ni tener que subir la pagina. #}
+   el boton de enviar ni tener que subir la pagina.
+
+   Cobrar o no es una decision EXPLICITA con dos botones del mismo tamaño.
+   Antes era una casilla al final del scroll y el unico boton visible era
+   "Enviar": se podia mandar el pedido sin haber visto nunca la opcion. #}
 <div class="ped-panel" id="ped-panel">
   <div class="ped-panel-cab">
     <span>El pedido</span>
@@ -143,9 +132,30 @@
       <span class="ped-barra-ver" id="barra-ver">ver detalle</span></div>
     <div class="ped-barra-t num" id="barra-t">$0</div>
   </button>
-  <button class="btn btn-green btn-lg" id="btn-enviar" onclick="enviar()">
-    {{ icono('check', 22) }} <span id="txt-enviar">Enviar</span>
-  </button>
+  <div class="ped-barra-acciones">
+    <button class="btn btn-ghost btn-lg" id="btn-sin-cobrar" onclick="enviarSinCobrar()">
+      {{ icono('flecha', 20) }} Enviar sin cobrar
+    </button>
+    <button class="btn btn-green btn-lg" id="btn-cobrar" onclick="enviarCobrando()">
+      {{ icono('cobrar', 20) }} Cobrar y enviar
+    </button>
+  </div>
+</div>
+<div class="ped-espacio"></div>
+
+{% include "_hoja_cobro.html" %}
+
+{# ── Ya hay una cuenta con ese codigo ──────────────────────────── #}
+<div class="overlay" id="hoja-dup" onclick="if(event.target===this)cerrarDup()">
+  <div class="sheet">
+    <div class="sheet-titulo" id="dup-titulo">Ya hay una cuenta</div>
+    <div class="text-sm c-gray2 mb-8" id="dup-sub"></div>
+    <button type="button" class="btn btn-primary btn-full btn-lg" onclick="resolverDup('sumar')">
+      Sumar a esa cuenta</button>
+    <button type="button" class="btn btn-ghost btn-full mt-8" onclick="resolverDup('nueva')">
+      Crear otra cuenta aparte</button>
+    <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrarDup()">Cancelar</button>
+  </div>
 </div>
 
 {# ── Hoja de variantes ─────────────────────────────────────────── #}
@@ -164,7 +174,7 @@
 
 {% block scripts %}
 <script>
-var carrito = [], sabores = [], metodo = null, avisados = {}, buscando = null;
+var carrito = [], sabores = [], avisados = {}, buscando = null;
 var PRECIO_PIZZA = {{ precio_pizza | int }};
 
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
@@ -364,22 +374,6 @@ function verPanel(abrir) {
   document.getElementById('barra-ver').textContent = on ? 'ocultar' : 'ver detalle';
 }
 
-/* ── Cobro ────────────────────────────────────────────────────── */
-function verPagos() {
-  var on = document.getElementById('cobrar-ya').checked;
-  document.getElementById('pagos').style.display = on ? '' : 'none';
-  if (!on) { metodo = null; document.querySelectorAll('.metodo-op').forEach(function (b) {
-    b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); }); }
-  document.getElementById('txt-enviar').textContent = on ? 'Cobrar y enviar' : 'Enviar';
-}
-
-function elegirPago(b) {
-  document.querySelectorAll('.metodo-op').forEach(function (x) {
-    x.classList.remove('btn-primary'); x.classList.add('btn-ghost'); });
-  b.classList.remove('btn-ghost'); b.classList.add('btn-primary');
-  metodo = b.dataset.m;
-}
-
 /* ── Código de reserva: avisa si ya existe ────────────────────── */
 function revisarCodigo() {
   clearTimeout(buscando);
@@ -392,7 +386,7 @@ function revisarCodigo() {
       if (d.existe) {
         av.className = 'vr-aviso vr-aviso-ok';
  av.innerHTML = ' Ya existe: ' + d.texto +
-          ' · <a href="/mesero/pedido/' + d.id + '/editar" style="color:inherit;text-decoration:underline">abrir esa cuenta</a>';
+          ' · al enviar podrás sumarlo a esa cuenta';
         av.style.display = '';
       } else { av.style.display = 'none'; }
     } catch (e) { }
@@ -400,33 +394,79 @@ function revisarCodigo() {
 }
 
 /* ── Enviar ───────────────────────────────────────────────────── */
-async function enviar() {
-  var cod = document.getElementById('codigo').value.trim();
-  if (!cod) { alert('Falta el código de reserva'); document.getElementById('codigo').focus(); return; }
-  if (!carrito.length) return;
-  var cobrar = document.getElementById('cobrar-ya').checked;
-  if (cobrar && !metodo) { alert('Elige cómo paga'); return; }
+function totalCarrito() {
+  return carrito.reduce(function (s, x) { return s + x.cantidad * x.precio_unit; }, 0);
+}
 
-  var b = document.getElementById('btn-enviar');
-  b.disabled = true; document.getElementById('txt-enviar').textContent = 'Enviando…';
+function listoParaEnviar() {
+  var cod = document.getElementById('codigo').value.trim();
+  if (!cod) { alert('Falta el código de reserva'); document.getElementById('codigo').focus(); return null; }
+  if (!carrito.length) return null;
+  return cod;
+}
+
+function enviarSinCobrar() {
+  var cod = listoParaEnviar();
+  if (!cod) return;
+  if (!confirm(cod + ' — ' + fmt(totalCarrito()) + '\n\nSE ENVÍA SIN COBRAR.\n' +
+               'Queda debiendo y aparece en Cobrar.\n\n¿Enviar?')) return;
+  mandar(null, '');
+}
+
+function enviarCobrando() {
+  var cod = listoParaEnviar();
+  if (!cod) return;
+  abrirCobro({ total: totalCarrito(), titulo: cod, boton: 'y enviar',
+               alConfirmar: function (cobro) { mandar(cobro, ''); } });
+}
+
+function ocupado(si) {
+  ['btn-sin-cobrar', 'btn-cobrar'].forEach(function (id) { document.getElementById(id).disabled = si; });
+}
+
+var pendienteDup = null;
+
+async function mandar(cobro, destino) {
+  var cod = document.getElementById('codigo').value.trim();
+  ocupado(true);
   try {
-    var r = await fetch('/mesero/nuevo', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        codigo: cod, mesa_num: document.getElementById('mesa').value.trim(),
-        items: carrito, notas: document.getElementById('notas').value.trim(),
-        franja: document.getElementById('franja').value,
-        cobrar_ya: cobrar, metodo_pago: metodo || 'Efectivo'
-      })
-    });
-    var d = await r.json();
-    if (d.error) { alert(d.error); b.disabled = false; verPagos(); return; }
-    showToast('Pedido enviado — ' + cod, 3500);
-    setTimeout(function () { location.reload(); }, 800);
+    var res = await postPedido('/mesero/nuevo', {
+      codigo: cod, mesa_num: document.getElementById('mesa').value.trim(),
+      items: carrito, notas: document.getElementById('notas').value.trim(),
+      franja: document.getElementById('franja').value, destino: destino
+    }, cobro);
+    var d = res.d;
+    if (res.status === 409 && d.existe) { ocupado(false); preguntarDup(d, cobro); return; }
+    if (d.error) { alert(d.error); ocupado(false); return; }
+    if (d.pago_error) alert(d.pago_error);
+    var donde = d.sumado ? 'Sumado a ' + cod : 'Pedido enviado — ' + cod;
+    var msg = !d.cobrado ? donde + ' · SIN COBRAR (debe ' + fmt(d.saldo) + ')'
+            : d.pago_error ? donde
+            : donde + ' · cobrado ' + fmt(d.monto) + ' en ' + d.metodo
+              + (d.saldo > 0 ? ' · debe ' + fmt(d.saldo) : '');
+    showToast(msg, 4500);
+    setTimeout(function () { location.reload(); }, 1500);
   } catch (e) {
     alert('No se pudo enviar. Revisa la conexión.');
-    b.disabled = false; verPagos();
+    ocupado(false);
   }
+}
+
+/* ── Código repetido: sumar a la cuenta que ya existe o crear otra ── */
+function preguntarDup(d, cobro) {
+  pendienteDup = cobro;
+  document.getElementById('dup-titulo').textContent = 'Ya hay una cuenta ' + d.codigo + ' hoy';
+  document.getElementById('dup-sub').textContent = 'Lleva ' + fmt(d.total) +
+    (d.cerrada ? ' y ya está pagada; si sumas, se reabre con lo nuevo.' : ' · debe ' + fmt(d.saldo)) +
+    ' ¿A dónde va este pedido?';
+  document.getElementById('hoja-dup').classList.add('open');
+}
+
+function cerrarDup() { document.getElementById('hoja-dup').classList.remove('open'); }
+
+function resolverDup(destino) {
+  cerrarDup();
+  mandar(pendienteDup, destino);
 }
 </script>
 {% endblock %}

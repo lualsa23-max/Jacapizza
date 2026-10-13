@@ -239,6 +239,7 @@ async function confirmar(confirmado) {
       return;
     }
  if (d.error) { alert(d.error); btn.disabled = false; btn.textContent = ' Confirmar'; return; }
+    if (d.pago_error) alert(d.pago_error);
  showToast(' ' + d.destino + ' — ' + fmt(d.total)
               + (d.a_cuenta ? ' cargado a la cuenta' : ' cobrado en ' + d.metodo), 5000);
     limpiar();

@@ -24,6 +24,24 @@
   </div>
 </div>
 
+{# Cuentas del dia que siguen debiendo. Se puede cerrar igual (hay quien paga
+   al salir de la estadia), pero hay que confirmarlo y queda quien lo hizo. #}
+{% if abiertas %}
+<div class="card mb-12" style="border:2px solid var(--orange)">
+  <div class="font-bold c-orange">{{ icono('alerta', 18) }}
+    {{ abiertas | length }} cuenta{{ 's' if abiertas | length != 1 }} sin cobrar del {{ fecha }}
+    · {{ abiertas | sum(attribute='saldo') | cop }}</div>
+  <div class="text-sm mt-8">
+    {% for p in abiertas %}<div class="ed-fila"><span>{{ p.mesa }}{% if p.mesa_num %} · Mesa {{ p.mesa_num }}{% endif %}</span><b class="num">{{ p.saldo | cop }}</b></div>{% endfor %}
+  </div>
+  {% if confirmado_abiertas %}
+  <div class="text-xs c-gray2 mt-8">El cierre se guardó con cuentas abiertas: lo confirmó {{ confirmado_abiertas.por }} el {{ confirmado_abiertas.hora }}.</div>
+  {% endif %}
+  <a href="{{ url_for('cajero_cobrar', filtro='hoy' if fecha == hoy else 'anteriores') }}" class="btn btn-orange btn-full mt-8">
+    {{ icono('cobrar', 18) }} Ir a cobrarlas o cerrarlas con motivo</a>
+</div>
+{% endif %}
+
 {% if sin_inventario %}
 <div class="card" style="border:2px solid var(--orange);background:rgba(245,166,35,.08);padding:20px;text-align:center">
   <div style="font-size:2rem;margin-bottom:8px">{{ icono('menu', 18) }}</div>
@@ -167,7 +185,7 @@ function actualizarResumen(){
     '</div>';
 }
 
-async function guardarCierre(){
+async function guardarCierre(confirmarAbiertas){
   const rows = document.querySelectorAll('#tabla-cierre tbody tr');
   if(!rows.length){ alert('No hay ítems para guardar'); return; }
   const items = [];
@@ -190,10 +208,16 @@ async function guardarCierre(){
     const r = await fetch('/admin/cierre', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({fecha: fecha, items: items})
+      body: JSON.stringify({fecha: fecha, items: items, confirmar_abiertas: !!confirmarAbiertas})
     });
     const d = await r.json();
+    if(r.status === 409 && d.abiertas){
+      if(confirm(d.mensaje + '\n\nLo ideal es cobrarlas o cerrarlas con motivo en Cobrar.\n\n' +
+                 '¿Guardar el cierre igual? Quedará anotado que lo confirmaste.')) guardarCierre(true);
+      return;
+    }
     if(d.ok){
+      if(confirmarAbiertas){ location.reload(); return; }
       const s = document.getElementById('status-msg');
       s.style.display = 'block';
       window.scrollTo({top:0, behavior:'smooth'});

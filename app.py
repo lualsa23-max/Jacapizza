@@ -1013,6 +1013,26 @@ def agregar_items_entregados(c, pid, items):
     return _sync_estado(c, pid)
 
 
+def agregar_items_pendientes(c, pid, items):
+    """Suma items POR PREPARAR a una cuenta que ya existe.
+
+    Es para cuando el mesero crea un pedido con un codigo que ya tiene cuenta y
+    elige sumarlo a ella. No reinserta ni toca lo que ya estaba: van en la ronda
+    siguiente a la ya despachada, igual que los que agrega actualizar_pedido(),
+    para que las estaciones los vean como adicionales.
+    """
+    ronda = (c.execute("SELECT COALESCE(MAX(ronda),0) FROM items WHERE pedido_id=? "
+                       "AND despachado=1", (pid,)).fetchone()[0] or 0) + 1
+    hora = ahora().strftime("%H:%M")
+    for i in items:
+        c.execute("INSERT INTO items (pedido_id,nombre,tipo,cantidad,precio_unit,"
+                  "despachado,ronda,creado_hora) VALUES (?,?,?,?,?,0,?,?)",
+                  (pid, i["nombre"], i["tipo"], i["cantidad"], i["precio_unit"], ronda, hora))
+    c.execute("UPDATE pedidos SET modificado=1, ultima_ronda=COALESCE((SELECT MAX(ronda) "
+              "FROM items WHERE pedido_id=?),1) WHERE id=?", (pid, pid))
+    return _sync_estado(c, pid)
+
+
 def entregar_estacion(c, pid, tipo, ronda=None):
     """Marca como entregados SOLO los items de UNA estacion.
 
@@ -1189,33 +1209,39 @@ def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
 
 def registrar_pago(pid, monto, metodo, cobrado_por, marcar_pagado=True, comprobante=""):
     """Registra un pago. Si marcar_pagado=False, guarda el pago pero no cambia el estado.
-    `comprobante` es el nombre del archivo ya guardado en COMPROBANTES_FOLDER."""
+    `comprobante` es el nombre del archivo ya guardado en COMPROBANTES_FOLDER.
+
+    Si algo falla, LANZA la excepcion y no toca nada. Antes un `except:` que lo
+    atrapaba todo marcaba el pedido 'Pagado' aunque el pago no hubiera quedado
+    en la tabla `pagos`: los reportes lo contaban como venta, la caja no tenia
+    ese dinero y nadie se enteraba. Quien llama decide como avisarlo."""
     fecha = ahora().strftime("%d/%m/%Y")
     hora  = ahora().strftime("%H:%M")
-    try:
-        with _conn() as c:
-            c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora,jornada,comprobante) "
-                      "VALUES (?,?,?,?,?,?,?,?)",
-                      (pid, monto, metodo, cobrado_por, fecha, hora, jornada_actual(), comprobante or ""))
-            if marcar_pagado:
-                total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
-                total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
-                if total_pagado >= total_pedido:
-                    c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
-                              (metodo, cobrado_por, pid))
-            else:
-                # Solo guardar método de pago en el pedido, mantener estado actual
-                c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
-                          (metodo, cobrado_por, pid))
-            _sync_estado(c, pid)
-    except:
-        with _conn() as c:
-            if marcar_pagado:
+    with _conn() as c:
+        c.execute("INSERT INTO pagos (pedido_id,monto,metodo,cobrado_por,fecha,hora,jornada,comprobante) "
+                  "VALUES (?,?,?,?,?,?,?,?)",
+                  (pid, monto, metodo, cobrado_por, fecha, hora, jornada_actual(), comprobante or ""))
+        if marcar_pagado:
+            total_pedido = c.execute("SELECT total FROM pedidos WHERE id=?", (pid,)).fetchone()["total"]
+            total_pagado = c.execute("SELECT COALESCE(SUM(monto),0) FROM pagos WHERE pedido_id=?", (pid,)).fetchone()[0]
+            if total_pagado >= total_pedido:
                 c.execute("UPDATE pedidos SET estado='Pagado', pago=?, cobrado_por=? WHERE id=?",
                           (metodo, cobrado_por, pid))
             else:
                 c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
                           (metodo, cobrado_por, pid))
+        else:
+            # Solo guardar método de pago en el pedido, mantener estado actual
+            c.execute("UPDATE pedidos SET pago=?, cobrado_por=? WHERE id=?",
+                      (metodo, cobrado_por, pid))
+        _sync_estado(c, pid)
+
+
+def leer_monto(crudo):
+    """'25.000', '25000' o '' -> 25000 o None. Lanza ValueError si no es un numero."""
+    crudo = str(crudo if crudo is not None else '').replace('.', '').replace(',', '').replace('$', '').strip()
+    return round(float(crudo)) if crudo else None
+
 
 def cobrar_pedido(pid, metodo, cobrado_por=""):
     """Cobra el saldo pendiente del pedido."""
@@ -1813,6 +1839,16 @@ def construir_avisos():
                        "detalle": f"{fmt_cop(sum(x['saldo'] for x in hoy_ab))} por cobrar",
                        "url": url_for('cajero_cobrar')})
     try:
+        es_admin = session.get('rol') == ROL_ADMIN
+        sin_foto = resumen_caja(j, None if es_admin else session.get('nombre'))["sin_foto"]
+    except Exception:
+        sin_foto = []
+    if sin_foto:
+        avisos.append({"tipo": "aviso", "icono": "camara",
+                       "titulo": f"{len(sin_foto)} pago{'s' if len(sin_foto) != 1 else ''} sin comprobante",
+                       "detalle": f"{fmt_cop(sum(x['monto'] for x in sin_foto))} en pagos electrónicos sin foto",
+                       "url": url_for('cajero_caja', vista='todos' if es_admin else 'mia')})
+    try:
         bajo = get_productos_stock_bajo()
     except Exception:
         bajo = []
@@ -1937,7 +1973,24 @@ def admin_cierre():
             data         = request.get_json()
             fecha_cierre = data.get('fecha', hoy)
             items_cierre = data.get('items', [])
+            # Cerrar el dia con cuentas sin cobrar es valido (hay quien paga al
+            # salir de la estadia), pero no puede pasar sin que nadie lo vea:
+            # hay que confirmarlo y queda anotado quien lo confirmo.
+            abiertas = cuentas_abiertas_de(fecha_cierre)
+            if abiertas and not data.get('confirmar_abiertas'):
+                return jsonify({'ok': False, 'abiertas': len(abiertas),
+                                'saldo': sum(p['saldo'] for p in abiertas),
+                                'mensaje': f'Quedan {len(abiertas)} cuenta(s) sin cobrar del '
+                                           f'{fecha_cierre} por {fmt_cop(sum(p["saldo"] for p in abiertas))}.'}), 409
             with _conn() as c:
+                clave = f"cierre_abiertas:{fecha_a_iso(fecha_cierre, fecha_cierre)}"
+                if abiertas:
+                    c.execute("INSERT OR REPLACE INTO meta (clave,valor) VALUES (?,?)", (clave, json.dumps({
+                        "por": session.get('nombre'), "hora": ahora().strftime("%d/%m/%Y %H:%M"),
+                        "cuentas": [{"id": p["id"], "codigo": p["mesa"], "saldo": p["saldo"]}
+                                    for p in abiertas]})))
+                else:
+                    c.execute("DELETE FROM meta WHERE clave=?", (clave,))
                 c.execute("DELETE FROM cierres_inventario WHERE fecha=?", (fecha_cierre,))
                 for it in items_cierre:
                     c.execute(
@@ -1975,15 +2028,31 @@ def admin_cierre():
         with _conn() as c:
             saved = c.execute("SELECT * FROM cierres_inventario WHERE fecha=? ORDER BY nombre", (fecha,)).fetchall()
         saved_dict = {r["nombre"]: dict(r) for r in saved}
+        with _conn() as c:
+            r = c.execute("SELECT valor FROM meta WHERE clave=?",
+                          (f"cierre_abiertas:{fecha_a_iso(fecha, fecha)}",)).fetchone()
         return render_template('admin_cierre.html',
             cierre_items=cierre_items, fecha=fecha, hoy=hoy,
             saved_dict=saved_dict, fechas_disponibles=get_cierre_fechas(),
-            sin_inventario=len(inv_fecha)==0)
+            sin_inventario=len(inv_fecha)==0,
+            abiertas=cuentas_abiertas_de(fecha),
+            confirmado_abiertas=json.loads(r["valor"]) if r else None)
     except Exception as e:
         return render_template('admin_cierre.html',
             cierre_items=[], fecha=fecha, hoy=hoy,
             saved_dict={}, fechas_disponibles=get_cierre_fechas(),
             sin_inventario=True, error=str(e))
+
+def cuentas_abiertas_de(fecha):
+    """Cuentas de la jornada `fecha` (dd/mm/aaaa) que todavia deben plata."""
+    iso = fecha_a_iso(fecha)
+    if not iso:
+        return []
+    try:
+        return [p for p in listar_pedidos(jornada=iso, estado_cuenta="Abierta") if p["total"] > 0]
+    except Exception:
+        return []
+
 
 @app.route('/admin/cierre/historial')
 @login_required   # trabajo diario: ver conteos anteriores
@@ -2377,51 +2446,129 @@ def admin_menu_bebidas():
                            categorias=CATEGORIAS_BEBIDA)
 
 # ── MESERO ────────────────────────────────────────────
+# ── Cobro al tomar el pedido ─────────────────────────
+# Al crear o editar un pedido el mesero decide de forma explicita: "Enviar sin
+# cobrar" o "Cobrar y enviar". Si cobra, puede ser un pago parcial y, si es
+# electronico, con la foto del comprobante. Por eso el pedido llega como JSON o
+# como formulario multipart (campo `datos` con el JSON + `comprobante`).
+
+def _datos_post():
+    d = request.get_json(silent=True)
+    if d is None:
+        try:
+            d = json.loads(request.form.get('datos') or '{}')
+        except ValueError:
+            d = {}
+    return d
+
+
+def _validar_cobro(data, tope):
+    """Revisa medio y monto ANTES de tocar la base. -> (metodo, monto, error)"""
+    metodo = data.get('metodo_pago') or ''
+    if metodo not in METODOS_PAGO:
+        return None, None, 'Elige cómo paga'
+    try:
+        monto = leer_monto(data.get('monto'))
+    except ValueError:
+        return None, None, 'Ese monto no se entiende'
+    if monto is None:
+        monto = tope
+    if monto <= 0:
+        return None, None, 'El monto debe ser mayor que cero'
+    if monto > tope:
+        return None, None, f'Son {fmt_cop(tope)}, no puedes cobrar más'
+    return metodo, monto, ''
+
+
+def _cobrar_al_pedir(pid, monto, metodo, marcar_pagado):
+    """Registra el cobro hecho al tomar el pedido. Devuelve '' o un aviso que
+    el mesero TIENE que ver: el pedido ya quedo creado y no se deshace."""
+    comprobante, aviso = '', ''
+    if metodo != 'Efectivo' and request.files.get('comprobante'):
+        comprobante = guardar_comprobante(request.files['comprobante'], pid)
+        if not comprobante:
+            aviso = 'La foto del comprobante no se pudo guardar; agrégala desde Caja.'
+    try:
+        registrar_pago(pid, monto, metodo, session['nombre'],
+                       marcar_pagado=marcar_pagado, comprobante=comprobante)
+    except Exception as e:
+        print(f"[ERROR] pago no registrado en #{pid}: {e}", flush=True)
+        return ('El pedido quedó enviado pero el pago NO se registró. '
+                'Cóbralo desde Cobrar.')
+    return aviso
+
+
 @app.route('/mesero/nuevo', methods=['GET','POST'])
 @rol_required('Mesero')
 def mesero_nuevo():
     if request.method == 'POST':
-        data       = request.get_json()
-        codigo     = data.get('codigo','').strip()
-        mesa_num   = data.get('mesa_num','').strip()
+        data       = _datos_post()
+        codigo     = (data.get('codigo') or '').strip()
+        mesa_num   = (data.get('mesa_num') or '').strip()
         items      = data.get('items',[])
         notas      = data.get('notas','')
         franja     = data.get('franja', FRANJAS_HORA[0])
-        cobrar_ya  = data.get('cobrar_ya', False)
-        metodo_pago= data.get('metodo_pago','Efectivo')
+        cobrar_ya  = bool(data.get('cobrar_ya'))
+        destino    = data.get('destino', '')   # '', 'sumar' o 'nueva'
         if not codigo or not items:
             return jsonify({'error':'Datos incompletos'}), 400
+        total = sum(i["cantidad"] * i["precio_unit"] for i in items)
+
+        # Dos cuentas con el mismo codigo terminan en un cobro doble o en una
+        # cuenta olvidada. Si ya hay una hoy, el mesero elige a cual va.
+        cuenta = buscar_cuenta_por_codigo(codigo)
+        if cuenta and destino not in ('sumar', 'nueva'):
+            return jsonify({'existe': True, 'id': cuenta['id'], 'codigo': cuenta['mesa'],
+                            'total': cuenta['total'], 'saldo': cuenta['saldo'],
+                            'cerrada': cuenta['estado_cuenta'] == 'Cerrada'}), 409
+        sumar = bool(cuenta) and destino == 'sumar'
+
+        metodo_pago, monto = None, 0
+        if cobrar_ya:
+            tope = total + (max(cuenta['saldo'], 0) if sumar else 0)
+            metodo_pago, monto, err = _validar_cobro(data, tope)
+            if err:
+                return jsonify({'error': err}), 400
         # Validar stock de TODO el pedido (masas + bebidas)
         ok, error_msg = validar_stock_pedido(items)
         if not ok:
             return jsonify({'error': error_msg}), 400
-        p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
-        if mesa_num:
-            with _conn() as c:
-                c.execute("UPDATE pedidos SET mesa_num=? WHERE id=?", (mesa_num, p['id']))
-        descontar_inventario(items)
+
         solo_bebidas = all(i["tipo"] != "Pizza" for i in items)
-        # Flujo simplificado:
-        # - Solo bebidas + pagó → directo a Pagado (no cocina, no cobro)
-        # - Solo bebidas + no pagó → Listo (va a cobro)
-        # - Con pizzas + pagó → Pendiente (cocina, con banner "ya pagado"), al marcar listo → Pagado
-        # - Con pizzas + no pagó → Pendiente (cocina, luego cobro)
-        if cobrar_ya:
-            if solo_bebidas:
-                # Directo a Pagado
-                registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'], marcar_pagado=True)
-            else:
-                # Pago registrado pero sigue en Pendiente para que cocina lo prepare.
-                # Cuando cocina marque listo, marcar_listo() detectará el pago y pasará a Pagado.
-                registrar_pago(p['id'], p['total'], metodo_pago, session['nombre'], marcar_pagado=False)
-            return jsonify({'ok':True,'id':p['id'],'cobrado':True,'solo_bebidas':solo_bebidas})
+        if sumar:
+            pid = cuenta['id']
+            with _conn() as c:
+                agregar_items_pendientes(c, pid, items)
+                if mesa_num:
+                    c.execute("UPDATE pedidos SET mesa_num=? WHERE id=?", (mesa_num, pid))
+                if notas:
+                    c.execute("UPDATE pedidos SET notas=TRIM(COALESCE(notas,'')||?) WHERE id=?",
+                              ("\n" + notas, pid))
+                if not solo_bebidas:
+                    c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=? AND estado='Listo'", (pid,))
+            descontar_inventario(items)
+            add_notificacion(pid, cuenta['mesa'],
+                             ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items), total)
+            marcar = False
         else:
-            if solo_bebidas:
-                # Sin pizzas → no pasa por cocina, va directo al cobro
+            p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
+            pid = p['id']
+            if mesa_num:
                 with _conn() as c:
-                    c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (p['id'],))
-            # Con pizzas queda en Pendiente (cocina lo ve)
-            return jsonify({'ok':True,'id':p['id'],'cobrado':False,'solo_bebidas':solo_bebidas})
+                    c.execute("UPDATE pedidos SET mesa_num=? WHERE id=?", (mesa_num, pid))
+            descontar_inventario(items)
+            # Sin pizzas no pasa por cocina: queda 'Listo' y, si paga todo, 'Pagado'.
+            # Con pizzas queda 'Pendiente'; marcar_listo() lo pasa a 'Pagado' si ya pagó.
+            if solo_bebidas:
+                with _conn() as c:
+                    c.execute("UPDATE pedidos SET estado='Listo' WHERE id=?", (pid,))
+            marcar = solo_bebidas
+
+        pago_error = _cobrar_al_pedir(pid, monto, metodo_pago, marcar) if cobrar_ya else ''
+        q = get_pedido(pid)
+        return jsonify({'ok': True, 'id': pid, 'sumado': sumar, 'cobrado': cobrar_ya,
+                        'metodo': metodo_pago, 'monto': monto, 'saldo': q['saldo'],
+                        'pago_error': pago_error, 'solo_bebidas': solo_bebidas})
     stock  = get_stock_dict()
     alertas = {k: v["alerta_min"] for k, v in get_stock_con_alertas().items()}
     pulpas = get_pulpas_hoy()
@@ -2448,14 +2595,23 @@ def mesero_editar(pid):
     items_despachados = [i for i in pedido['productos'] if i.get('despachado')]
     items_no_despachados = [i for i in pedido['productos'] if not i.get('despachado')]
     if request.method == 'POST':
-        data   = request.get_json()
+        data   = _datos_post()
         items  = data.get('items',[])  # Estos son los items que el mesero editó (los no despachados)
         notas  = data.get('notas', pedido['notas'])
         franja = data.get('franja', pedido['franja_hora'])
-        cobrar_ya   = data.get('cobrar_ya', False)
-        metodo_pago = data.get('metodo_pago', '')
+        cobrar_ya = bool(data.get('cobrar_ya'))
         if not items and not items_despachados:
             return jsonify({'error':'El pedido no puede quedar vacío'}), 400
+        # Lo que va a deber DESPUES del cambio. Se valida el cobro antes de
+        # tocar nada, para no dejar el pedido editado a medias.
+        saldo_nuevo = (sum(i["cantidad"] * i["precio_unit"] for i in items_despachados + items)
+                       - pedido['total_pagado'])
+        if cobrar_ya:
+            if saldo_nuevo <= 0:
+                return jsonify({'error': 'No hay nada por cobrar: la cuenta ya está pagada'}), 400
+            metodo_pago, monto, err = _validar_cobro(data, saldo_nuevo)
+            if err:
+                return jsonify({'error': err}), 400
         # Restaurar inventario SOLO de los items no despachados (los que se están modificando)
         restaurar_inventario(items_no_despachados)
         ok, error_msg = validar_stock_pedido(items)
@@ -2468,27 +2624,27 @@ def mesero_editar(pid):
         if pedido['estado'] == 'Listo':
             with _conn() as c:
                 c.execute("UPDATE pedidos SET estado='Pendiente' WHERE id=?", (pid,))
-        # Registrar pago si se indicó (cobra el saldo pendiente)
-        if cobrar_ya and metodo_pago:
-            pedido_actual = get_pedido(pid)
-            saldo = pedido_actual["saldo"]
-            if saldo > 0:
-                # Si el pedido tiene pizzas nuevas por preparar, mantener en Pendiente
-                # (cocina lo marca listo y ahí pasa a Pagado automáticamente)
-                tiene_pizzas_nuevas = any(i["tipo"]=="Pizza" for i in items)
-                marcar = not tiene_pizzas_nuevas  # Solo pasar a Pagado si NO hay pizzas nuevas por preparar
-                registrar_pago(pid, saldo, metodo_pago, session['nombre'], marcar_pagado=marcar)
+        # Con pizzas nuevas por preparar se queda en Pendiente: cocina lo marca
+        # listo y ahí pasa a Pagado solo
+        pago_error = ''
+        if cobrar_ya:
+            marcar = not any(i["tipo"] == "Pizza" for i in items)
+            pago_error = _cobrar_al_pedir(pid, monto, metodo_pago, marcar)
         items_txt = ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items)
         add_notificacion(pid, pedido['mesa'], items_txt, sum(i["cantidad"]*i["precio_unit"] for i in items))
-        return jsonify({'ok':True})
+        q = get_pedido(pid)
+        return jsonify({'ok': True, 'cobrado': cobrar_ya, 'monto': monto if cobrar_ya else 0,
+                        'metodo': metodo_pago if cobrar_ya else '', 'saldo': q['saldo'],
+                        'pago_error': pago_error})
     pulpas = get_pulpas_hoy()
     # Para el template: el pedido muestra solo los items no despachados como editables
     pedido_editable = dict(pedido)
     pedido_editable['productos'] = items_no_despachados
     pedido_editable['productos_despachados'] = items_despachados
+    pedido_editable['total_entregado'] = sum(i['cantidad'] * i['precio_unit'] for i in items_despachados)
     return render_template('mesero_editar.html', pedido=pedido_editable,
         sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
-        pulpas_json=json.dumps(pulpas))
+        pulpas_json=json.dumps(pulpas), metodos=METODOS_PAGO)
 
 # ── CAJERO ────────────────────────────────────────────
 # El cambio de fondo: antes se cobraba lo que COCINA hubiera marcado como listo,
@@ -2532,13 +2688,12 @@ def cajero_pagar(pid):
         return redirect(url_for('cajero_cobrar'))
 
     # Monto parcial: dividir la cuenta es rutina en una pizzeria por reserva
-    crudo = (request.form.get('monto') or '').replace('.', '').replace(',', '').strip()
-    if crudo:
-        try:
-            monto = round(float(crudo))
-        except ValueError:
-            flash('Ese monto no se entiende', 'error')
-            return redirect(url_for('cajero_cobrar'))
+    try:
+        monto = leer_monto(request.form.get('monto'))
+    except ValueError:
+        flash('Ese monto no se entiende', 'error')
+        return redirect(url_for('cajero_cobrar'))
+    if monto is not None:
         if monto <= 0:
             flash('El monto debe ser mayor que cero', 'error')
             return redirect(url_for('cajero_cobrar'))
@@ -2554,8 +2709,13 @@ def cajero_pagar(pid):
         if not comprobante:
             flash('La foto del comprobante no se pudo guardar; el cobro sí quedó. '
                   'Agrégala desde Caja.', 'error')
-    registrar_pago(pid, monto, metodo, session['nombre'], marcar_pagado=False,
-                   comprobante=comprobante)
+    try:
+        registrar_pago(pid, monto, metodo, session['nombre'], marcar_pagado=False,
+                       comprobante=comprobante)
+    except Exception as e:
+        print(f"[ERROR] pago no registrado en #{pid}: {e}", flush=True)
+        flash(f'El pago NO quedó registrado ({e}). Intenta de nuevo.', 'error')
+        return redirect(url_for('cajero_cobrar'))
     q = get_pedido(pid)
     if q["estado_cuenta"] == "Cerrada":
         flash(f'{q["mesa"]} — {fmt_cop(monto)} en {metodo}. Cuenta cerrada.', 'success')
@@ -2639,6 +2799,10 @@ def resumen_caja(jornada=None, persona=None):
         if r["metodo"] == "Efectivo":
             por_persona[r["cobrado_por"]]["efectivo"] += r["monto"]
     return {"jornada": j, "pagos": [dict(r) for r in filas],
+            # Electronicos sin la foto del comprobante: se cobraron desde un
+            # pedido sin foto, o se eligio "Cobrar sin foto"
+            "sin_foto": [dict(r) for r in filas
+                         if r["metodo"] != "Efectivo" and not (r["comprobante"] or "")],
             "total": sum(r["monto"] for r in filas),
             "efectivo": por_metodo.get("Efectivo", 0),
             "por_metodo": por_metodo, "por_persona": por_persona}
@@ -2789,13 +2953,20 @@ def venta_rapida():
 
         descontar_inventario(items)
 
+        pago_error = ''
         if not a_cuenta:
-            registrar_pago(pid, total, metodo, session['nombre'], marcar_pagado=False)
+            try:
+                registrar_pago(pid, total, metodo, session['nombre'], marcar_pagado=False)
+            except Exception as e:
+                print(f"[ERROR] pago no registrado en #{pid}: {e}", flush=True)
+                pago_error = (f'La venta quedó registrada pero el pago NO. '
+                              f'Cóbralo desde Cobrar ({e}).')
 
         q = get_pedido(pid)
         return jsonify({'ok': True, 'id': pid, 'destino': destino,
                         'total': total, 'saldo': q['saldo'],
-                        'a_cuenta': a_cuenta, 'metodo': metodo})
+                        'a_cuenta': a_cuenta, 'metodo': metodo,
+                        'pago_error': pago_error})
 
     return render_template('venta_rapida.html',
                            grupos=get_bebidas_por_categoria(),

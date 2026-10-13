@@ -31,6 +31,13 @@
   </div>
   {% endfor %}
 
+  {% if r.sin_foto %}
+  <div class="caja-linea c-orange text-sm">
+    <span>{{ icono('camara', 16) }} {{ r.sin_foto | length }} pago{{ 's' if r.sin_foto | length != 1 }} electrónico{{ 's' if r.sin_foto | length != 1 }} sin foto — tócalos abajo para agregarla</span>
+    <span class="num">{{ r.sin_foto | sum(attribute='monto') | cop }}</span>
+  </div>
+  {% endif %}
+
   <div class="caja-linea caja-total">
     <span>TOTAL COBRADO</span>
     <span class="num">{{ r.total | cop }}</span>

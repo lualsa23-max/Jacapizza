@@ -1,0 +1,143 @@
+{# Hoja de cobro al tomar o editar un pedido. La usan Nuevo pedido y Editar
+   pedido para que cobrar se vea y funcione igual en las dos.
+
+   Desde JS:  abrirCobro({ total: 56000, titulo: 'COD-1', boton: 'y enviar',
+                           alConfirmar: function (cobro) { ... } })
+   `cobro` = { metodo, monto, archivo }. El monto se puede bajar (pago
+   parcial): lo que falte queda en Cobrar. La foto es opcional; si no se
+   toma, se agrega luego desde Caja. #}
+<div class="overlay" id="hoja-cobro" onclick="if(event.target===this)cerrarCobro()">
+  <div class="sheet">
+    <div class="sheet-titulo">Cobrar ahora</div>
+    <div class="text-sm c-gray2" id="hc-sub"></div>
+
+    <div class="pay-grid">
+      {% for m, ico in metodos.items() %}
+      <button type="button" class="btn btn-ghost btn-full hc-metodo" data-m="{{ m }}"
+              onclick="hcMetodo(this)">{{ icono(ico, 18) }} {{ m }}</button>
+      {% endfor %}
+    </div>
+
+    <label class="form-label mt-12" for="hc-monto">Cuánto paga</label>
+    <input class="form-input num" id="hc-monto" inputmode="numeric" autocomplete="off"
+           oninput="hcPinta()">
+    <div class="text-xs mt-4" id="hc-resto"></div>
+
+    <div id="hc-foto" class="mt-12" hidden>
+      <input type="file" id="hc-camara" accept="image/*" capture="environment" hidden>
+      <input type="file" id="hc-archivo" accept="image/*,application/pdf" hidden>
+      <div id="hc-vista" class="comp-vista" hidden>
+        <img id="hc-img" alt="Comprobante">
+        <div id="hc-nombre" class="text-xs c-gray2"></div>
+      </div>
+      <div class="hc-foto-btns">
+        <button type="button" class="btn btn-ghost btn-full" id="hc-btn-foto"
+                onclick="document.getElementById('hc-camara').click()">
+          {{ icono('camara', 18) }} <span>Foto del comprobante</span></button>
+        <button type="button" class="btn btn-ghost btn-full"
+                onclick="document.getElementById('hc-archivo').click()">Subir archivo</button>
+      </div>
+      <div class="text-xs c-gray2 mt-4">Opcional: si no hay foto ahora, se agrega luego desde Caja.</div>
+    </div>
+
+    <button type="button" class="btn btn-green btn-full btn-lg mt-12" id="hc-ok"
+            onclick="hcConfirmar()" disabled>Elige cómo paga</button>
+    <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrarCobro()">Cancelar</button>
+  </div>
+</div>
+
+<script>
+var HC = { total: 0, metodo: null, archivo: null, boton: '', alConfirmar: null };
+
+function hcFmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
+
+function abrirCobro(op) {
+  HC.total = op.total; HC.metodo = null; HC.archivo = null;
+  HC.boton = op.boton || ''; HC.alConfirmar = op.alConfirmar;
+  document.getElementById('hc-sub').textContent =
+    (op.titulo ? op.titulo + ' — ' : '') + 'a pagar ' + hcFmt(op.total);
+  document.getElementById('hc-monto').value = op.total.toLocaleString('es-CO');
+  document.querySelectorAll('.hc-metodo').forEach(function (b) {
+    b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); });
+  ['hc-camara', 'hc-archivo'].forEach(function (id) { document.getElementById(id).value = ''; });
+  document.getElementById('hc-vista').hidden = true;
+  document.getElementById('hc-foto').hidden = true;
+  hcPinta();
+  document.getElementById('hoja-cobro').classList.add('open');
+}
+
+function cerrarCobro() { document.getElementById('hoja-cobro').classList.remove('open'); }
+
+function hcMetodo(b) {
+  document.querySelectorAll('.hc-metodo').forEach(function (x) {
+    x.classList.remove('btn-primary'); x.classList.add('btn-ghost'); });
+  b.classList.remove('btn-ghost'); b.classList.add('btn-primary');
+  HC.metodo = b.dataset.m;
+  document.getElementById('hc-foto').hidden = HC.metodo === 'Efectivo';
+  hcPinta();
+}
+
+function hcMonto() {
+  return parseInt((document.getElementById('hc-monto').value || '').replace(/\D/g, ''), 10) || 0;
+}
+
+function hcPinta() {
+  var m = hcMonto(), resto = HC.total - m;
+  var r = document.getElementById('hc-resto'), ok = document.getElementById('hc-ok');
+  var valido = m > 0 && m <= HC.total;
+  if (m > HC.total) { r.className = 'text-xs mt-4 c-red'; r.textContent = 'Es más de lo que debe (' + hcFmt(HC.total) + ')'; }
+  else if (m > 0 && resto > 0) { r.className = 'text-xs mt-4 c-orange'; r.textContent = 'Pago parcial: quedan ' + hcFmt(resto) + ' por cobrar en Cobrar'; }
+  else if (m > 0) { r.className = 'text-xs mt-4 c-green'; r.textContent = 'Paga todo'; }
+  else { r.className = 'text-xs mt-4 c-red'; r.textContent = 'Escribe cuánto paga'; }
+  ok.disabled = !(valido && HC.metodo);
+  ok.textContent = !HC.metodo ? 'Elige cómo paga'
+    : 'Cobrar ' + hcFmt(m) + ' en ' + HC.metodo + (HC.boton ? ' ' + HC.boton : '');
+}
+
+function hcElegido(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var ok = document.getElementById('hc-ok');
+  ok.disabled = true;
+  comprimirFoto(file).then(function (chico) {
+    HC.archivo = chico;
+    var img = document.getElementById('hc-img'), es_img = /^image\//.test(chico.type);
+    img.hidden = !es_img;
+    if (es_img) img.src = URL.createObjectURL(chico);
+    document.getElementById('hc-nombre').textContent =
+      (es_img ? '' : file.name + ' · ') + Math.round(chico.size / 1024) + ' KB';
+    document.getElementById('hc-vista').hidden = false;
+    document.querySelector('#hc-btn-foto span').textContent = 'Tomar otra foto';
+    hcPinta();
+  });
+}
+document.getElementById('hc-camara').addEventListener('change', function () { hcElegido(this); });
+document.getElementById('hc-archivo').addEventListener('change', function () { hcElegido(this); });
+
+function hcConfirmar() {
+  var m = hcMonto();
+  if (!HC.metodo || m <= 0 || m > HC.total) return;
+  cerrarCobro();
+  HC.alConfirmar({ metodo: HC.metodo, monto: m,
+                   archivo: HC.metodo === 'Efectivo' ? null : HC.archivo });
+}
+
+// Manda el pedido. Con foto va como formulario (datos + comprobante); sin
+// foto, como JSON. Devuelve { status, d }.
+async function postPedido(url, datos, cobro) {
+  if (cobro) { datos.cobrar_ya = true; datos.metodo_pago = cobro.metodo; datos.monto = cobro.monto; }
+  else { datos.cobrar_ya = false; }
+  var op = { method: 'POST' };
+  if (cobro && cobro.archivo) {
+    var fd = new FormData();
+    fd.append('datos', JSON.stringify(datos));
+    fd.append('comprobante', cobro.archivo, cobro.archivo.name || 'foto.jpg');
+    op.body = fd;
+  } else {
+    op.headers = { 'Content-Type': 'application/json' };
+    op.body = JSON.stringify(datos);
+  }
+  var r = await fetch(url, op);
+  return { status: r.status, d: await r.json() };
+}
+</script>

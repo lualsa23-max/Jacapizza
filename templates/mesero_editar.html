@@ -3,10 +3,21 @@
 {% block content %}
 <h2 class="sec-title">{{ icono('editar', 18) }} Editando Pedido #{{ pedido.id }} — {{ pedido.mesa }}</h2>
 
-{% if pedido.pago %}
-<div class="card mb-12" style="border:1.5px solid var(--green);background:rgba(78,203,113,.08)">
-  <div class="text-sm c-green font-bold">{{ icono('tarjeta', 18) }} Este pedido ya fue pagado con: {{ pedido.pago }}</div>
-  <div class="text-xs c-gray mt-4">Puedes modificar los ítems — cocina será notificada del cambio.</div>
+{# El estado de la cuenta sale de los pagos reales, no de la columna `pago`:
+   esa se llena con cualquier pago, aun parcial, y el aviso "ya fue pagado"
+   hacia que no se cobrara lo que faltaba ni lo que se agregaba despues. #}
+{% if pedido.total_pagado > 0 %}
+{% set completa = pedido.saldo <= 0 %}
+<div class="card mb-12" style="border:1.5px solid var(--{{ 'green' if completa else 'orange' }})">
+  <div class="text-sm font-bold {{ 'c-green' if completa else 'c-orange' }}">
+    {{ icono('tarjeta', 18) }}
+    {% if completa %}Cuenta pagada: {{ pedido.total_pagado | cop }}
+    {% else %}Pagado {{ pedido.total_pagado | cop }} de {{ pedido.total | cop }} · debe {{ pedido.saldo | cop }}{% endif %}
+  </div>
+  <div class="text-xs c-gray2 mt-4">
+    {% for pg in pedido.pagos %}{{ pg.monto | cop }} {{ pg.metodo }}{% if not loop.last %} · {% endif %}{% endfor %}
+    — si agregas productos, lo nuevo queda por cobrar.
+  </div>
 </div>
 {% endif %}
 
@@ -94,36 +105,26 @@
     <textarea class="form-textarea" id="notas-txt">{{ pedido.notas }}</textarea>
   </div>
 
-  <!-- OPCIÓN DE COBRAR AHORA -->
-  <div class="card mt-12" style="background:rgba(199,24,126,.06);border:1.5px solid rgba(199,24,126,.25)">
-    <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-      <input type="checkbox" id="cobrar-ya-chk" onchange="toggleCobrar()" style="width:20px;height:20px;cursor:pointer">
-      <span style="font-weight:700">{{ icono('tarjeta', 18) }} Cobrar ahora mismo</span>
-    </label>
-    <div class="text-xs c-gray mt-4" id="cobrar-hint">
-      {% if pedido.productos_despachados %}
-      Marca esto si el cliente va a pagar estos productos nuevos ya mismo.
-      {% else %}
-      Marca esto si el cliente va a pagar al momento de hacer el pedido.
-      {% endif %}
-    </div>
-    <div id="metodo-pago-wrap" style="display:none;margin-top:10px">
-      <label class="form-label">Método de pago:</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Efectivo" onclick="seleccionarMetodo(this)">{{ icono('cobrar', 18) }} Efectivo</button>
-        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Nequi" onclick="seleccionarMetodo(this)">{{ icono('movil', 18) }} Nequi</button>
-        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Daviplata" onclick="seleccionarMetodo(this)">{{ icono('movil', 18) }} Daviplata</button>
-        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Tarjeta" onclick="seleccionarMetodo(this)">{{ icono('tarjeta', 18) }} Tarjeta</button>
-        <button type="button" class="btn btn-ghost btn-sm pago-btn" data-metodo="Llave Bre-B" onclick="seleccionarMetodo(this)" style="grid-column:1/-1">{{ icono('llave', 18) }} Llave Bre-B</button>
-      </div>
-    </div>
+  {# Cuánto va a deber al guardar, a la vista antes de decidir si se cobra #}
+  <div class="card mt-12" id="resumen-cuenta">
+    <div class="ed-fila"><span>Total de la cuenta con los cambios</span><b class="num" id="rc-total">$0</b></div>
+    {% if pedido.total_pagado > 0 %}
+    <div class="ed-fila c-green"><span>Ya pagado</span><b class="num">− {{ pedido.total_pagado | cop }}</b></div>
+    {% endif %}
+    <div class="ed-fila ed-debe"><span>Quedará debiendo</span><b class="num" id="rc-debe">$0</b></div>
   </div>
 
-  <button class="btn btn-primary btn-full btn-lg mt-12" onclick="guardarCambios()">
-    {{ icono('guardar', 18) }} Guardar cambios — Notificar cocina
-  </button>
+  <div class="ed-acciones mt-12">
+    <button class="btn btn-ghost btn-lg" id="btn-guardar" onclick="guardarCambios(false)">
+      {{ icono('guardar', 18) }} Guardar sin cobrar
+    </button>
+    <button class="btn btn-green btn-lg" id="btn-guardar-cobrar" onclick="guardarCambios(true)">
+      {{ icono('cobrar', 18) }} <span id="txt-guardar-cobrar">Guardar y cobrar</span>
+    </button>
+  </div>
   <a href="{{ url_for('mesero_pedidos') }}" class="btn btn-ghost btn-full mt-8">Cancelar</a>
 </div>
+{% include "_hoja_cobro.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -131,27 +132,24 @@
 let qty = 1;
 let saboresSel = [];
 let carrito = {{ pedido.productos | tojson }};
-let metodoSel = '';
+const TOTAL_ENTREGADO = {{ pedido.total_entregado | int }};
+const YA_PAGADO = {{ pedido.total_pagado | int }};
 
-function toggleCobrar(){
-  const chk = document.getElementById('cobrar-ya-chk');
-  const wrap = document.getElementById('metodo-pago-wrap');
-  wrap.style.display = chk.checked ? 'block': 'none';
-  if(!chk.checked){
-    metodoSel = '';
-    document.querySelectorAll('.pago-btn').forEach(b=>b.classList.remove('btn-primary'));
-    document.querySelectorAll('.pago-btn').forEach(b=>b.classList.add('btn-ghost'));
-  }
+function fmtCop(n){ return '$' + (n || 0).toLocaleString('es-CO'); }
+
+// Lo que debera al guardar: entregado + lo del carrito − lo ya pagado
+function deberaTras(){
+  return TOTAL_ENTREGADO + carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0) - YA_PAGADO;
 }
 
-function seleccionarMetodo(btn){
-  metodoSel = btn.dataset.metodo;
-  document.querySelectorAll('.pago-btn').forEach(b=>{
-    b.classList.remove('btn-primary');
-    b.classList.add('btn-ghost');
-  });
-  btn.classList.remove('btn-ghost');
-  btn.classList.add('btn-primary');
+function pintarResumen(){
+  const debe = deberaTras();
+  document.getElementById('rc-total').textContent = fmtCop(debe + YA_PAGADO);
+  document.getElementById('rc-debe').textContent = fmtCop(Math.max(debe, 0));
+  const b = document.getElementById('btn-guardar-cobrar');
+  b.disabled = debe <= 0;
+  document.getElementById('txt-guardar-cobrar').textContent =
+    debe > 0 ? 'Guardar y cobrar ' + fmtCop(debe) : 'Nada por cobrar';
 }
 
 function cambiarQty(d){ qty = Math.max(1, qty+d); document.getElementById('qty-num').textContent = qty; }
@@ -205,6 +203,7 @@ function changeCant(nombre, delta){
 }
 
 function renderCart(){
+  pintarResumen();
   const total = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
   document.getElementById('cart-total').textContent='$'+total.toLocaleString('es-CO').replace(/,/g,'.');
   const badge=document.getElementById('cart-badge');
@@ -230,36 +229,45 @@ function renderCart(){
   });
 }
 
-async function guardarCambios(){
-  if(!carrito.length){ alert('El pedido no puede quedar vacío'); return; }
-  const franja = document.getElementById('franja-sel').value;
-  const notas  = document.getElementById('notas-txt').value.trim();
-  const cobrarYa = document.getElementById('cobrar-ya-chk').checked;
-  if(cobrarYa && !metodoSel){
-    alert('Selecciona un método de pago');
+function guardarCambios(cobrar){
+  if(!carrito.length && !TOTAL_ENTREGADO){ alert('El pedido no puede quedar vacío'); return; }
+  const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
+  const debe = deberaTras();
+  if(cobrar){
+    abrirCobro({ total: debe, titulo: {{ pedido.mesa | tojson }}, boton: 'y guardar',
+                 alConfirmar: function(cobro){ mandarCambios(cobro); } });
     return;
   }
-  const total  = carrito.reduce((s,i)=>s+i.cantidad*i.precio_unit,0);
-  const items_txt = carrito.map(i=>i.cantidad+'x '+i.nombre).join(', ');
-  let msg = 'Guardar cambios?\n\n'+items_txt+'\nTotal: $'+total.toLocaleString('es-CO').replace(/,/g,'.');
-  if(cobrarYa){ msg += '\n\n{{ icono('tarjeta', 18) }} Se cobrará con '+metodoSel; }
-  msg += '\n\n{{ icono('alerta', 18) }} Cocina será notificada del cambio.';
+  let msg = 'Guardar cambios?\n\n'+items_txt;
+  if(debe > 0){ msg += '\n\nSIN COBRAR: quedará debiendo '+fmtCop(debe)+' (aparece en Cobrar).'; }
+  msg += '\n\nCocina será notificada del cambio.';
   if(!confirm(msg)) return;
+  mandarCambios(null);
+}
+
+async function mandarCambios(cobro){
+  const botones = ['btn-guardar','btn-guardar-cobrar'].map(id=>document.getElementById(id));
+  botones.forEach(b=>b.disabled=true);
   try{
-    const r = await fetch('/mesero/pedido/{{ pedido.id }}/editar',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({items:carrito, notas, franja, cobrar_ya:cobrarYa, metodo_pago:metodoSel})
-    });
-    const d = await r.json();
+    const res = await postPedido('/mesero/pedido/{{ pedido.id }}/editar', {
+      items: carrito, notas: document.getElementById('notas-txt').value.trim(),
+      franja: document.getElementById('franja-sel').value
+    }, cobro);
+    const d = res.d;
     if(d.ok){
- alert('Cambios guardados.'+ (cobrarYa ? '\n Pago registrado.': '') + '\n Cocina fue notificada.');
+      let msg = 'Cambios guardados. Cocina fue notificada.';
+      if(d.pago_error) msg += '\n\n' + d.pago_error;
+      else if(d.cobrado) msg += '\n\nCobrado ' + fmtCop(d.monto) + ' en ' + d.metodo + '.';
+      if(d.saldo > 0) msg += '\nQueda debiendo ' + fmtCop(d.saldo) + '.';
+      alert(msg);
       window.location='/mesero/pedidos';
     } else {
       alert('Error: '+d.error);
+      botones.forEach(b=>b.disabled=false); pintarResumen();
     }
   } catch(e){
     alert('Error de conexión. Intenta de nuevo.');
+    botones.forEach(b=>b.disabled=false); pintarResumen();
   }
 }
 
