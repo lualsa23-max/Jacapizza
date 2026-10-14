@@ -2145,7 +2145,15 @@ def admin_reportes():
         # Los campos de fecha del navegador vienen en ISO
         fi = iso_a_fecha(request.args.get('d1', '')) or hoy
         ff = iso_a_fecha(request.args.get('d2', '')) or hoy
-        titulo = f"Del {fi} al {ff}"
+        # Fechas al reves daban un reporte vacio sin decir por que: se voltean
+        if fecha_a_iso(fi, "") > fecha_a_iso(ff, ""):
+            fi, ff = ff, fi
+        # El año solo si el rango no es del año en curso; si se pone, en ambas
+        con_año = any(int(f[-4:]) != now.year for f in (fi, ff))
+        def _dia(f):
+            d, m, y = (int(x) for x in f.split("/"))
+            return f"{d} de {_MESES[m - 1]}" + (f" de {y}" if con_año else "")
+        titulo = _dia(fi) if fi == ff else f"Del {_dia(fi)} al {_dia(ff)}"
     else:
         periodo = 'hoy'
         fi = ff = hoy
@@ -2173,7 +2181,7 @@ def admin_reportes():
         titulo_rango=titulo, metodos=METODOS_PAGO, masas=masas,
         ultima_venta=ultima, ultima_iso=fecha_a_iso(ultima or "", ""),
         db_alerta=DB_ALERTA, db_path=DB_PATH,
-        d1=fecha_a_iso(fi, ""), d2=fecha_a_iso(ff, ""))
+        d1=fecha_a_iso(fi, ""), d2=fecha_a_iso(ff, ""), hoy_iso=fecha_a_iso(hoy, ""))
 
 
 @app.route('/admin/reportes/csv')

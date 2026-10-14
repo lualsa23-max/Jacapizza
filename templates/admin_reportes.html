@@ -9,9 +9,23 @@
   <a href="{{ url_for('admin_reportes', periodo=clave) }}"
      class="rep-chip {% if periodo == clave %}activo{% endif %}">{{ etiqueta }}</a>
   {% endfor %}
-  <button type="button" class="rep-chip {% if periodo == 'rango' %}activo{% endif %}"
-          onclick="document.getElementById('hoja-rango').classList.add('open')">Rango…</button>
 </div>
+
+{# Rango de fechas siempre a la vista. Antes estaba escondido detras de un
+   boton "Rango…" que abria una hoja, y casi nadie lo encontraba. #}
+<form class="rep-filtro {% if periodo == 'rango' %}activo{% endif %}" method="get"
+      action="{{ url_for('admin_reportes') }}">
+  <input type="hidden" name="periodo" value="rango">
+  <label class="rep-filtro-campo">
+    <span>Desde</span>
+    <input class="form-input" type="date" name="d1" value="{{ d1 }}" max="{{ hoy_iso }}" required>
+  </label>
+  <label class="rep-filtro-campo">
+    <span>Hasta</span>
+    <input class="form-input" type="date" name="d2" value="{{ d2 }}" max="{{ hoy_iso }}" required>
+  </label>
+  <button type="submit" class="btn btn-primary">Ver</button>
+</form>
 
 <div class="rep-rango">{{ titulo_rango }}</div>
 
@@ -218,22 +232,6 @@
   {{ icono('guardar', 18) }} Descargar el detalle en Excel
 </a>
 
-{# ── Rango a medida ────────────────────────────────────────────── #}
-<div class="overlay" id="hoja-rango" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="sheet">
-    <div class="sheet-titulo">Elegir un rango</div>
-    <form method="get" action="{{ url_for('admin_reportes') }}">
-      <input type="hidden" name="periodo" value="rango">
-      <label class="form-label">Desde</label>
-      <input class="form-input" type="date" name="d1" value="{{ d1 }}" required>
-      <label class="form-label mt-12">Hasta</label>
-      <input class="form-input" type="date" name="d2" value="{{ d2 }}" required>
-      <button type="submit" class="btn btn-primary btn-full btn-lg mt-12">Ver</button>
-      <button type="button" class="btn btn-ghost btn-full mt-8"
-              onclick="document.getElementById('hoja-rango').classList.remove('open')">Cancelar</button>
-    </form>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}

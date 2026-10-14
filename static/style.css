@@ -1035,6 +1035,16 @@ a.nav-brand:active { opacity: .7; }
 }
 .rep-chip.activo { background: rgba(199,24,126,.14); color: var(--brand-text); border-color: var(--accent); }
 .rep-rango { font-size: var(--t-sm); color: var(--gray2); margin-bottom: var(--s3); }
+.rep-filtro {
+  display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--s2); align-items: end;
+  margin-bottom: var(--s2); padding: var(--s2); border-radius: var(--r-sm);
+  border: 1px solid transparent;
+}
+.rep-filtro.activo { border-color: var(--accent); background: rgba(199,24,126,.06); }
+.rep-filtro-campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rep-filtro-campo span { font-size: var(--t-xs); color: var(--gray2); }
+.rep-filtro-campo input { min-width: 0; width: 100%; }
+.rep-filtro .btn { min-height: 44px; }
 
 .rep-tarjeta {
   display: block; width: 100%; text-align: left;
