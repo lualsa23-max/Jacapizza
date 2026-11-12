@@ -685,6 +685,19 @@ tbody tr:hover td     { background: var(--card2); }
 .vr-aviso-ok    { background: rgba(78,203,113,.14); color: var(--green); }
 .vr-aviso-nuevo { background: rgba(245,166,35,.14); color: var(--orange); }
 
+/* Barra flotante de la venta rapida: total a la izquierda, Cobrar a la
+   derecha, en una sola fila (aqui no hay "cobrar o no": siempre se cobra). */
+.ped-barra[hidden] { display: none; }
+.vr-barra { flex-wrap: nowrap; box-shadow: 0 -6px 18px rgba(0,0,0,.3); }
+.vr-btn-cobrar { flex-shrink: 0; min-width: 140px; justify-content: center; }
+/* El total "salta" un instante al sumar algo: se nota sin mirar fijo */
+.vr-salta { animation: vrSalta .28s ease; }
+@keyframes vrSalta { 40% { transform: scale(1.12); color: var(--green); } }
+.ped-panel-pie {
+  display: flex; justify-content: flex-end;
+  padding: 0 var(--s4) var(--s3);
+}
+
 /* ── F3: BARRA INFERIOR ────────────────────────────── */
 /* Cuatro destinos fijos, siempre visibles, al alcance del pulgar.
    Reemplaza a las 14 pestañas con scroll horizontal, donde lo que no

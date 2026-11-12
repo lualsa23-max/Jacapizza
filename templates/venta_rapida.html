@@ -4,8 +4,8 @@
 {% block content %}
 <h2 class="sec-title">{{ icono('rapido', 18) }} Venta rápida</h2>
 <div class="text-xs c-gray2 mb-12">
-  Para una bebida suelta. Se saca de la nevera y se entrega en el acto —
-  no pasa por la pantalla de barra.
+  Toca las bebidas: se van sumando abajo. Se entregan en el acto, no pasan
+  por la pantalla de barra.
 </div>
 
 {% set stock = stock_json | fromjson %}
@@ -50,41 +50,64 @@
 </div>
 {% endfor %}
 
-<div class="card mt-16" id="carrito-card" style="display:none">
-  <div id="carrito"></div>
-  <div class="vr-total">
-    <span>Total</span>
-    <span class="num" id="total">$0</span>
+{# Igual que Nuevo pedido: lo elegido se ve SIEMPRE en una barra flotante
+   abajo, con el total. Tocando el total se despliega el detalle; "Cobrar"
+   abre una hoja con el codigo y el medio de pago. Antes todo eso estaba en
+   una tarjeta al final de 27 bebidas y habia que bajar a buscarla. #}
+<div class="ped-panel" id="ped-panel">
+  <div class="ped-panel-cab">
+    <span>La venta</span>
+    <button type="button" class="ped-panel-x" onclick="verPanel(false)" aria-label="Cerrar detalle">
+      {{ icono('cerrar', 20) }}
+    </button>
   </div>
+  <div class="ped-panel-lista" id="panel-lista"></div>
+  <div class="ped-panel-pie">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="limpiar(true)">
+      {{ icono('borrar', 16) }} Vaciar</button>
+  </div>
+</div>
 
-  <div class="mt-12">
-    <label class="form-label">Código de estadía <span class="c-gray2">— opcional</span></label>
+<div class="ped-barra vr-barra" id="ped-barra" hidden>
+  <button type="button" class="ped-barra-info" onclick="verPanel()">
+    <div class="ped-barra-n"><span id="barra-n">0 productos</span>
+      <span class="ped-barra-ver" id="barra-ver">ver detalle</span></div>
+    <div class="ped-barra-t num" id="barra-t">$0</div>
+  </button>
+  <button type="button" class="btn btn-green btn-lg vr-btn-cobrar" onclick="abrirPago()">
+    {{ icono('cobrar', 20) }} Cobrar
+  </button>
+</div>
+<div class="ped-espacio"></div>
+
+{# ── Hoja de pago ─────────────────────────────────────────────── #}
+<div class="overlay" id="hoja-pago" onclick="if(event.target===this)cerrarPago()">
+  <div class="sheet">
+    <div class="sheet-titulo">Cobrar <span class="num" id="hp-total">$0</span></div>
+    <div class="text-sm c-gray2" id="hp-resumen"></div>
+
+    <label class="form-label mt-12" for="codigo">Código de estadía
+      <span class="c-gray2">— opcional</span></label>
     <input class="form-input" type="text" id="codigo" autocomplete="off"
            placeholder="Déjalo vacío si no tiene reserva" oninput="buscarCodigo()">
     <div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
+
+    <div class="form-label mt-12">¿Cómo paga?</div>
+    <div class="pay-grid">
+      <button type="button" class="btn btn-ghost btn-full metodo-op" id="btn-cuenta"
+              data-m="__cuenta__" onclick="elegir(this)" style="display:none">
+        {{ icono('caja', 18) }} A la cuenta
+      </button>
+      {% for m, ico in metodos.items() %}
+      <button type="button" class="btn btn-ghost btn-full metodo-op" data-m="{{ m }}"
+              onclick="elegir(this)">{{ icono(ico, 18) }} {{ m }}</button>
+      {% endfor %}
+    </div>
+
+    <button class="btn btn-green btn-full btn-lg mt-12" id="btn-confirmar"
+            onclick="confirmar()" disabled>Elige cómo paga</button>
+    <button class="btn btn-ghost btn-full mt-8" onclick="cerrarPago()">Seguir agregando</button>
   </div>
-
-  <div class="form-label mt-12">¿Cómo paga?</div>
-  <div class="pay-grid">
-    <button type="button" class="btn btn-ghost btn-full metodo-op" id="btn-cuenta"
-            data-m="__cuenta__" onclick="elegir(this)" style="display:none">
-      {{ icono('caja', 18) }} Cargar a la cuenta
-    </button>
-    {% for m, icono in metodos.items() %}
-    <button type="button" class="btn btn-ghost btn-full metodo-op" data-m="{{ m }}"
-            onclick="elegir(this)">{{ icono }} {{ m }}</button>
-    {% endfor %}
-  </div>
-
-  <button class="btn btn-green btn-full btn-lg mt-12" id="btn-confirmar" onclick="confirmar()">
-    {{ icono('check', 18) }} Confirmar
-  </button>
-  <button class="btn btn-ghost btn-full mt-8" onclick="limpiar()">{{ icono('borrar', 18) }} Empezar de nuevo</button>
-</div>
-
-<div class="empty" id="vacio" style="padding:40px 20px">
-  <span class="e-ico">{{ icono('flecha', 18) }}</span>
-  <div class="c-gray2">Toca una bebida para empezar</div>
 </div>
 {% endblock %}
 
@@ -144,24 +167,74 @@ function pintarContadores() {
   });
 }
 
-function quitar(i) { carrito.splice(i, 1); pinta(); }
+function cambiar(i, d) {
+  carrito[i].cantidad += d;
+  if (carrito[i].cantidad <= 0) carrito.splice(i, 1);
+  pinta();
+}
+
+function totalVenta() {
+  return carrito.reduce(function (s, x) { return s + x.cantidad * x.precio_unit; }, 0);
+}
 
 function pinta() {
-  var hay = carrito.length > 0;
-  document.getElementById('carrito-card').style.display = hay ? '' : 'none';
-  document.getElementById('vacio').style.display = hay ? 'none' : '';
-  var total = 0, html = '';
+  var total = 0, uds = 0, html = '';
   carrito.forEach(function (x, i) {
-    total += x.cantidad * x.precio_unit;
-    html += '<div class="p-item">'
-          + '<span class="p-item-qty num">' + x.cantidad + '×</span>'
-          + '<span class="p-item-name">' + x.nombre + '</span>'
-          + '<span class="p-item-price num">' + fmt(x.cantidad * x.precio_unit) + '</span>'
-          + '<button class="vr-quitar" onclick="quitar(' + i + ')">✕</button></div>';
+    total += x.cantidad * x.precio_unit; uds += x.cantidad;
+    html += '<div class="ped-linea">'
+          + '<div class="ped-linea-txt"><div class="ped-linea-n">' + x.nombre + '</div>'
+          + '<div class="ped-linea-p num">' + fmt(x.cantidad * x.precio_unit) + '</div></div>'
+          + '<div class="ped-qty">'
+          + '<button type="button" onclick="cambiar(' + i + ',-1)" aria-label="Uno menos">−</button>'
+          + '<span class="num">' + x.cantidad + '</span>'
+          + '<button type="button" onclick="cambiar(' + i + ',1)" aria-label="Uno más">+</button>'
+          + '</div></div>';
   });
-  document.getElementById('carrito').innerHTML = html;
-  document.getElementById('total').textContent = fmt(total);
+  document.getElementById('panel-lista').innerHTML = html;
+  var nTxt = uds + (uds === 1 ? ' producto' : ' productos');
+  document.getElementById('barra-n').textContent = nTxt;
+  var t = document.getElementById('barra-t');
+  if (t.textContent !== fmt(total)) {
+    t.textContent = fmt(total);
+    t.classList.remove('vr-salta'); void t.offsetWidth; t.classList.add('vr-salta');
+  }
+  document.getElementById('hp-total').textContent = fmt(total);
+  document.getElementById('hp-resumen').textContent = carrito.map(function (x) {
+    return x.cantidad + '× ' + x.nombre; }).join(' · ');
+  document.getElementById('ped-barra').hidden = !carrito.length;
+  if (!carrito.length) { verPanel(false); cerrarPago(); }
   pintarContadores();
+  pintarBoton();
+}
+
+/* ── Detalle desplegable: se abre encima de la barra, mida lo que mida ── */
+function verPanel(abrir) {
+  var p = document.getElementById('ped-panel');
+  var on = (abrir === undefined) ? !p.classList.contains('abierto') : abrir;
+  if (on) {
+    var barra = document.getElementById('ped-barra');
+    p.style.bottom = (window.innerHeight - barra.getBoundingClientRect().top) + 'px';
+  }
+  p.classList.toggle('abierto', on);
+  document.getElementById('barra-ver').textContent = on ? 'ocultar' : 'ver detalle';
+}
+
+/* ── Hoja de pago ─────────────────────────────────────────────── */
+function abrirPago() {
+  if (!carrito.length) return;
+  verPanel(false);
+  document.getElementById('hoja-pago').classList.add('open');
+}
+
+function cerrarPago() { document.getElementById('hoja-pago').classList.remove('open'); }
+
+function pintarBoton() {
+  var b = document.getElementById('btn-confirmar');
+  if (b.dataset.ocupado) return;
+  b.disabled = !metodo;
+  b.textContent = !metodo ? 'Elige cómo paga'
+    : metodo === '__cuenta__' ? 'Cargar ' + fmt(totalVenta()) + ' a la cuenta'
+    : 'Confirmar ' + fmt(totalVenta()) + ' en ' + metodo;
 }
 
 // Comprobar el código mientras se escribe: ver a dónde va ANTES de confirmar
@@ -174,6 +247,7 @@ function buscarCodigo() {
     if (!cod) {
       cuenta = null; aviso.style.display = 'none'; btnCuenta.style.display = 'none';
       if (metodo === '__cuenta__') { metodo = null; despintarMetodos(); }
+      pintarBoton();
       return;
     }
     try {
@@ -182,16 +256,17 @@ function buscarCodigo() {
       if (d.existe) {
         cuenta = d;
         aviso.className = 'vr-aviso vr-aviso-ok';
- aviso.textContent = ' ' + d.texto + ' — se sumará a esta cuenta';
+        aviso.textContent = d.texto + ' — se sumará a esta cuenta';
         btnCuenta.style.display = '';
       } else {
         cuenta = null;
         aviso.className = 'vr-aviso vr-aviso-nuevo';
- aviso.textContent = ' No hay cuenta abierta hoy con ese código. Se creará una nueva.';
+        aviso.textContent = 'No hay cuenta abierta hoy con ese código. Se creará una nueva.';
         btnCuenta.style.display = 'none';
         if (metodo === '__cuenta__') { metodo = null; despintarMetodos(); }
       }
       aviso.style.display = '';
+      pintarBoton();
     } catch (e) { }
   }, 350);
 }
@@ -206,9 +281,11 @@ function elegir(btn) {
   despintarMetodos();
   btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
   metodo = btn.dataset.m;
+  pintarBoton();
 }
 
-function limpiar() {
+function limpiar(preguntar) {
+  if (preguntar && carrito.length && !confirm('¿Vaciar la venta?')) return;
   carrito = []; metodo = null; cuenta = null;
   document.getElementById('codigo').value = '';
   document.getElementById('aviso-codigo').style.display = 'none';
@@ -220,7 +297,8 @@ async function confirmar(confirmado) {
   if (!carrito.length) return;
   if (!metodo) { alert('Elige cómo paga'); return; }
   var btn = document.getElementById('btn-confirmar');
-  btn.disabled = true; btn.textContent = 'Guardando…';
+  function listo() { delete btn.dataset.ocupado; pintarBoton(); }
+  btn.dataset.ocupado = '1'; btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     var r = await fetch('/venta-rapida', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -234,19 +312,20 @@ async function confirmar(confirmado) {
     });
     var d = await r.json();
     if (r.status === 409) {
- btn.disabled = false; btn.textContent = ' Confirmar';
+      listo();
       if (confirm(d.mensaje)) confirmar(true);
       return;
     }
- if (d.error) { alert(d.error); btn.disabled = false; btn.textContent = ' Confirmar'; return; }
+    if (d.error) { alert(d.error); listo(); return; }
     if (d.pago_error) alert(d.pago_error);
- showToast(' ' + d.destino + ' — ' + fmt(d.total)
+    showToast(d.destino + ' — ' + fmt(d.total)
               + (d.a_cuenta ? ' cargado a la cuenta' : ' cobrado en ' + d.metodo), 5000);
+    listo();
     limpiar();
     setTimeout(function () { location.reload(); }, 900);   // refrescar el stock
   } catch (e) {
     alert('No se pudo guardar. Revisa la conexión.');
- btn.disabled = false; btn.textContent = ' Confirmar';
+    listo();
   }
 }
 </script>

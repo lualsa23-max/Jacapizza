@@ -97,8 +97,10 @@
   <div class="card mt-12">
     <label class="form-label">{{ icono('reloj', 18) }} Hora de entrega</label>
     <select class="form-select mb-12" id="franja-sel">
-      {% for f in franjas %}
-      <option {% if f == pedido.franja_hora %}selected{% endif %}>{{ f }}</option>
+      {% set cupos = cupos_franjas() %}
+      {% for f in franjas %}{% set lleno = cupos.get(f, 0) >= MAX_PEDIDOS_POR_FRANJA and f != pedido.franja_hora %}
+      <option value="{{ f }}" {% if f == pedido.franja_hora %}selected{% endif %} {% if lleno %}disabled{% endif %}>
+        {{ f }}{% if lleno %} · LLENO{% endif %}</option>
       {% endfor %}
     </select>
     <label class="form-label">{{ icono('editar', 18) }} Notas</label>
@@ -173,7 +175,7 @@ function toggleSabor(btn){
 
 function agregarPizza(){
   if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
-  addItem(saboresSel.join('/ '), 'Pizza', 20000);
+  addItem(saboresSel.slice().sort().join(' / '), 'Pizza', 20000);
   saboresSel=[];
   document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
   document.getElementById('sel-display').textContent='Sin sabor seleccionado';

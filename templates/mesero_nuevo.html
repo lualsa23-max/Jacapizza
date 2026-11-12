@@ -34,8 +34,17 @@
 <div class="ped-cabecera mt-8">
   <div style="flex:1;min-width:0">
     <label class="form-label">Hora de entrega</label>
+    {# Cada hora dice cuantos pedidos lleva. Las llenas se ven pero no se
+       pueden elegir, y arranca en la primera que tenga cupo. #}
+    {% set ns = namespace(elegida=none) %}
+    {% for f in franjas %}{% if ns.elegida is none and cupos.get(f, 0) < MAX_PEDIDOS_POR_FRANJA %}{% set ns.elegida = f %}{% endif %}{% endfor %}
     <select class="form-select" id="franja">
-      {% for f in franjas %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+      {% for f in franjas %}{% set n = cupos.get(f, 0) %}
+      <option value="{{ f }}" data-f="{{ f }}"
+              {% if n >= MAX_PEDIDOS_POR_FRANJA %}disabled{% endif %}
+              {% if f == ns.elegida %}selected{% endif %}>
+        {{ f }} · {% if n >= MAX_PEDIDOS_POR_FRANJA %}LLENO{% else %}{{ n }}/{{ MAX_PEDIDOS_POR_FRANJA }}{% endif %}</option>
+      {% endfor %}
     </select>
   </div>
 </div>
@@ -212,7 +221,8 @@ function agregarPizza() {
   document.querySelectorAll('.ped-sabor.activo').forEach(function (b) {
     precio = Math.max(precio, parseInt(b.dataset.p, 10) || 0);
   });
-  meter(sabores.join(' / '), 'Pizza', precio);
+  // Orden fijo: 'Criolla / Mexicana' es la misma pizza toque lo que toque primero
+  meter(sabores.slice().sort().join(' / '), 'Pizza', precio);
   sabores = [];
   document.querySelectorAll('.ped-sabor.activo').forEach(function (b) { b.classList.remove('activo'); });
   document.getElementById('sabores-elegidos').textContent = 'Ninguno elegido';
@@ -458,6 +468,7 @@ async function mandar(cobro, destino, locForzar) {
       else { refrescarLocs(); }
       return;
     }
+    if (d.franja_llena) { pintarCupos(d.cupos); }
     if (d.error) { alert(d.error); ocupado(false); return; }
     if (d.pago_error) alert(d.pago_error);
     var donde = (d.sumado ? 'Sumado a ' + cod : 'Pedido enviado — ' + cod)
@@ -507,6 +518,26 @@ async function refrescarLocs() {
   } catch (e) { }
 }
 setInterval(refrescarLocs, 20000);
+
+/* ── Cupos por hora de entrega ────────────────────────────────── */
+var MAX_FRANJA = {{ MAX_PEDIDOS_POR_FRANJA }};
+
+function pintarCupos(cupos) {
+  var sel = document.getElementById('franja'), libre = null;
+  Array.prototype.forEach.call(sel.options, function (o) {
+    var n = cupos[o.dataset.f] || 0, lleno = n >= MAX_FRANJA;
+    o.disabled = lleno;
+    o.textContent = o.dataset.f + ' · ' + (lleno ? 'LLENO' : n + '/' + MAX_FRANJA);
+    if (!lleno && libre === null) libre = o.value;
+  });
+  // La que estaba elegida se lleno mientras se armaba el pedido
+  if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled && libre) sel.value = libre;
+}
+
+async function refrescarCupos() {
+  try { pintarCupos(await (await fetch('/api/cupos')).json()); } catch (e) { }
+}
+setInterval(refrescarCupos, 20000);
 
 /* ── Código repetido: sumar a la cuenta que ya existe o crear otra ── */
 function preguntarDup(d, cobro) {

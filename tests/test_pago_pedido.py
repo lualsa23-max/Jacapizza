@@ -15,6 +15,10 @@ os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(prefix="jaca_pped_"), "t.d
 
 import app as A
 
+# Estas pruebas crean muchos pedidos con pizza a la misma hora; el tope por
+# franja se prueba aparte, en test_cupo_franja.py.
+A.MAX_PEDIDOS_POR_FRANJA = 10**6
+
 _fallos = []
 
 

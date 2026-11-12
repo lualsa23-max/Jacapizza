@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response, send_from_directory, g, has_app_context
 import sqlite3, os, csv, io, json, sys, traceback, uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -192,8 +192,12 @@ FRANJAS_HORA = [
 # al cliente al hacer el pedido y se activa desde la base cuando esta listo.
 # Reemplaza al campo libre "Mesa / lugar", que no se estaba usando.
 LOCALIZADORES = list(range(1, 17))
+# Tope de pedidos por hora de entrega: lo que la cocina alcanza a sacar en
+# una franja de 15 minutos. Solo cuentan los pedidos CON pizza: uno de solo
+# bebidas no le carga trabajo al horno, y tampoco se bloquea.
+MAX_PEDIDOS_POR_FRANJA = 6
 BEBIDAS_DEFAULT = {
-    "Gaseosa":4000,"Agua 600ml":4000,"Soda Italiana":5000,
+    "Gaseosa":4000,"Agua 600ml":4000,
     "Cerveza Águila":4000,"Cerveza Águila Light":4000,"Cerveza Coronita":5000,
     "Cerveza Poker":4000,"Limonada de Coco":7000,"Cerezada":7000,
     "Jugo Natural — Guanábana":7000,"Jugo Natural — Mora":7000,
@@ -300,6 +304,7 @@ def _icono():
 # Para el selector de hora de entrega, que aparece en varias pantallas
 app.jinja_env.globals["FRANJAS_HORA"] = FRANJAS_HORA
 app.jinja_env.globals["LOCALIZADORES"] = LOCALIZADORES
+app.jinja_env.globals["MAX_PEDIDOS_POR_FRANJA"] = MAX_PEDIDOS_POR_FRANJA
 
 
 @app.template_filter('cop')
@@ -555,9 +560,6 @@ def _seed_catalogo():
                 for nombre, precio, alerta in beb_inv:
                     c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,1,?)",
                              (nombre,"bebida",precio,alerta))
-                for nombre, precio in [("Soda Italiana",5000)]:
-                    c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
-                             (nombre,"bebida_especial",precio))
                 c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,0,1,3)",
                          ("Pizza (masa)","pizza_inv"))
             # SIEMPRE sincronizar jugos y bebidas del BEBIDAS_DEFAULT que falten
@@ -593,6 +595,41 @@ def _clasificar_bebidas():
 
 
 try: _clasificar_bebidas()
+except: pass
+
+
+# Revision del catalogo de nov-2026. Corre UNA vez por base (marca en `meta`):
+# si despues alguien reactiva o mueve algo desde el Menu, no se le pisa.
+# Nada se borra: activo=0 es como el propio Menu da de baja, y se revierte
+# poniendo activo=1. Los pedidos viejos viven en `items` y no se tocan.
+_AJUSTES_CATALOGO_2026_11 = [
+    # (sql, parametros, por que)
+    ("UPDATE catalogo SET activo=0 WHERE nombre=? AND activo=1", ("Soda Italiana",),
+     "repetia a las dos Sodas de sabor y cobraba $5.000 en vez de su precio"),
+    ("UPDATE catalogo SET activo=0 WHERE nombre=? AND activo=1", ("Jugo Natural (agua)",),
+     "jugo sin sabor que repetia a los 9 jugos con sabor"),
+    ("UPDATE catalogo SET categoria='Cervezas' WHERE nombre=? AND categoria<>'Cervezas'",
+     ("Cola y pola",), "lleva cerveza; estaba en Gaseosas y aguas"),
+]
+
+
+def _ajustar_catalogo_2026_11():
+    clave = "ajuste_catalogo_2026_11"
+    try:
+        with _conn() as c:
+            c.execute("BEGIN IMMEDIATE")     # los 2 workers arrancan a la vez
+            if c.execute("SELECT 1 FROM meta WHERE clave=?", (clave,)).fetchone():
+                c.execute("ROLLBACK")
+                return
+            for sql, args, motivo in _AJUSTES_CATALOGO_2026_11:
+                n = c.execute(sql, args).rowcount
+                print(f"[BOOT] catalogo: {args[0]} -> {n} fila(s) · {motivo}", flush=True)
+            c.execute("INSERT INTO meta (clave,valor) VALUES (?,?)", (clave, ahora().isoformat()))
+    except Exception as e:
+        print(f"[BOOT] _ajustar_catalogo_2026_11 fallo: {e}", flush=True)
+
+
+try: _ajustar_catalogo_2026_11()
 except: pass
 
 
@@ -1199,11 +1236,70 @@ def get_pedido(pid):
         if not row: return None
         return _pedido_from_row(row, _get_items(c, pid), _get_pagos(c, pid))
 
+class FranjaLlena(Exception):
+    """La hora de entrega elegida ya tiene MAX_PEDIDOS_POR_FRANJA pedidos."""
+    def __init__(self, franja):
+        self.franja = franja
+        super().__init__(f'Las {franja} ya tienen {MAX_PEDIDOS_POR_FRANJA} pedidos. '
+                         f'Elige otra hora de entrega.')
+
+
+def _pedidos_en_franja(c, franja, excluir_pid=None):
+    """Pedidos con pizza de la jornada en esa hora de entrega (sin anulados)."""
+    return c.execute(
+        f"""SELECT COUNT(*) FROM pedidos
+            WHERE COALESCE(anulado,0)=0 AND {sql_iso()}=? AND franja_hora=? AND id<>?
+              AND EXISTS (SELECT 1 FROM items WHERE pedido_id=pedidos.id AND tipo='Pizza')""",
+        (jornada_actual(), franja, excluir_pid or 0)).fetchone()[0]
+
+
+def cupos_franjas():
+    """{franja: pedidos con pizza} de la jornada. Una consulta por peticion."""
+    if has_app_context() and "cupos_franjas" in g:
+        return g.cupos_franjas
+    with _conn() as c:
+        filas = c.execute(
+            f"""SELECT franja_hora, COUNT(*) FROM pedidos
+                WHERE COALESCE(anulado,0)=0 AND {sql_iso()}=? AND COALESCE(franja_hora,'')<>''
+                  AND EXISTS (SELECT 1 FROM items WHERE pedido_id=pedidos.id AND tipo='Pizza')
+                GROUP BY franja_hora""", (jornada_actual(),)).fetchall()
+    cupos = {f: 0 for f in FRANJAS_HORA}
+    cupos.update({r[0]: r[1] for r in filas})
+    if has_app_context():
+        g.cupos_franjas = cupos
+    return cupos
+
+
+app.jinja_env.globals["cupos_franjas"] = cupos_franjas
+
+
+def revisar_cupo(pid, franja, con_pizza, antes_franja=None, antes_pizza=False):
+    """Para editar o mover un pedido que ya existe. Solo bloquea si el pedido
+    LLEGA a esa franja (otra hora, o pasa de solo bebidas a tener pizza): asi
+    una franja que ya venia pasada no impide corregir lo demas del pedido."""
+    if not franja or not con_pizza:
+        return None
+    if franja == antes_franja and antes_pizza:
+        return None
+    with _conn() as c:
+        if _pedidos_en_franja(c, franja, excluir_pid=pid) >= MAX_PEDIDOS_POR_FRANJA:
+            return str(FranjaLlena(franja))
+    return None
+
+
 def nuevo_pedido(mesa, mesero, items, notas="", franja_hora=""):
+    """Crea el pedido. Con pizza y hora de entrega, respeta el tope por franja:
+    contar e insertar van en la MISMA transaccion (BEGIN IMMEDIATE), asi dos
+    meseros enviando a la vez no pueden meter el septimo. Lanza FranjaLlena."""
     total = sum(i["cantidad"] * i["precio_unit"] for i in items)
     hora  = ahora().strftime("%H:%M")
     fecha = ahora().strftime("%d/%m/%Y")
     with _conn() as c:
+        if franja_hora and any(i["tipo"] == "Pizza" for i in items):
+            c.execute("BEGIN IMMEDIATE")
+            if _pedidos_en_franja(c, franja_hora) >= MAX_PEDIDOS_POR_FRANJA:
+                c.execute("ROLLBACK")
+                raise FranjaLlena(franja_hora)
         cur = c.execute(
             "INSERT INTO pedidos (codigo,mesero,estado,total,hora,fecha,notas,franja_hora,jornada) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -1584,11 +1680,20 @@ def _item_a_stock_key(nombre, tipo):
     for key in ["Gaseosa","Agua 600ml","Cerveza Águila Light","Cerveza Águila","Cerveza Coronita",
                 "Limonada de Coco","Cerezada","Cerveza Poker"]:
         if nombre.startswith(key): return key
-    # Dynamic items from catalogo
+    # Productos del catalogo. Lo vendido puede traer variantes pegadas al
+    # nombre ("Jugo Natural — Mora — en agua", "Cerveza budweiser — Michelada"):
+    # se van quitando de atras hacia adelante hasta dar con el producto. Antes
+    # solo se buscaba el nombre exacto, y casi ningun jugo descontaba
+    # inventario porque casi todos se venden "en agua" o "en leche".
     try:
         with _conn() as c:
-            row = c.execute("SELECT nombre FROM catalogo WHERE en_inventario=1 AND nombre=?", (nombre,)).fetchone()
-            if row: return row["nombre"]
+            candidato = nombre
+            while True:
+                row = c.execute("SELECT nombre FROM catalogo WHERE en_inventario=1 AND nombre=?",
+                                (candidato,)).fetchone()
+                if row: return row["nombre"]
+                if " — " not in candidato: break
+                candidato = candidato.rsplit(" — ", 1)[0]
     except: pass
     if nombre.startswith("Jugo Natural"):
         partes = nombre.split(" — ", 1)
@@ -2469,6 +2574,21 @@ def admin_menu_bebidas():
 # electronico, con la foto del comprobante. Por eso el pedido llega como JSON o
 # como formulario multipart (campo `datos` con el JSON + `comprobante`).
 
+def normalizar_pizza(nombre):
+    """'Mexicana /Criolla' -> 'Criolla / Mexicana'. Una pizza de dos sabores
+    tiene UN nombre, sin importar en que orden se tocaron los sabores. Es el
+    mismo orden (alfabetico) que ya usan los reportes para juntarlas."""
+    partes = [p.strip() for p in (nombre or "").split("/") if p.strip()]
+    return " / ".join(sorted(partes)) if len(partes) > 1 else (nombre or "").strip()
+
+
+def _normalizar_items(items):
+    for i in items:
+        if i.get("tipo") == "Pizza" and "/" in (i.get("nombre") or ""):
+            i["nombre"] = normalizar_pizza(i["nombre"])
+    return items
+
+
 def _datos_post():
     d = request.get_json(silent=True)
     if d is None:
@@ -2522,7 +2642,7 @@ def mesero_nuevo():
         data       = _datos_post()
         codigo     = (data.get('codigo') or '').strip()
         localizador = leer_localizador(data.get('localizador'))
-        items      = data.get('items',[])
+        items      = _normalizar_items(data.get('items',[]))
         notas      = data.get('notas','')
         franja     = data.get('franja', FRANJAS_HORA[0])
         cobrar_ya  = bool(data.get('cobrar_ya'))
@@ -2565,6 +2685,13 @@ def mesero_nuevo():
         solo_bebidas = all(i["tipo"] != "Pizza" for i in items)
         if sumar:
             pid = cuenta['id']
+            # Si la cuenta era de solo bebidas, con estas pizzas entra a su franja
+            lleno = revisar_cupo(pid, cuenta['franja_hora'], not solo_bebidas,
+                                 antes_franja=cuenta['franja_hora'],
+                                 antes_pizza=any(i["tipo"] == "Pizza" for i in cuenta['productos']))
+            if lleno:
+                return jsonify({'error': lleno, 'franja_llena': cuenta['franja_hora'],
+                                'cupos': cupos_franjas()}), 409
             with _conn() as c:
                 agregar_items_pendientes(c, pid, items)
                 # Sin elegir uno nuevo, la cuenta conserva el que ya tenia
@@ -2580,7 +2707,11 @@ def mesero_nuevo():
                              ", ".join(f"{i['cantidad']}x {i['nombre']}" for i in items), total)
             marcar = False
         else:
-            p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
+            try:
+                p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
+            except FranjaLlena as e:
+                return jsonify({'error': str(e), 'franja_llena': e.franja,
+                                'cupos': cupos_franjas()}), 409
             pid = p['id']
             if localizador:
                 with _conn() as c:
@@ -2606,7 +2737,7 @@ def mesero_nuevo():
         sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
         stock_json=json.dumps(stock), alertas_json=json.dumps(alertas),
         metodos=METODOS_PAGO, precio_pizza=PRECIO_PIZZA,
-        ocupados=localizadores_ocupados())
+        ocupados=localizadores_ocupados(), cupos=cupos_franjas())
 
 @app.route('/mesero/pedidos')
 @rol_required('Mesero')
@@ -2628,12 +2759,18 @@ def mesero_editar(pid):
     items_no_despachados = [i for i in pedido['productos'] if not i.get('despachado')]
     if request.method == 'POST':
         data   = _datos_post()
-        items  = data.get('items',[])  # Estos son los items que el mesero editó (los no despachados)
+        items  = _normalizar_items(data.get('items',[]))  # los no despachados, que el mesero editó
         notas  = data.get('notas', pedido['notas'])
         franja = data.get('franja', pedido['franja_hora'])
         cobrar_ya = bool(data.get('cobrar_ya'))
         if not items and not items_despachados:
             return jsonify({'error':'El pedido no puede quedar vacío'}), 400
+        lleno = revisar_cupo(
+            pid, franja, any(i["tipo"] == "Pizza" for i in items_despachados + items),
+            antes_franja=pedido['franja_hora'],
+            antes_pizza=any(i["tipo"] == "Pizza" for i in pedido['productos']))
+        if lleno:
+            return jsonify({'error': lleno}), 409
         # Lo que va a deber DESPUES del cambio. Se valida el cobro antes de
         # tocar nada, para no dejar el pedido editado a medias.
         saldo_nuevo = (sum(i["cantidad"] * i["precio_unit"] for i in items_despachados + items)
@@ -2946,6 +3083,13 @@ def localizadores_ocupados(excluir_pid=None):
             for r in filas if r["id"] != excluir_pid}
 
 
+@app.route('/api/cupos')
+@login_required
+def api_cupos():
+    """Pedidos por hora de entrega, para refrescar el selector sin recargar."""
+    return jsonify(cupos_franjas())
+
+
 @app.route('/api/localizadores')
 @login_required
 def api_localizadores():
@@ -3171,6 +3315,14 @@ def cambiar_hora_entrega(pid):
     if franja and franja not in FRANJAS_HORA:
         flash('Hora no válida', 'error')
         return redirect(url_for(volver))
+    p = get_pedido(pid)
+    if p:
+        con_pizza = any(i["tipo"] == "Pizza" for i in p["productos"])
+        lleno = revisar_cupo(pid, franja, con_pizza, antes_franja=p["franja_hora"],
+                             antes_pizza=con_pizza)
+        if lleno:
+            flash(f'Pedido #{pid}: no se movió. {lleno}', 'error')
+            return redirect(url_for(volver))
     with _conn() as c:
         c.execute("UPDATE pedidos SET franja_hora=? WHERE id=?", (franja, pid))
     flash(f'Pedido #{pid}: entrega {franja}' if franja else f'Pedido #{pid}: sin hora de entrega',
