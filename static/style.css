@@ -119,6 +119,9 @@ body {
 }
 .flash-success { background: rgba(78,203,113,.12); color: var(--green); border: 1px solid var(--green); }
 .flash-error   { background: rgba(232,93,93,.12);  color: var(--red);   border: 1px solid var(--red); }
+/* Despues de ENTREGUE: a quien llamar. Grande, para leerlo desde la base. */
+.flash-llamar  { background: rgba(199,24,126,.16); color: var(--white); border: 2px solid var(--accent);
+                 font-size: 1.25rem; font-weight: 700; padding: 14px 16px; }
 
 /* ── LAYOUT ──────────────────────────────── */
 .page { padding: 14px; max-width: 1100px; margin: 0 auto; }
@@ -748,6 +751,38 @@ tbody tr:hover td     { background: var(--card2); }
 }
 .ped-sabor.activo { border-color: var(--accent); background: rgba(199,24,126,.14); }
 .ped-sabor:active { transform: scale(.97); }
+
+/* ── LOCALIZADOR ─────────────────────────────────────
+   8 por fila en tablet (2 filas), 4 por fila en un telefono angosto. */
+.loc-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+@media (max-width: 420px) { .loc-grid { grid-template-columns: repeat(4, 1fr); } }
+.loc-btn {
+  min-height: var(--tap-lg); padding: 4px 2px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--card); color: var(--white);
+  border: 2px solid transparent; border-radius: var(--r-sm);
+  font-family: inherit; cursor: pointer; touch-action: manipulation;
+}
+.loc-btn:active { transform: scale(.95); }
+.loc-n { font-size: 1.25rem; font-weight: 700; line-height: 1; }
+.loc-quien {
+  font-size: .62rem; color: var(--gray2); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.loc-quien:empty { display: none; }
+.loc-btn.ocupado { opacity: .45; }
+.loc-btn.activo  { border-color: var(--accent); background: rgba(199,24,126,.22); opacity: 1; }
+
+/* El numero en la tarjeta de cocina/bebidas: se lee desde lejos */
+.est-quien { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.loc-badge {
+  flex-shrink: 0; width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff;
+  font-size: 1.9rem; font-weight: 800; line-height: 1;
+}
+.loc-badge-sm { width: 40px; height: 40px; font-size: 1.3rem; }
+.chip-loc { background: rgba(199,24,126,.2); color: var(--accent); }
 
 .ped-pizza-accion {
   display: flex; align-items: center; gap: var(--s3);

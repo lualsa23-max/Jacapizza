@@ -56,12 +56,19 @@
        style="border-top:3px solid {{ color }}">
 
     <div class="k-card-head">
-      <div style="min-width:0">
-        <div class="est-codigo">{{ k.codigo }}</div>
-        <div class="est-meta">
-          {% if k.mesa_num %}<span class="chip">Mesa {{ k.mesa_num }}</span>{% endif %}
-          {% if k.ronda > 1 %}<span class="chip chip-ronda">RONDA {{ k.ronda }}</span>{% endif %}
-          <span class="text-xs c-gray2">#{{ k.pedido_id }} · {{ k.mesero }}</span>
+      {# El localizador va primero y en grande: es lo que hay que ver de lejos
+         para presionarlo en la base al terminar. #}
+      <div class="est-quien">
+        {% if k.localizador %}
+        <div class="loc-badge num" aria-label="Localizador {{ k.localizador }}">{{ k.localizador }}</div>
+        {% endif %}
+        <div style="min-width:0">
+          <div class="est-codigo">{{ k.codigo or '#' ~ k.pedido_id }}</div>
+          <div class="est-meta">
+            {% if not k.localizador %}<span class="chip c-gray2">sin localizador</span>{% endif %}
+            {% if k.ronda > 1 %}<span class="chip chip-ronda">RONDA {{ k.ronda }}</span>{% endif %}
+            <span class="text-xs c-gray2">#{{ k.pedido_id }} · {{ k.mesero }}</span>
+          </div>
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0">

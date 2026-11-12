@@ -1,0 +1,18 @@
+{# Selector para poner, cambiar o quitar el localizador sin abrir la edicion
+   completa. Guarda al elegir, igual que el de la hora de entrega. Los que
+   tiene otro cliente dicen quien: se pueden elegir igual, con aviso. #}
+{% macro cambiar_localizador(pid, actual, volver) %}
+<form method="post" action="{{ url_for('cambiar_localizador', pid=pid) }}" class="sel-hora-form">
+  <input type="hidden" name="volver" value="{{ volver }}">
+  {{ icono('campana', 16) }}
+  <select name="localizador" class="sel-hora" onchange="this.form.submit()"
+          aria-label="Localizador del pedido #{{ pid }}">
+    <option value="0" {% if not actual %}selected{% endif %}>Sin localizador</option>
+    {% for n in LOCALIZADORES %}
+    {% set quien = ocupados.get(n) if n != actual else none %}
+    <option value="{{ n }}" {% if n == actual %}selected{% endif %}>
+      Localizador {{ n }}{% if quien %} · lo tiene {{ quien }}{% endif %}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endmacro %}

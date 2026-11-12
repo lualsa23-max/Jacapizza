@@ -11,10 +11,23 @@
 <div class="ped-cabecera">
   <input class="form-input ped-codigo" type="text" id="codigo" autocomplete="off"
          placeholder="Código de reserva" oninput="revisarCodigo()">
-  <input class="form-input ped-mesa" type="text" id="mesa" autocomplete="off"
-         placeholder="Mesa / lugar" maxlength="14">
 </div>
 <div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
+
+{# Localizador: el aparato que vibra. Reemplaza a "Mesa / lugar", que nadie
+   llenaba. Botones y no un campo de texto: un toque, y no se puede escribir
+   un 17. Los que tiene otro cliente salen apagados con su codigo debajo. #}
+<label class="form-label mt-8">{{ icono('campana', 16) }} Localizador
+  <span class="ped-ayuda" id="loc-ayuda">toca el que le entregas</span></label>
+<div class="loc-grid" id="loc-grid">
+  {% for n in LOCALIZADORES %}
+  <button type="button" class="loc-btn{% if n in ocupados %} ocupado{% endif %}"
+          data-n="{{ n }}" onclick="tocarLoc(this)">
+    <span class="loc-n num">{{ n }}</span>
+    <span class="loc-quien">{{ ocupados.get(n, '') }}</span>
+  </button>
+  {% endfor %}
+</div>
 
 {# Hora y notas van arriba, junto a los datos de la reserva: son de la MISMA
    decision. Al final estorbaban entre el carrito y el boton de enviar. #}
@@ -426,20 +439,29 @@ function ocupado(si) {
 
 var pendienteDup = null;
 
-async function mandar(cobro, destino) {
+async function mandar(cobro, destino, locForzar) {
   var cod = document.getElementById('codigo').value.trim();
   ocupado(true);
   try {
     var res = await postPedido('/mesero/nuevo', {
-      codigo: cod, mesa_num: document.getElementById('mesa').value.trim(),
+      codigo: cod, localizador: LOC, loc_forzar: !!locForzar || (LOC > 0 && locForzado === LOC),
       items: carrito, notas: document.getElementById('notas').value.trim(),
       franja: document.getElementById('franja').value, destino: destino
     }, cobro);
     var d = res.d;
     if (res.status === 409 && d.existe) { ocupado(false); preguntarDup(d, cobro); return; }
+    if (res.status === 409 && d.loc_ocupado) {
+      // Otro lo tomo mientras se armaba el pedido, o la grilla estaba vieja
+      ocupado(false);
+      if (confirm('El localizador ' + d.loc_ocupado + ' lo tiene ' + d.codigo +
+                  '.\n\n¿Lo usas igual? (Si ya te lo devolvieron, sí)')) mandar(cobro, destino, true);
+      else { refrescarLocs(); }
+      return;
+    }
     if (d.error) { alert(d.error); ocupado(false); return; }
     if (d.pago_error) alert(d.pago_error);
-    var donde = d.sumado ? 'Sumado a ' + cod : 'Pedido enviado — ' + cod;
+    var donde = (d.sumado ? 'Sumado a ' + cod : 'Pedido enviado — ' + cod)
+              + (d.localizador ? ' · localizador ' + d.localizador : '');
     var msg = !d.cobrado ? donde + ' · SIN COBRAR (debe ' + fmt(d.saldo) + ')'
             : d.pago_error ? donde
             : donde + ' · cobrado ' + fmt(d.monto) + ' en ' + d.metodo
@@ -451,6 +473,40 @@ async function mandar(cobro, destino) {
     ocupado(false);
   }
 }
+
+/* ── Localizador ──────────────────────────────────────────────── */
+var LOC = 0, locForzado = 0;
+
+function tocarLoc(b) {
+  var n = parseInt(b.dataset.n, 10);
+  if (LOC === n) { elegirLoc(0); return; }          // tocar de nuevo lo quita
+  if (b.classList.contains('ocupado') &&
+      !confirm('El localizador ' + n + ' lo tiene ' + b.querySelector('.loc-quien').textContent +
+               '.\n\n¿Lo usas igual? (Si ya te lo devolvieron, sí)')) return;
+  locForzado = b.classList.contains('ocupado') ? n : 0;
+  elegirLoc(n);
+}
+
+function elegirLoc(n) {
+  LOC = n;
+  document.querySelectorAll('.loc-btn').forEach(function (b) {
+    b.classList.toggle('activo', parseInt(b.dataset.n, 10) === n);
+  });
+  document.getElementById('loc-ayuda').textContent = n ? 'el ' + n : 'toca el que le entregas';
+}
+
+// Otro mesero puede estar entregando localizadores al mismo tiempo
+async function refrescarLocs() {
+  try {
+    var oc = await (await fetch('/api/localizadores')).json();
+    document.querySelectorAll('.loc-btn').forEach(function (b) {
+      var quien = oc[b.dataset.n] || '';
+      b.classList.toggle('ocupado', !!quien);
+      b.querySelector('.loc-quien').textContent = quien;
+    });
+  } catch (e) { }
+}
+setInterval(refrescarLocs, 20000);
 
 /* ── Código repetido: sumar a la cuenta que ya existe o crear otra ── */
 function preguntarDup(d, cobro) {

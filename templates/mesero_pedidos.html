@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_hora_entrega.html" import hora_entrega with context %}
+{% from "_localizador.html" import cambiar_localizador with context %}
 {% block title %}— Pedidos del Día{% endblock %}
 {% block content %}
 <h2 class="sec-title">{{ icono('menu', 18) }} Pedidos del Día</h2>
@@ -7,10 +8,13 @@
   {% for p in pedidos %}
   <div class="p-card">
     <div class="p-head">
-      <div>
+      <div style="display:flex;gap:10px;align-items:flex-start;min-width:0">
+        {% if p.localizador %}<div class="loc-badge loc-badge-sm num">{{ p.localizador }}</div>{% endif %}
+        <div style="min-width:0">
         <div class="p-id">#{{ p.id }}</div>
         <div class="p-mesa">{{ p.mesa }}</div>
         <div class="p-meta">{{ p.mesero }} · {{ p.hora }} · {{ p.fecha }}</div>
+        </div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
         <span class="badge b-{{ p.estado | lower }}">{{ p.estado }}</span>
@@ -19,7 +23,10 @@
         {% endif %}
       </div>
     </div>
-    <div class="mt-8">{{ hora_entrega(p.id, p.franja_hora, 'mesero_pedidos') }}</div>
+    <div class="mt-8" style="display:flex;gap:8px;flex-wrap:wrap">
+      {{ hora_entrega(p.id, p.franja_hora, 'mesero_pedidos') }}
+      {{ cambiar_localizador(p.id, p.localizador, 'mesero_pedidos') }}
+    </div>
     <div class="p-items">
       {% for it in p.productos %}
       <div class="p-item">

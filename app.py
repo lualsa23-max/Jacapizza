@@ -188,6 +188,10 @@ FRANJAS_HORA = [
     "7:00 PM","7:15 PM","7:30 PM","7:45 PM",
     "8:00 PM","8:15 PM","8:30 PM","8:45 PM","9:00 PM",
 ]
+# Localizadores de clientes (los aparatos que vibran y alumbran). Se le da uno
+# al cliente al hacer el pedido y se activa desde la base cuando esta listo.
+# Reemplaza al campo libre "Mesa / lugar", que no se estaba usando.
+LOCALIZADORES = list(range(1, 17))
 BEBIDAS_DEFAULT = {
     "Gaseosa":4000,"Agua 600ml":4000,"Soda Italiana":5000,
     "Cerveza Águila":4000,"Cerveza Águila Light":4000,"Cerveza Coronita":5000,
@@ -295,6 +299,7 @@ def _icono():
 
 # Para el selector de hora de entrega, que aparece en varias pantallas
 app.jinja_env.globals["FRANJAS_HORA"] = FRANJAS_HORA
+app.jinja_env.globals["LOCALIZADORES"] = LOCALIZADORES
 
 
 @app.template_filter('cop')
@@ -474,6 +479,8 @@ def init_db():
                         "ALTER TABLE pedidos ADD COLUMN anulado INTEGER DEFAULT 0",
                         "ALTER TABLE pedidos ADD COLUMN anulado_por TEXT DEFAULT ''",
                         "ALTER TABLE pedidos ADD COLUMN anulado_motivo TEXT DEFAULT ''",
+                        # Numero del localizador (1-16). 0 = sin localizador.
+                        "ALTER TABLE pedidos ADD COLUMN localizador INTEGER DEFAULT 0",
                         "ALTER TABLE items ADD COLUMN ronda INTEGER DEFAULT 1",
                         "ALTER TABLE items ADD COLUMN creado_hora TEXT DEFAULT ''",
                         "ALTER TABLE items ADD COLUMN nota TEXT DEFAULT ''",
@@ -947,6 +954,7 @@ def listar_estacion(tipo, jornada=None):
                 "pedido_id": r["id"],
                 "codigo": r["codigo"],
                 "mesa_num": _col_de(r, "mesa_num", ""),
+                "localizador": _col_de(r, "localizador", 0) or 0,
                 "mesero": r["mesero"],
                 "hora": hora_txt,
                 "fecha": r["fecha"],
@@ -1081,6 +1089,7 @@ def _pedido_from_row(row, prods, pagos_list):
         "estado_cuenta": _col("estado_cuenta", "Abierta"),
         "cierre_manual": bool(_col("cierre_manual", 0)),
         "mesa_num":      _col("mesa_num", ""),
+        "localizador":   _col("localizador", 0) or 0,
         "tipo_venta":    _col("tipo_venta", "reserva"),
         "archivado":     bool(_col("archivado", 0)),
         "anulado":       bool(_col("anulado", 0)),
@@ -2512,7 +2521,7 @@ def mesero_nuevo():
     if request.method == 'POST':
         data       = _datos_post()
         codigo     = (data.get('codigo') or '').strip()
-        mesa_num   = (data.get('mesa_num') or '').strip()
+        localizador = leer_localizador(data.get('localizador'))
         items      = data.get('items',[])
         notas      = data.get('notas','')
         franja     = data.get('franja', FRANJAS_HORA[0])
@@ -2520,6 +2529,8 @@ def mesero_nuevo():
         destino    = data.get('destino', '')   # '', 'sumar' o 'nueva'
         if not codigo or not items:
             return jsonify({'error':'Datos incompletos'}), 400
+        if localizador is None:
+            return jsonify({'error': 'Localizador no válido: va del 1 al 16'}), 400
         total = sum(i["cantidad"] * i["precio_unit"] for i in items)
 
         # Dos cuentas con el mismo codigo terminan en un cobro doble o en una
@@ -2530,6 +2541,15 @@ def mesero_nuevo():
                             'total': cuenta['total'], 'saldo': cuenta['saldo'],
                             'cerrada': cuenta['estado_cuenta'] == 'Cerrada'}), 409
         sumar = bool(cuenta) and destino == 'sumar'
+
+        # Un localizador que ya tiene otro cliente: se avisa, pero se deja usar
+        # (loc_forzar). Puede que alguien no tocara ENTREGUE y el aparato ya
+        # haya vuelto; bloquearlo trabaria la caja en plena hora pico.
+        if localizador and not data.get('loc_forzar'):
+            otro = localizadores_ocupados(
+                excluir_pid=cuenta['id'] if sumar else None).get(localizador)
+            if otro:
+                return jsonify({'loc_ocupado': localizador, 'codigo': otro}), 409
 
         metodo_pago, monto = None, 0
         if cobrar_ya:
@@ -2547,8 +2567,9 @@ def mesero_nuevo():
             pid = cuenta['id']
             with _conn() as c:
                 agregar_items_pendientes(c, pid, items)
-                if mesa_num:
-                    c.execute("UPDATE pedidos SET mesa_num=? WHERE id=?", (mesa_num, pid))
+                # Sin elegir uno nuevo, la cuenta conserva el que ya tenia
+                if localizador:
+                    c.execute("UPDATE pedidos SET localizador=? WHERE id=?", (localizador, pid))
                 if notas:
                     c.execute("UPDATE pedidos SET notas=TRIM(COALESCE(notas,'')||?) WHERE id=?",
                               ("\n" + notas, pid))
@@ -2561,9 +2582,9 @@ def mesero_nuevo():
         else:
             p = nuevo_pedido(codigo, session['nombre'], items, notas, franja)
             pid = p['id']
-            if mesa_num:
+            if localizador:
                 with _conn() as c:
-                    c.execute("UPDATE pedidos SET mesa_num=? WHERE id=?", (mesa_num, pid))
+                    c.execute("UPDATE pedidos SET localizador=? WHERE id=?", (localizador, pid))
             descontar_inventario(items)
             # Sin pizzas no pasa por cocina: queda 'Listo' y, si paga todo, 'Pagado'.
             # Con pizzas queda 'Pendiente'; marcar_listo() lo pasa a 'Pagado' si ya pagó.
@@ -2575,6 +2596,7 @@ def mesero_nuevo():
         pago_error = _cobrar_al_pedir(pid, monto, metodo_pago, marcar) if cobrar_ya else ''
         q = get_pedido(pid)
         return jsonify({'ok': True, 'id': pid, 'sumado': sumar, 'cobrado': cobrar_ya,
+                        'localizador': q['localizador'],
                         'metodo': metodo_pago, 'monto': monto, 'saldo': q['saldo'],
                         'pago_error': pago_error, 'solo_bebidas': solo_bebidas})
     stock  = get_stock_dict()
@@ -2583,7 +2605,8 @@ def mesero_nuevo():
     return render_template('mesero_nuevo.html',
         sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
         stock_json=json.dumps(stock), alertas_json=json.dumps(alertas),
-        metodos=METODOS_PAGO, precio_pizza=PRECIO_PIZZA)
+        metodos=METODOS_PAGO, precio_pizza=PRECIO_PIZZA,
+        ocupados=localizadores_ocupados())
 
 @app.route('/mesero/pedidos')
 @rol_required('Mesero')
@@ -2591,7 +2614,8 @@ def mesero_pedidos():
     hoy  = ahora().strftime("%d/%m/%Y")
     # Mostrar todos los pedidos del día (ordenados por hora, más recientes primero)
     todos = [p for p in get_pedidos() if p["fecha"] == hoy]
-    return render_template('mesero_pedidos.html', pedidos=todos)
+    return render_template('mesero_pedidos.html', pedidos=todos,
+                           ocupados=localizadores_ocupados())
 
 @app.route('/mesero/pedido/<int:pid>/editar', methods=['GET','POST'])
 @rol_required('Mesero')
@@ -2889,6 +2913,73 @@ def buscar_cuenta_por_codigo(codigo):
     return get_pedido(r["id"]) if r else None
 
 
+# ── LOCALIZADORES ─────────────────────────────────────
+
+def leer_localizador(valor):
+    """'7', 7, '' o None -> 7 o 0 (sin localizador). None si no es valido."""
+    if valor is None or str(valor).strip() in ('', '0'):
+        return 0
+    try:
+        n = int(str(valor).strip())
+    except ValueError:
+        return None
+    return n if n in LOCALIZADORES else None
+
+
+def localizadores_ocupados(excluir_pid=None):
+    """{numero: codigo} de los localizadores que tiene un cliente ahora mismo.
+
+    Ocupado = pedido de la jornada, no anulado ni archivado, con algo todavia
+    sin entregar. Cuando la ultima estacion toca ENTREGUE queda libre solo: no
+    hay que acordarse de "devolverlo" en el sistema.
+    """
+    with _conn() as c:
+        filas = c.execute(
+            f"""SELECT id, codigo, localizador FROM pedidos
+                WHERE COALESCE(localizador,0)>0
+                  AND COALESCE(anulado,0)=0 AND COALESCE(archivado,0)=0
+                  AND {sql_iso()}=?
+                  AND EXISTS (SELECT 1 FROM items WHERE pedido_id=pedidos.id
+                              AND COALESCE(despachado,0)=0)
+                ORDER BY id""", (jornada_actual(),)).fetchall()
+    return {r["localizador"]: (r["codigo"] or f'#{r["id"]}')
+            for r in filas if r["id"] != excluir_pid}
+
+
+@app.route('/api/localizadores')
+@login_required
+def api_localizadores():
+    """Para refrescar la grilla de "Nuevo pedido" sin recargar la pagina."""
+    return jsonify({str(k): v for k, v in localizadores_ocupados().items()})
+
+
+# Pantallas desde las que se cambia el localizador
+_VOLVER_LOC = ('mesero_pedidos',)
+
+
+@app.route('/pedido/<int:pid>/localizador', methods=['POST'])
+@login_required
+def cambiar_localizador(pid):
+    """Poner, cambiar o quitar el localizador sin pasar por la edicion completa
+    (esa le avisa a cocina de un "pedido modificado" y mueve inventario)."""
+    volver = request.form.get('volver', '')
+    if volver not in _VOLVER_LOC:
+        volver = 'mesero_pedidos'
+    n = leer_localizador(request.form.get('localizador'))
+    if n is None:
+        flash('Localizador no válido: va del 1 al 16', 'error')
+        return redirect(url_for(volver))
+    with _conn() as c:
+        c.execute("UPDATE pedidos SET localizador=? WHERE id=?", (n, pid))
+    otro = localizadores_ocupados(excluir_pid=pid).get(n) if n else None
+    if otro:
+        flash(f'Pedido #{pid}: localizador {n}. OJO: {otro} también lo tiene', 'error')
+    else:
+        flash(f'Pedido #{pid}: localizador {n}' if n else f'Pedido #{pid}: sin localizador',
+              'success')
+    return redirect(url_for(volver))
+
+
 @app.route('/api/reserva')
 @login_required
 def api_reserva():
@@ -2898,10 +2989,10 @@ def api_reserva():
     if not p:
         return jsonify({"existe": False})
     return jsonify({
-        "existe": True, "id": p["id"], "codigo": p["mesa"], "mesa_num": p["mesa_num"],
+        "existe": True, "id": p["id"], "codigo": p["mesa"], "localizador": p["localizador"],
         "total": p["total"], "saldo": p["saldo"],
         "cerrada": p["estado_cuenta"] == "Cerrada",
-        "texto": (f'{p["mesa"]}' + (f' · Mesa {p["mesa_num"]}' if p["mesa_num"] else '')
+        "texto": (f'{p["mesa"]}' + (f' · localizador {p["localizador"]}' if p["localizador"] else '')
                   + (f' · debe {fmt_cop(p["saldo"])}' if p["saldo"] > 0
                      else '· ya pagó, se reabrirá con esta bebida')),
     })
@@ -3012,11 +3103,23 @@ def estacion_bebidas():
     return _pantalla_estacion("Bebida")
 
 
+def _avisar_llamada(pid, tipo):
+    """Despues de ENTREGUE: a que localizador llamar, en grande y por un rato."""
+    p = get_pedido(pid)
+    if not p or not p["localizador"]:
+        return
+    falta = (p["estado_barra"] if tipo == "Pizza" else p["estado_cocina"]) == "Pendiente"
+    otra = "las bebidas" if tipo == "Pizza" else "las pizzas"
+    flash(f'Llama al localizador {p["localizador"]} — {p["mesa"] or "#" + str(pid)}'
+          + (f' (todavía faltan {otra})' if falta else ''), 'llamar')
+
+
 @app.route('/estacion/pizzas/<int:pid>/<int:ronda>/entregar', methods=['POST'])
 @login_required
 def entregar_pizzas(pid, ronda):
     with _conn() as c:
         entregar_estacion(c, pid, "Pizza", ronda)      # 'Pizza' fijo, no del cliente
+    _avisar_llamada(pid, "Pizza")
     return redirect(url_for('estacion_pizzas'))
 
 
@@ -3025,6 +3128,7 @@ def entregar_pizzas(pid, ronda):
 def entregar_bebidas(pid, ronda):
     with _conn() as c:
         entregar_estacion(c, pid, "Bebida", ronda)     # 'Bebida' fijo, no del cliente
+    _avisar_llamada(pid, "Bebida")
     return redirect(url_for('estacion_bebidas'))
 
 

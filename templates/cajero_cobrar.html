@@ -8,7 +8,7 @@
     <div style="min-width:0">
       <div class="cobro-codigo">{{ p.mesa }}</div>
       <div class="cobro-meta">
-        {% if p.mesa_num %}<span class="chip">Mesa {{ p.mesa_num }}</span>{% endif %}
+        {% if p.localizador %}<span class="chip chip-loc">{{ icono('campana', 12) }} {{ p.localizador }}</span>{% endif %}
         <span class="text-xs c-gray2">#{{ p.id }} · {{ p.mesero }} · {{ p.hora }}</span>
         {% if mostrar_fecha %}<span class="chip" style="background:rgba(232,93,93,.2);color:var(--red)">{{ p.fecha }}</span>{% endif %}
       </div>
