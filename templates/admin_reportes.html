@@ -134,6 +134,13 @@
     <div class="rep-medio num">{{ data.n_bebidas }}</div>
     <div class="rep-sub num">{{ data.val_bebidas | cop }}</div>
   </div>
+  {% if data.n_comidas %}
+  <div class="rep-tarjeta">
+    <div class="rep-etiqueta">{{ icono('cocina', 16) }} Burritos</div>
+    <div class="rep-medio num">{{ data.n_comidas }}</div>
+    <div class="rep-sub num">{{ data.val_comidas | cop }}</div>
+  </div>
+  {% endif %}
 </div>
 
 {% if data.n_pizzas %}

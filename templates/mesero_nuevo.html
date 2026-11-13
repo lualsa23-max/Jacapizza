@@ -19,9 +19,13 @@
 </div>
 <div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
 
-<div class="ped-tabs" role="tablist">
+<div class="ped-tabs{% if comidas %} ped-tabs-3{% endif %}" role="tablist">
   <button type="button" class="ped-tab activo" role="tab" data-t="pizzas" onclick="verTab('pizzas')">
     {{ icono('pizza', 18) }} Pizzas <span class="ped-tab-n num" id="tab-n-pizzas" hidden></span></button>
+  {% if comidas %}
+  <button type="button" class="ped-tab" role="tab" data-t="comidas" onclick="verTab('comidas')">
+    {{ icono('cocina', 18) }} Burritos <span class="ped-tab-n num" id="tab-n-comidas" hidden></span></button>
+  {% endif %}
   <button type="button" class="ped-tab" role="tab" data-t="bebidas" onclick="verTab('bebidas')">
     {{ icono('bebidas', 18) }} Bebidas <span class="ped-tab-n num" id="tab-n-bebidas" hidden></span></button>
 </div>
@@ -50,6 +54,31 @@
             onclick="agregarPizza()" disabled>{{ icono('pedido', 20) }} Agregar pizza</button>
   </div>
 </section>
+
+{# ── BURRITOS ─────────────────────────────────────────────────── #}
+{# Van a cocina como las pizzas (tipo 'Pizza' en el pedido) pero no gastan
+   masa: ver es_comida() en app.py. Se manejan igual que una bebida: un
+   toque agrega uno, y el +/- de la fila cambia la cantidad. #}
+{% if comidas %}
+<section class="ped-tab-panel" id="tab-comidas" hidden>
+  <div class="ped-bebidas">
+    {% for nombre, precio in comidas.items() %}
+    <div class="ped-bebida ped-comida" data-n="{{ nombre }}" data-p="{{ precio | int }}" data-s="-1">
+      <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
+        <span class="ped-bebida-n">{{ nombre }}</span>
+        <span class="ped-bebida-meta"><span class="ped-bebida-p num">{{ precio | cop }}</span></span>
+      </button>
+      <div class="ped-paso" style="display:none">
+        <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
+        <span class="ped-paso-n num">0</span>
+        <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
+      </div>
+      <button type="button" class="ped-mas" onclick="tocarBebida(this.closest('.ped-bebida'))">+</button>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 {# ── BEBIDAS ───────────────────────────────────────────────────── #}
 {# Una categoria a la vez, empezando por la que mas se vende (el orden lo da
@@ -216,6 +245,7 @@
 <script>
 var carrito = [], sabores = [], avisados = {}, buscando = null;
 var PRECIO_PIZZA = {{ precio_pizza | int }};
+var COMIDAS = {{ (comidas or {}).keys() | list | tojson }};
 
 function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
 
@@ -259,6 +289,7 @@ var pendiente = null;
 function tocarBebida(b) {
   var n = b.dataset.n, p = parseInt(b.dataset.p, 10), s = parseInt(b.dataset.s, 10);
   pendienteTile = b;
+  if (b.classList.contains('ped-comida')) { meter(n, 'Pizza', p); return; }   // va a cocina
   if (s === 0 && !avisados[n]) {
     avisados[n] = true;
     if (!confirm('El inventario dice que no queda ' + n + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
@@ -326,8 +357,9 @@ function verTab(t) {
     b.classList.toggle('activo', b.dataset.t === t);
     b.setAttribute('aria-selected', b.dataset.t === t);
   });
-  document.getElementById('tab-pizzas').hidden = t !== 'pizzas';
-  document.getElementById('tab-bebidas').hidden = t !== 'bebidas';
+  document.querySelectorAll('.ped-tab-panel').forEach(function (p) {
+    p.hidden = p.id !== 'tab-' + t;
+  });
 }
 
 /* ── Cantidad desde la propia bebida ──────────────────────────── */
@@ -409,10 +441,14 @@ function pinta() {
   }
   document.getElementById('ped-barra').hidden = !carrito.length;
   // Cuantas cosas lleva cada pestaña: se sabe sin tener que abrirla
-  ['Pizza', 'Bebida'].forEach(function (tipo) {
-    var n = carrito.reduce(function (s, x) { return s + (x.tipo === tipo ? x.cantidad : 0); }, 0);
-    var el = document.getElementById(tipo === 'Pizza' ? 'tab-n-pizzas' : 'tab-n-bebidas');
-    el.textContent = n; el.hidden = !n;
+  var cuenta = { pizzas: 0, comidas: 0, bebidas: 0 };
+  carrito.forEach(function (x) {
+    var k = x.tipo !== 'Pizza' ? 'bebidas' : (COMIDAS.indexOf(x.nombre) >= 0 ? 'comidas' : 'pizzas');
+    cuenta[k] += x.cantidad;
+  });
+  Object.keys(cuenta).forEach(function (k) {
+    var el = document.getElementById('tab-n-' + k);
+    if (el) { el.textContent = cuenta[k]; el.hidden = !cuenta[k]; }
   });
   pintarResumen();
   pintarContadores();

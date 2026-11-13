@@ -797,6 +797,13 @@ button.barra-item { background: none; border: none; font-family: inherit; cursor
 }
 .ped-tab.activo .ped-tab-n { background: rgba(255,255,255,.25); }
 .ped-tab-n[hidden] { display: none; }
+/* Con burritos son tres pestañas: en un telefono angosto se quita el icono
+   para que quepan palabra y contador. */
+.ped-tabs-3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 420px) {
+  .ped-tabs-3 .ped-tab { font-size: var(--t-sm); gap: 6px; padding: var(--s2) 4px; }
+  .ped-tabs-3 .ped-tab .ico { display: none; }
+}
 .ped-tab-ayuda { font-size: var(--t-xs); color: var(--gray2); margin-bottom: var(--s2); }
 
 /* La hoja de Entrega puede ser mas alta que la pantalla de un telefono

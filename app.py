@@ -207,24 +207,40 @@ LOCALIZADORES = list(range(1, 17))
 # una franja de 15 minutos. Solo cuentan los pedidos CON pizza: uno de solo
 # bebidas no le carga trabajo al horno, y tampoco se bloquea.
 MAX_PEDIDOS_POR_FRANJA = 6
+# Precios del menu impreso de nov-2026. En una base que ya existe NO mandan
+# estos numeros sino la tabla `catalogo` (se edita desde Menu); ver
+# _MENU_2026_11 mas abajo, que es lo que llevo la base real a este menu.
 BEBIDAS_DEFAULT = {
     "Gaseosa":4000,"Agua 600ml":4000,
-    "Cerveza Águila":4000,"Cerveza Águila Light":4000,"Cerveza Coronita":5000,
-    "Cerveza Poker":4000,"Limonada de Coco":7000,"Cerezada":7000,
-    "Jugo Natural — Guanábana":7000,"Jugo Natural — Mora":7000,
-    "Jugo Natural — Lulo":7000,"Jugo Natural — Fresa":7000,
-    "Jugo Natural — Tamarindo":7000,"Jugo Natural — Maracumango":7000,
-    "Jugo Natural — Maracuyá":7000,"Jugo Natural — Piña":7000,
-    "Jugo Natural — Piña-Hierbabuena":7000,
+    "Cerveza Águila":5000,"Cerveza Águila Light":5000,"Cerveza Coronita":5000,
+    "Cerveza Poker":5000,"Limonada de Coco":9000,"Cerezada":9000,
+    "Jugo Natural — Guanábana":9000,"Jugo Natural — Mora":9000,
+    "Jugo Natural — Lulo":9000,"Jugo Natural — Fresa":9000,
+    "Jugo Natural — Tamarindo":9000,"Jugo Natural — Maracumango":9000,
+    "Jugo Natural — Maracuyá":9000,"Jugo Natural — Piña":9000,
+    "Jugo Natural — Piña-Hierbabuena":9000,
     # Cócteles. Los de sabor llevan "Cóctel de" para no confundirse con el
     # jugo del mismo nombre en la pantalla de pedido.
-    "Cuba Libre":18000,"Mojito":18000,
+    "Cuba Libre":18000,"Mojito":18000,"Tequila Sunrise":18000,"Gin Tonic":23000,
     "Cóctel de Piña-Hierbabuena":18000,"Cóctel de Tamarindo":18000,
 }
 PIZZAS_DEFAULT = {
     "Hawaiana":20000,"Pollo con Champiñones":20000,"Mexicana":20000,
     "Pepperoni":20000,"Criolla":20000,"Vegetariana":20000,
 }
+# Comida de cocina que NO es pizza. Va a la estacion de cocina como una pizza
+# (los items viajan con tipo 'Pizza', que en la practica quiere decir "cocina"),
+# pero no gasta masa ni cuenta como pizza en reportes ni en el cierre.
+# Se reconocen por el nombre: ver es_comida().
+COMIDAS_DEFAULT = {
+    "Burrito de Carne":15000,"Burrito de Pollo":15000,"Burrito Mixto":15000,
+}
+_COMIDA_PREFIJOS = ("burrito",)
+
+
+def es_comida(nombre):
+    """True si el item es comida de cocina que no es pizza (hoy: burritos)."""
+    return (nombre or "").strip().lower().startswith(_COMIDA_PREFIJOS)
 PRECIO_PIZZA = 20000
 TOPPINGS = {
     "Queso extra": 3000,
@@ -275,7 +291,8 @@ def categoria_sugerida(nombre):
     if n.startswith(("gaseosa", "soda", "coca", "agua")):
         return "Gaseosas y aguas"
     if n.startswith("cóctel") or n.startswith("coctel") or "cuba libre" in n \
-            or "gin tonic" in n or "cola y pola" in n or "mojito" in n:
+            or "gin tonic" in n or "cola y pola" in n or "mojito" in n \
+            or "tequila" in n:
         return "Cócteles"
     return "Otros"
 
@@ -650,6 +667,95 @@ try: _ajustar_catalogo_2026_11()
 except: pass
 
 
+# Menu impreso de nov-2026 (flyers "Nuestras pizzas" y "Para tomar"). Corre
+# UNA vez por base (marca en `meta`), como el ajuste de arriba: lo que se
+# cambie despues desde Menu no se pisa.
+#   · Lo que esta en el menu: queda activo y con ese precio. Si no existe, se crea.
+#   · Lo que NO esta en el menu: activo=0, la misma baja que da el Menu.
+#     Se revierte poniendo activo=1; los pedidos viejos no se tocan.
+# Los nombres se comparan sin distinguir mayusculas: en produccion hay
+# "Cerveza budweiser" y "Cerveza club Colombia" en minuscula, y se conservan
+# asi para no romper su fila de inventario, que va por nombre.
+_MENU_2026_11 = [
+    # (nombre, tipo, precio, categoria, en_inventario si hay que crearlo)
+    ("Hawaiana", "pizza", 20000, "", 0),
+    ("Pollo con Champiñones", "pizza", 20000, "", 0),
+    ("Mexicana", "pizza", 20000, "", 0),
+    ("Pepperoni", "pizza", 20000, "", 0),
+    ("Criolla", "pizza", 20000, "", 0),
+    ("Vegetariana", "pizza", 20000, "", 0),
+    ("Pizza de Autor", "pizza", 23000, "", 0),
+    ("Burrito de Carne", "comida", 15000, "", 0),
+    ("Burrito de Pollo", "comida", 15000, "", 0),
+    ("Burrito Mixto", "comida", 15000, "", 0),
+    ("Cerveza Águila", "bebida", 5000, "Cervezas", 1),
+    ("Cerveza Águila Light", "bebida", 5000, "Cervezas", 1),
+    ("Cerveza Poker", "bebida", 5000, "Cervezas", 1),
+    ("Cerveza Coronita", "bebida", 5000, "Cervezas", 1),
+    ("Cerveza Budweiser", "bebida", 5000, "Cervezas", 1),
+    ("Cerveza Club Colombia", "bebida", 6000, "Cervezas", 1),
+    ("Cuba Libre", "bebida", 18000, "Cócteles", 0),
+    ("Mojito", "bebida", 18000, "Cócteles", 0),
+    ("Tequila Sunrise", "bebida", 18000, "Cócteles", 0),
+    ("Gin Tonic", "bebida", 23000, "Cócteles", 0),
+    ("Cóctel de Piña-Hierbabuena", "bebida", 18000, "Cócteles", 0),
+    ("Cóctel de Tamarindo", "bebida", 18000, "Cócteles", 0),
+    ("Limonada de Coco", "bebida", 9000, "Jugos y frescos", 1),
+    ("Cerezada", "bebida", 9000, "Jugos y frescos", 1),
+] + [("Jugo Natural — " + s, "bebida", 9000, "Jugos y frescos", 1) for s in (
+    "Guanábana", "Mora", "Lulo", "Fresa", "Tamarindo",
+    "Maracumango", "Maracuyá", "Piña", "Piña-Hierbabuena")] + [
+    ("Soda Italiana - Frutos Rojos", "bebida", 7000, "Gaseosas y aguas", 1),
+    ("Soda Italiana - Frutos Amarillos", "bebida", 7000, "Gaseosas y aguas", 1),
+    ("Gaseosa", "bebida", 4000, "Gaseosas y aguas", 1),
+    ("Coca-Cola preparada", "bebida", 5000, "Gaseosas y aguas", 0),
+    ("Agua 600ml", "bebida", 4000, "Gaseosas y aguas", 1),
+    ("Agua", "bebida", 1500, "Gaseosas y aguas", 1),     # la pequeña
+    ("Masmelos", "bebida", 5000, "Otros", 0),
+]
+
+
+def _ajustar_menu_2026_11():
+    clave = "menu_impreso_2026_11"
+    try:
+        with _conn() as c:
+            c.execute("BEGIN IMMEDIATE")     # los 2 workers arrancan a la vez
+            if c.execute("SELECT 1 FROM meta WHERE clave=?", (clave,)).fetchone():
+                c.execute("ROLLBACK")
+                return
+            cambios = []
+            for nombre, tipo, precio, cat, en_inv in _MENU_2026_11:
+                fila = c.execute("SELECT precio, activo FROM catalogo WHERE nombre=? COLLATE NOCASE "
+                                 "ORDER BY activo DESC, id LIMIT 1", (nombre,)).fetchone()
+                if fila:
+                    if fila["precio"] != precio or not fila["activo"]:
+                        c.execute("UPDATE catalogo SET precio=?, activo=1 WHERE nombre=? COLLATE NOCASE",
+                                  (precio, nombre))
+                        cambios.append(f"{nombre} {fila['precio']:.0f}->{precio}"
+                                       + ("" if fila["activo"] else " (reactivado)"))
+                else:
+                    c.execute("INSERT INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,"
+                              "activo,categoria) VALUES (?,?,?,?,?,1,?)",
+                              (nombre, tipo, precio, en_inv, 5 if en_inv else 0, cat))
+                    cambios.append(f"{nombre} nuevo {precio}")
+            en_menu = {n.lower() for n, *_ in _MENU_2026_11}
+            for r in c.execute("SELECT id, nombre FROM catalogo WHERE activo=1 AND "
+                               "tipo IN ('pizza','comida','bebida','bebida_especial')").fetchall():
+                if r["nombre"].lower() not in en_menu:
+                    c.execute("UPDATE catalogo SET activo=0 WHERE id=?", (r["id"],))
+                    cambios.append(f"{r['nombre']} de baja (no esta en el menu)")
+            c.execute("INSERT INTO meta (clave,valor) VALUES (?,?)", (clave, ahora().isoformat()))
+        for linea in cambios:
+            print(f"[BOOT] menu impreso: {linea}", flush=True)
+        print(f"[BOOT] menu impreso aplicado: {len(cambios)} cambio(s)", flush=True)
+    except Exception as e:
+        print(f"[BOOT] _ajustar_menu_2026_11 fallo: {e}", flush=True)
+
+
+try: _ajustar_menu_2026_11()
+except: pass
+
+
 # ── F5: USUARIOS Y ROLES ─────────────────────────────
 # Dos roles, no cuatro. Ya no hay "solo mesero" ni "solo caja" ni "solo cocina":
 # todo el equipo hace de todo. Lo unico reservado son las cifras del negocio.
@@ -769,6 +875,17 @@ def get_catalogo_pizzas():
     except: pass
     return dict(PIZZAS_DEFAULT)
 
+def get_catalogo_comidas():
+    """{nombre: precio} de la comida de cocina que no es pizza (burritos)."""
+    try:
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT nombre, precio FROM catalogo WHERE tipo='comida' AND activo=1 ORDER BY id"
+            ).fetchall()
+        return {row["nombre"]: row["precio"] for row in rows}
+    except Exception:
+        return {}
+
 def get_bebidas_por_categoria():
     """Bebidas agrupadas, en el orden de CATEGORIAS_BEBIDA. Solo devuelve las
     categorias que tienen algo: una seccion vacia es ruido."""
@@ -797,7 +914,7 @@ def get_catalogo_admin(familia):
     'bebidas'incluye el tipo historico 'bebida_especial', que antes se mostraba
     pero no se podia editar.
     """
-    tipos = ("pizza",) if familia == "pizzas" else ("bebida", "bebida_especial")
+    tipos = ("pizza", "comida") if familia == "pizzas" else ("bebida", "bebida_especial")
     ph = ",".join("?" * len(tipos))
     with _conn() as c:
         rows = c.execute(
@@ -1524,11 +1641,19 @@ def get_reporte(fecha_ini, fecha_fin):
     catalogo = set(get_catalogo_bebidas()) | set(get_catalogo_pizzas())
 
     n_pizzas = n_bebidas = val_pizzas = val_bebidas = 0
+    n_comidas = val_comidas = 0
     n_un_sabor = n_dos_sabores = 0
-    un_sabor, dos_sabores, bebidas = {}, {}, {}
+    un_sabor, dos_sabores, bebidas, comidas = {}, {}, {}, {}
     for r in filas:
         val = r["cantidad"] * r["precio_unit"]
-        if r["tipo"] == "Pizza":
+        if r["tipo"] == "Pizza" and es_comida(r["nombre"]):
+            # Burritos: van por cocina pero no son pizzas
+            n_comidas += r["cantidad"]
+            val_comidas += val
+            d = comidas.setdefault(r["nombre"], {"cantidad": 0, "valor": 0})
+            d["cantidad"] += r["cantidad"]
+            d["valor"] += val
+        elif r["tipo"] == "Pizza":
             n_pizzas += r["cantidad"]
             val_pizzas += val
             # Una pizza de dos sabores es UNA pizza, no dos. Se separan las de
@@ -1566,6 +1691,9 @@ def get_reporte(fecha_ini, fecha_fin):
         "n_pizzas": n_pizzas, "n_bebidas": n_bebidas,
         "n_un_sabor": n_un_sabor, "n_dos_sabores": n_dos_sabores,
         "val_pizzas": val_pizzas, "val_bebidas": val_bebidas,
+        "n_comidas": n_comidas, "val_comidas": val_comidas,
+        "comidas": sorted(({"nombre": k, **v} for k, v in comidas.items()),
+                          key=lambda x: -x["cantidad"]),
         "por_metodo": dict(sorted(por_metodo.items(), key=lambda x: -x[1])),
         "por_cobrador": dict(sorted(por_cobrador.items(), key=lambda x: -x[1])),
         "un_sabor": sorted(({"nombre": k, "cantidad": v} for k, v in un_sabor.items()),
@@ -1690,7 +1818,7 @@ def ajustar_stock(nombre, delta):
         c.execute("UPDATE inventario SET stock=MAX(0,stock+?) WHERE nombre=? AND fecha=?", (delta, nombre, hoy))
 
 def _item_a_stock_key(nombre, tipo):
-    if tipo == "Pizza": return "Pizza (masa)"
+    if tipo == "Pizza": return None if es_comida(nombre) else "Pizza (masa)"
     if nombre.startswith("Soda Italiana"):
         if "Frutos Rojos" in nombre:     return "Soda Italiana - Frutos Rojos"
         if "Frutos Amarillos" in nombre: return "Soda Italiana - Frutos Amarillos"
@@ -2137,7 +2265,8 @@ def admin_cierre():
         inv_fecha    = {r["nombre"]: r["stock"] for r in inv_rows}
         inv_inicial  = {r["nombre"]: (r["stock_inicial"] if r["stock_inicial"] > 0 else r["stock"]) for r in inv_rows}
         vendido_dict = get_vendido_hoy(fecha)
-        pizza_vend   = sum(v["cantidad"] for v in vendido_dict.values() if v["tipo"] == "Pizza")
+        pizza_vend   = sum(v["cantidad"] for k, v in vendido_dict.items()
+                           if v["tipo"] == "Pizza" and not es_comida(k))
         cierre_items = []
         for nombre, (tipo, _) in get_inv_estandar().items():
             stock_ini = inv_inicial.get(nombre, 0)
@@ -2751,7 +2880,8 @@ def mesero_nuevo():
     alertas = {k: v["alerta_min"] for k, v in get_stock_con_alertas().items()}
     pulpas = get_pulpas_hoy()
     return render_template('mesero_nuevo.html',
-        sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
+        sabores=get_catalogo_pizzas(), comidas=get_catalogo_comidas(),
+        grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
         stock_json=json.dumps(stock), alertas_json=json.dumps(alertas),
         metodos=METODOS_PAGO, precio_pizza=PRECIO_PIZZA,
         ocupados=localizadores_ocupados(), cupos=cupos_franjas())
@@ -2829,7 +2959,8 @@ def mesero_editar(pid):
     pedido_editable['productos_despachados'] = items_despachados
     pedido_editable['total_entregado'] = sum(i['cantidad'] * i['precio_unit'] for i in items_despachados)
     return render_template('mesero_editar.html', pedido=pedido_editable,
-        sabores=get_catalogo_pizzas(), grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
+        sabores=get_catalogo_pizzas(), comidas=get_catalogo_comidas(),
+        grupos=get_bebidas_por_categoria(), franjas=FRANJAS_HORA,
         pulpas_json=json.dumps(pulpas), metodos=METODOS_PAGO)
 
 # ── CAJERO ────────────────────────────────────────────

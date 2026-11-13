@@ -42,12 +42,25 @@
     <p class="text-sm c-gray mb-8">Selecciona 1 o 2 sabores</p>
     <div class="pizza-grid">
       {% for sabor in sabores %}
-      <button class="pizza-opt" data-sabor="{{ sabor }}" onclick="toggleSabor(this)">{{ sabor }}</button>
+      <button class="pizza-opt" data-sabor="{{ sabor }}" data-p="{{ sabores[sabor] | int }}" onclick="toggleSabor(this)">{{ sabor }}</button>
       {% endfor %}
     </div>
     <div class="sel-display" id="sel-display">Sin sabor seleccionado</div>
     <button class="btn btn-primary btn-full mt-8" onclick="agregarPizza()">{{ icono('pedido', 18) }} Agregar pizza</button>
   </div>
+  {% if comidas %}
+  {# Burritos: van a cocina como las pizzas, pero sin sabores ni masa #}
+  <div class="card mt-8">
+    <div class="cat-titulo">Burritos</div>
+    {% for nombre, precio in comidas.items() %}
+    <div class="beb-row">
+      <span class="beb-name" style="flex:1">{{ nombre }}</span>
+      <span class="beb-price">{{ precio | cop }}</span>
+      <button class="btn btn-primary btn-sm" onclick="addItem('{{ nombre }}', 'Pizza', {{ precio | int }})">+</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 
 <!-- BEBIDAS -->
@@ -175,7 +188,10 @@ function toggleSabor(btn){
 
 function agregarPizza(){
   if(!saboresSel.length){ alert('Selecciona al menos un sabor'); return; }
-  addItem(saboresSel.slice().sort().join(' / '), 'Pizza', 20000);
+  // Una pizza de dos sabores cuesta lo que la mas cara (la de autor vale mas)
+  let precio = {{ precio_pizza | default(20000) | int }};
+  document.querySelectorAll('.pizza-opt.sel').forEach(b => { precio = Math.max(precio, parseInt(b.dataset.p, 10) || 0); });
+  addItem(saboresSel.slice().sort().join(' / '), 'Pizza', precio);
   saboresSel=[];
   document.querySelectorAll('.pizza-opt').forEach(b=>b.classList.remove('sel'));
   document.getElementById('sel-display').textContent='Sin sabor seleccionado';
