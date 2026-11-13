@@ -8,7 +8,7 @@
 <div class="login-wrap">
   <div class="login-box">
     <div class="login-logo">
-      <h1 class="wordmark">JacaPizza</h1>
+      <h1 class="wordmark"><img src="{{ url_for('static', filename='marca/jacapizza-oscuro.png', v=marca_v) }}" alt="JacaPizza" width="1200" height="210"></h1>
       {% if obligatorio %}
       <p>Hola, {{ session.get('nombre') }}. Antes de seguir, crea tu propia contraseña.</p>
       {% else %}

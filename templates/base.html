@@ -9,7 +9,7 @@
 
 {% if session.get('usuario') %}
 <nav class="navbar">
-  <a href="{{ url_for('dashboard') }}" class="nav-brand">JacaPizza</a>
+  <a href="{{ url_for('dashboard') }}" class="nav-brand"><img src="{{ url_for('static', filename='marca/jacapizza-oscuro.png', v=marca_v) }}" alt="JacaPizza" width="1200" height="210"></a>
   <div class="nav-info">
     <span class="nav-user">{{ session.nombre }}</span>
     <span class="role-badge role-{{ session.rol | lower }}">{{ session.rol }}</span>

@@ -4,51 +4,59 @@
 {% block content %}
 <h2 class="sec-title">{{ icono('rapido', 18) }} Venta rápida</h2>
 <div class="text-xs c-gray2 mb-12">
-  Toca las bebidas: se van sumando abajo. Se entregan en el acto, no pasan
-  por la pantalla de barra.
+  Abre una categoría y toca las bebidas: se van sumando abajo. Se entregan
+  en el acto, no pasan por la pantalla de barra.
 </div>
 
 {% set stock = stock_json | fromjson %}
 
-{# Misma diagramacion que Nuevo pedido: filtros + filas de ancho completo.
-   Si una pantalla se maneja de una forma y la otra de otra, se confunde a
-   quien no es tecnico. #}
-<div class="cat-filtros">
-  <button type="button" class="cat-chip activo" data-c="" onclick="filtrar(this)">Todas</button>
-  {% for cat in grupos %}
-  <button type="button" class="cat-chip" data-c="{{ cat }}" onclick="filtrar(this)">{{ cat }}</button>
-  {% endfor %}
-</div>
-
+{# Categorias desplegables: se ve una lista corta de 5 renglones con su
+   icono, y al tocar una se abre (y se cierra la que estaba abierta). Lo ya
+   elegido se cuenta en el renglon, asi que se ve aunque este cerrada. #}
+<div class="vr-cats">
 {% for cat, lista in grupos.items() %}
-<div class="cat-bloque" data-c="{{ cat }}">
-  <div class="cat-titulo">{{ cat }} <span class="cat-n num">{{ lista | length }}</span></div>
-  <div class="ped-bebidas">
-    {% for nombre, precio in lista.items() %}
-    {% set s = stock.get(nombre) %}
-    <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
-         data-n="{{ nombre }}" data-p="{{ precio | int }}"
-         data-s="{{ s if s is not none else -1 }}">
-      <button type="button" class="ped-bebida-tap" onclick="tocar(this.parentNode)">
-        <span class="ped-bebida-n">{{ nombre }}</span>
-        <span class="ped-bebida-meta">
-          <span class="ped-bebida-p num">{{ precio | cop }}</span>
-          {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
-          {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
-          {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
-        </span>
-      </button>
-      <div class="ped-paso" style="display:none">
-        <button type="button" onclick="paso(this.closest('.ped-bebida'), -1)">−</button>
-        <span class="ped-paso-n num">0</span>
-        <button type="button" onclick="paso(this.closest('.ped-bebida'), 1)">+</button>
+<section class="vr-cat" data-c="{{ cat }}">
+  <button type="button" class="vr-cat-cab" aria-expanded="false"
+          aria-controls="vr-cat-{{ loop.index }}" onclick="desplegar(this.parentNode)">
+    <span class="vr-cat-ico">{{ icono(ICONOS_CATEGORIA.get(cat, 'bebidas'), 22) }}</span>
+    <span class="vr-cat-txt">
+      <span class="vr-cat-n">{{ cat }}</span>
+      <span class="vr-cat-sub">{{ lista | length }} {{ 'producto' if lista | length == 1 else 'productos' }}</span>
+    </span>
+    <span class="vr-cat-cuenta num" hidden></span>
+    <span class="vr-cat-flecha">{{ icono('abajo', 20) }}</span>
+  </button>
+  <div class="vr-cat-cuerpo" id="vr-cat-{{ loop.index }}">
+    <div class="vr-cat-dentro">
+      <div class="ped-bebidas">
+        {% for nombre, precio in lista.items() %}
+        {% set s = stock.get(nombre) %}
+        <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
+             data-n="{{ nombre }}" data-p="{{ precio | int }}"
+             data-s="{{ s if s is not none else -1 }}">
+          <button type="button" class="ped-bebida-tap" onclick="tocar(this.parentNode)">
+            <span class="ped-bebida-n">{{ nombre }}</span>
+            <span class="ped-bebida-meta">
+              <span class="ped-bebida-p num">{{ precio | cop }}</span>
+              {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+              {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+              {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+            </span>
+          </button>
+          <div class="ped-paso" style="display:none">
+            <button type="button" onclick="paso(this.closest('.ped-bebida'), -1)">−</button>
+            <span class="ped-paso-n num">0</span>
+            <button type="button" onclick="paso(this.closest('.ped-bebida'), 1)">+</button>
+          </div>
+          <button type="button" class="ped-mas" onclick="tocar(this.closest('.ped-bebida'))">+</button>
+        </div>
+        {% endfor %}
       </div>
-      <button type="button" class="ped-mas" onclick="tocar(this.closest('.ped-bebida'))">+</button>
     </div>
-    {% endfor %}
   </div>
-</div>
+</section>
 {% endfor %}
+</div>
 
 {# Igual que Nuevo pedido: lo elegido se ve SIEMPRE en una barra flotante
    abajo, con el total. Tocando el total se despliega el detalle; "Cobrar"
@@ -119,18 +127,38 @@ function fmt(n) { return '$' + (n || 0).toLocaleString('es-CO'); }
 
 var avisados = {};
 
-function filtrar(chip) {
-  var cat = chip.dataset.c;
-  document.querySelectorAll('.cat-chip').forEach(function (c) {
-    c.classList.toggle('activo', c === chip);
+/* ── Categorias desplegables: una abierta a la vez ── */
+function desplegar(sec, abrir) {
+  var on = (abrir === undefined) ? !sec.classList.contains('abierta') : abrir;
+  document.querySelectorAll('.vr-cat').forEach(function (x) {
+    var esta = (x === sec) && on;
+    x.classList.toggle('abierta', esta);
+    x.querySelector('.vr-cat-cab').setAttribute('aria-expanded', esta ? 'true' : 'false');
   });
-  document.querySelectorAll('.cat-bloque').forEach(function (b) {
-    b.style.display = (!cat || b.dataset.c === cat) ? '' : 'none';
-  });
-  document.querySelectorAll('.cat-titulo').forEach(function (h) {
-    h.style.display = cat ? 'none' : '';
-  });
+  if (on) {
+    try { sessionStorage.setItem('vr-cat', sec.dataset.c); } catch (e) { }
+    // Que el renglon quede arriba, con sus bebidas a la vista, sin saltos
+    setTimeout(function () {
+      var y = sec.getBoundingClientRect().top + window.scrollY - 70;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    }, 60);
+  } else {
+    try { sessionStorage.removeItem('vr-cat'); } catch (e) { }
+  }
 }
+
+// Despues de cobrar la pagina se recarga: volver a abrir la que estaba
+(function () {
+  var c = null;
+  try { c = sessionStorage.getItem('vr-cat'); } catch (e) { }
+  document.querySelectorAll('.vr-cat').forEach(function (x) {
+    if (x.dataset.c === c) {
+      x.classList.add('abierta', 'sin-anim');
+      x.querySelector('.vr-cat-cab').setAttribute('aria-expanded', 'true');
+      setTimeout(function () { x.classList.remove('sin-anim'); }, 50);
+    }
+  });
+})();
 
 function tocar(tile) {
   var n = tile.dataset.n, p = parseInt(tile.dataset.p, 10), s = parseInt(tile.dataset.s, 10);
@@ -164,6 +192,18 @@ function pintarContadores() {
     paso.querySelector('.ped-paso-n').textContent = q;
     if (mas) mas.style.display = q > 0 ? 'none' : '';
     tile.classList.toggle('con-cantidad', q > 0);
+  });
+  // Cuantas lleva cada categoria, visible aunque este cerrada
+  document.querySelectorAll('.vr-cat').forEach(function (sec) {
+    var n = 0;
+    sec.querySelectorAll('.ped-bebida').forEach(function (tile) {
+      var e = carrito.find(function (x) { return x.nombre === tile.dataset.n; });
+      if (e) n += e.cantidad;
+    });
+    var b = sec.querySelector('.vr-cat-cuenta');
+    b.hidden = !n;
+    b.textContent = n;
+    sec.classList.toggle('con-cantidad', n > 0);
   });
 }
 

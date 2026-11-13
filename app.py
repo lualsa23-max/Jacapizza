@@ -114,6 +114,17 @@ def add_headers(response):
     response.headers['X-Robots-Tag'] = 'noindex, nofollow'
     return response
 
+# Version de la marca. Se pega como ?v= a logos e iconos: los celulares
+# guardan el icono de la pantalla de inicio con mucha insistencia y, si el
+# archivo se llama igual, siguen mostrando el viejo. Subirla al cambiar logos.
+MARCA_V = "2026-11"
+
+
+@app.context_processor
+def _marca():
+    return {"marca_v": MARCA_V}
+
+
 @app.route('/manifest.json')
 def manifest():
     """Lo que necesita Android para tratar la app como una app de verdad al
@@ -128,11 +139,11 @@ def manifest():
         "background_color": "#292723",
         "theme_color": "#292723",
         "icons": [
-            {"src": url_for('static', filename='iconos/icono-192.png'),
+            {"src": url_for('static', filename='iconos/icono-192.png', v=MARCA_V),
              "sizes": "192x192", "type": "image/png", "purpose": "any"},
-            {"src": url_for('static', filename='iconos/icono-512.png'),
+            {"src": url_for('static', filename='iconos/icono-512.png', v=MARCA_V),
              "sizes": "512x512", "type": "image/png", "purpose": "any"},
-            {"src": url_for('static', filename='iconos/icono-512.png'),
+            {"src": url_for('static', filename='iconos/icono-512.png', v=MARCA_V),
              "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
         ],
     })
@@ -246,6 +257,11 @@ INV_DEFAULT = {
 # desde el Menu sin tocar el codigo.
 CATEGORIAS_BEBIDA = ["Cervezas", "Jugos y frescos", "Gaseosas y aguas",
                      "Cócteles", "Otros"]
+# Icono de cada categoria (set de _iconos.html). Una categoria nueva creada
+# desde el Menu sale con el vaso generico.
+ICONOS_CATEGORIA = {"Cervezas": "cerveza", "Jugos y frescos": "jugo",
+                    "Gaseosas y aguas": "gaseosa", "Cócteles": "coctel",
+                    "Otros": "otros"}
 
 
 def categoria_sugerida(nombre):
@@ -304,6 +320,7 @@ def _icono():
 # Para el selector de hora de entrega, que aparece en varias pantallas
 app.jinja_env.globals["FRANJAS_HORA"] = FRANJAS_HORA
 app.jinja_env.globals["LOCALIZADORES"] = LOCALIZADORES
+app.jinja_env.globals["ICONOS_CATEGORIA"] = ICONOS_CATEGORIA
 app.jinja_env.globals["MAX_PEDIDOS_POR_FRANJA"] = MAX_PEDIDOS_POR_FRANJA
 
 
