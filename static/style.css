@@ -725,6 +725,8 @@ tbody tr:hover td     { background: var(--card2); }
   color: var(--gray2); text-decoration: none;
 }
 .barra-item.activo { color: var(--brand-text); }
+/* "Más" es un <button>: sin esto sale con el fondo gris claro del navegador */
+button.barra-item { background: none; border: none; font-family: inherit; cursor: pointer; }
 .barra-item:active { background: var(--card2); }
 .barra-ico { font-size: 1.35rem; line-height: 1; }
 /* La palabra nunca es opcional: un icono solo se malinterpreta. */
@@ -773,6 +775,57 @@ tbody tr:hover td     { background: var(--card2); }
 }
 .ped-sabor.activo { border-color: var(--accent); background: rgba(199,24,126,.14); }
 .ped-sabor:active { transform: scale(.97); }
+
+/* ── NUEVO PEDIDO EN DOS PASOS ─────────────────────────
+   Paso 1: pestañas Pizzas / Bebidas. Paso 2: hoja de Entrega. */
+.ped-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 4px; margin: var(--s3) 0 var(--s4);
+  background: var(--card); border-radius: var(--r-md);
+}
+.ped-tab {
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  min-height: var(--tap); padding: var(--s2);
+  background: none; color: var(--gray2); border: none; border-radius: var(--r-sm);
+  font-family: inherit; font-size: var(--t-md); font-weight: 700; cursor: pointer;
+}
+.ped-tab.activo { background: var(--accent); color: #fff; }
+.ped-tab:active { transform: scale(.97); }
+.ped-tab-n {
+  min-width: 22px; padding: 1px 7px; border-radius: var(--r-full);
+  background: var(--card2); color: var(--white); font-size: var(--t-xs);
+}
+.ped-tab.activo .ped-tab-n { background: rgba(255,255,255,.25); }
+.ped-tab-n[hidden] { display: none; }
+.ped-tab-ayuda { font-size: var(--t-xs); color: var(--gray2); margin-bottom: var(--s2); }
+
+/* La hoja de Entrega puede ser mas alta que la pantalla de un telefono
+   pequeño: se desplaza por dentro y los botones nunca quedan fuera. */
+.ent-sheet { max-height: 92vh; overflow-y: auto; }
+.ent-cab {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--s2); margin-bottom: var(--s3);
+}
+.ent-cab .sheet-titulo { margin-bottom: 2px; }
+.ent-sheet .form-label { display: flex; align-items: center; gap: 6px; }
+.ent-sheet .loc-btn { min-height: var(--tap); background: var(--card2); }   /* la hoja ya es --card */
+
+/* Hora de entrega: botones con el cupo debajo, en vez de un desplegable */
+.hora-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.hora-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: var(--tap); padding: 4px 2px; gap: 1px;
+  background: var(--card2); color: var(--white);
+  border: 2px solid transparent; border-radius: var(--r-sm);
+  font-family: inherit; cursor: pointer; touch-action: manipulation;
+}
+.hora-btn:active { transform: scale(.96); }
+.hora-f { font-size: var(--t-sm); font-weight: 700; line-height: 1.1; }
+.hora-c { font-size: .66rem; color: var(--gray2); }
+.hora-btn.activo { border-color: var(--accent); background: rgba(199,24,126,.22); }
+.hora-btn.activo .hora-c { color: var(--white); }
+.hora-btn:disabled { opacity: .4; cursor: not-allowed; }
+.hora-btn:disabled .hora-c { color: var(--red); font-weight: 700; }
 
 /* ── LOCALIZADOR ─────────────────────────────────────
    8 por fila en tablet (2 filas), 4 por fila en un telefono angosto. */

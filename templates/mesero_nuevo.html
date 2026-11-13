@@ -2,168 +2,186 @@
 {% block title %}— Nuevo pedido{% endblock %}
 
 {% block content %}
-{# Una sola pantalla, un solo scroll. Antes habia cuatro paneles con pestañas:
-   elegir pizza -> agregar -> ir al carrito -> volver a bebidas -> volver al
-   carrito. Ahora todo esta en la misma columna y el total va fijo abajo. #}
+{# Dos pasos. 1) Que lleva: pizzas y bebidas en pestañas, una categoria de
+   bebida a la vez, para que quepa casi en una pantalla (antes eran 16
+   localizadores + 30 bebidas seguidas). 2) Entrega: hora, localizador y
+   notas en una hoja que se abre con "Continuar". El localizador va al final
+   porque es lo ultimo que se le da al cliente, y asi se elige con la grilla
+   recien refrescada y no con la de hace cinco minutos. #}
 
 {% set stock = stock_json | fromjson %}
 
+{# El codigo va arriba, no en la hoja de Entrega: al escribirlo avisa si el
+   cliente ya tiene cuenta abierta, y eso conviene saberlo ANTES de armar. #}
 <div class="ped-cabecera">
   <input class="form-input ped-codigo" type="text" id="codigo" autocomplete="off"
          placeholder="Código de reserva" oninput="revisarCodigo()">
 </div>
 <div id="aviso-codigo" class="vr-aviso" style="display:none"></div>
 
-{# Localizador: el aparato que vibra. Reemplaza a "Mesa / lugar", que nadie
-   llenaba. Botones y no un campo de texto: un toque, y no se puede escribir
-   un 17. Los que tiene otro cliente salen apagados con su codigo debajo. #}
-<label class="form-label mt-8">{{ icono('campana', 16) }} Localizador
-  <span class="ped-ayuda" id="loc-ayuda">toca el que le entregas</span></label>
-<div class="loc-grid" id="loc-grid">
-  {% for n in LOCALIZADORES %}
-  <button type="button" class="loc-btn{% if n in ocupados %} ocupado{% endif %}"
-          data-n="{{ n }}" onclick="tocarLoc(this)">
-    <span class="loc-n num">{{ n }}</span>
-    <span class="loc-quien">{{ ocupados.get(n, '') }}</span>
-  </button>
-  {% endfor %}
+<div class="ped-tabs" role="tablist">
+  <button type="button" class="ped-tab activo" role="tab" data-t="pizzas" onclick="verTab('pizzas')">
+    {{ icono('pizza', 18) }} Pizzas <span class="ped-tab-n num" id="tab-n-pizzas" hidden></span></button>
+  <button type="button" class="ped-tab" role="tab" data-t="bebidas" onclick="verTab('bebidas')">
+    {{ icono('bebidas', 18) }} Bebidas <span class="ped-tab-n num" id="tab-n-bebidas" hidden></span></button>
 </div>
-
-{# Hora y notas van arriba, junto a los datos de la reserva: son de la MISMA
-   decision. Al final estorbaban entre el carrito y el boton de enviar. #}
-<div class="ped-cabecera mt-8">
-  <div style="flex:1;min-width:0">
-    <label class="form-label">Hora de entrega</label>
-    {# Cada hora dice cuantos pedidos lleva. Las llenas se ven pero no se
-       pueden elegir, y arranca en la primera que tenga cupo. #}
-    {% set ns = namespace(elegida=none) %}
-    {% for f in franjas %}{% if ns.elegida is none and cupos.get(f, 0) < MAX_PEDIDOS_POR_FRANJA %}{% set ns.elegida = f %}{% endif %}{% endfor %}
-    <select class="form-select" id="franja">
-      {% for f in franjas %}{% set n = cupos.get(f, 0) %}
-      <option value="{{ f }}" data-f="{{ f }}"
-              {% if n >= MAX_PEDIDOS_POR_FRANJA %}disabled{% endif %}
-              {% if f == ns.elegida %}selected{% endif %}>
-        {{ f }} · {% if n >= MAX_PEDIDOS_POR_FRANJA %}LLENO{% else %}{{ n }}/{{ MAX_PEDIDOS_POR_FRANJA }}{% endif %}</option>
-      {% endfor %}
-    </select>
-  </div>
-</div>
-<textarea class="form-input mt-8" id="notas" rows="2"
-          placeholder="Notas para cocina: sin cebolla, bien cocida…"></textarea>
 
 {# ── PIZZAS ────────────────────────────────────────────────────── #}
-<h3 class="ped-seccion">{{ icono('pizza', 20) }} Pizzas
-  <span class="ped-ayuda">toca 1 o 2 sabores</span></h3>
+<section class="ped-tab-panel" id="tab-pizzas">
+  {% set masa = stock.get('Pizza (masa)') %}
+  {% if masa is not none and masa <= 3 %}
+  <div class="ped-aviso-masa {% if masa <= 0 %}ped-aviso-rojo{% endif %}">
+    {{ icono('alerta', 16) }}
+    {% if masa <= 0 %}El conteo dice que no quedan masas{% else %}Quedan {{ masa }} masas{% endif %}
+  </div>
+  {% endif %}
 
-{% set masa = stock.get('Pizza (masa)') %}
-{% if masa is not none and masa <= 3 %}
-<div class="ped-aviso-masa {% if masa <= 0 %}ped-aviso-rojo{% endif %}">
-  {{ icono('alerta', 16) }}
-  {% if masa <= 0 %}El conteo dice que no quedan masas{% else %}Quedan {{ masa }} masas{% endif %}
-</div>
-{% endif %}
-
-<div class="ped-sabores">
-  {% for nombre, precio in sabores.items() %}
-  <button type="button" class="ped-sabor" data-n="{{ nombre }}" data-p="{{ precio | int }}"
-          onclick="tocarSabor(this)">{{ nombre }}</button>
-  {% endfor %}
-</div>
-
-<div class="ped-pizza-accion">
-  <div id="sabores-elegidos" class="ped-elegidos">Ninguno elegido</div>
-  <button type="button" class="btn btn-primary btn-lg" id="btn-pizza"
-          onclick="agregarPizza()" disabled>{{ icono('pedido', 20) }} Agregar pizza</button>
-</div>
-
-{# ── BEBIDAS ───────────────────────────────────────────────────── #}
-<h3 class="ped-seccion">{{ icono('bebidas', 20) }} Bebidas</h3>
-
-{# Con 27 bebidas, solo subtitulos dejan 14 filas de scroll. Los filtros
-   bajan a 3 de un toque, y siguen estando los subtitulos para quien
-   prefiera recorrerlas todas. #}
-<div class="cat-filtros">
-  <button type="button" class="cat-chip activo" data-c="" onclick="filtrar(this)">Todas</button>
-  {% for cat in grupos %}
-  <button type="button" class="cat-chip" data-c="{{ cat }}" onclick="filtrar(this)">{{ cat }}</button>
-  {% endfor %}
-</div>
-
-{% for cat, lista in grupos.items() %}
-<div class="cat-bloque" data-c="{{ cat }}">
-  <div class="cat-titulo">{{ cat }} <span class="cat-n num">{{ lista | length }}</span></div>
-  <div class="ped-bebidas">
-    {% for nombre, precio in lista.items() %}
-    {% set s = stock.get(nombre) %}
-    <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
-         data-n="{{ nombre }}" data-p="{{ precio | int }}"
-         data-s="{{ s if s is not none else -1 }}">
-      <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
-        <span class="ped-bebida-n">{{ nombre }}</span>
-        <span class="ped-bebida-meta">
-          <span class="ped-bebida-p num">{{ precio | cop }}</span>
-          {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
-          {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
-          {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
-        </span>
-      </button>
-      <div class="ped-paso" style="display:none">
-        <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
-        <span class="ped-paso-n num">0</span>
-        <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
-      </div>
-      <button type="button" class="ped-mas" onclick="tocarBebida(this.closest('.ped-bebida'))">+</button>
-    </div>
+  <div class="ped-tab-ayuda">Toca 1 o 2 sabores</div>
+  <div class="ped-sabores">
+    {% for nombre, precio in sabores.items() %}
+    <button type="button" class="ped-sabor" data-n="{{ nombre }}" data-p="{{ precio | int }}"
+            onclick="tocarSabor(this)">{{ nombre }}</button>
     {% endfor %}
   </div>
-</div>
-{% endfor %}
 
-{# ── CARRITO ───────────────────────────────────────────────────── #}
-<h3 class="ped-seccion" id="ancla-carrito">{{ icono('caja', 20) }} El pedido</h3>
-<div class="card" id="carrito-card">
-  <div id="carrito" class="ped-lista">
-    <div class="ped-vacio">Todavía no has agregado nada</div>
+  <div class="ped-pizza-accion">
+    <div id="sabores-elegidos" class="ped-elegidos">Ninguno elegido</div>
+    <button type="button" class="btn btn-primary btn-lg" id="btn-pizza"
+            onclick="agregarPizza()" disabled>{{ icono('pedido', 20) }} Agregar pizza</button>
+  </div>
+</section>
+
+{# ── BEBIDAS ───────────────────────────────────────────────────── #}
+{# Una categoria a la vez, empezando por la que mas se vende (el orden lo da
+   CATEGORIAS_BEBIDA). Sin "Todas": era la que alargaba el scroll. #}
+<section class="ped-tab-panel" id="tab-bebidas" hidden>
+  <div class="cat-filtros">
+    {% for cat in grupos %}
+    <button type="button" class="cat-chip{% if loop.first %} activo{% endif %}" data-c="{{ cat }}"
+            onclick="filtrar(this)">{{ cat }}</button>
+    {% endfor %}
   </div>
 
-  <button class="btn btn-ghost btn-full mt-12" onclick="limpiar()">
-    {{ icono('borrar', 18) }} Vaciar
-  </button>
-</div>
+  {% for cat, lista in grupos.items() %}
+  <div class="cat-bloque" data-c="{{ cat }}"{% if not loop.first %} hidden{% endif %}>
+    <div class="ped-bebidas">
+      {% for nombre, precio in lista.items() %}
+      {% set s = stock.get(nombre) %}
+      <div class="ped-bebida {% if s == 0 %}ped-sin-registro{% endif %}"
+           data-n="{{ nombre }}" data-p="{{ precio | int }}"
+           data-s="{{ s if s is not none else -1 }}">
+        <button type="button" class="ped-bebida-tap" onclick="tocarBebida(this.parentNode)">
+          <span class="ped-bebida-n">{{ nombre }}</span>
+          <span class="ped-bebida-meta">
+            <span class="ped-bebida-p num">{{ precio | cop }}</span>
+            {% if s == 0 %}<span class="stock-chip stock-out">sin registro</span>
+            {% elif s is not none and s <= 3 %}<span class="stock-chip stock-low">{{ s }}</span>
+            {% elif s is not none %}<span class="stock-chip stock-ok">{{ s }}</span>{% endif %}
+          </span>
+        </button>
+        <div class="ped-paso" style="display:none">
+          <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), -1)">−</button>
+          <span class="ped-paso-n num">0</span>
+          <button type="button" onclick="pasoBebida(this.closest('.ped-bebida'), 1)">+</button>
+        </div>
+        <button type="button" class="ped-mas" onclick="tocarBebida(this.closest('.ped-bebida'))">+</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
 
-{# Barra fija con el total siempre a la vista. Tocando la parte del total se
-   despliega hacia arriba el detalle: se revisa el pedido sin perder de vista
-   el boton de enviar ni tener que subir la pagina.
-
-   Cobrar o no es una decision EXPLICITA con dos botones del mismo tamaño.
-   Antes era una casilla al final del scroll y el unico boton visible era
-   "Enviar": se podia mandar el pedido sin haber visto nunca la opcion. #}
+{# Lo elegido se ve SIEMPRE en la barra flotante con el total; tocando el
+   total se despliega el detalle. Ya no hay tarjeta "El pedido" al final:
+   repetia lo mismo y obligaba a bajar a buscarla. #}
 <div class="ped-panel" id="ped-panel">
   <div class="ped-panel-cab">
     <span>El pedido</span>
-    <button type="button" class="ped-panel-x" onclick="verPanel(false)">
+    <button type="button" class="ped-panel-x" onclick="verPanel(false)" aria-label="Cerrar detalle">
       {{ icono('cerrar', 20) }}
     </button>
   </div>
   <div class="ped-panel-lista" id="panel-lista"></div>
+  <div class="ped-panel-pie">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="limpiar()">
+      {{ icono('borrar', 16) }} Vaciar</button>
+  </div>
 </div>
 
-<div class="ped-barra" id="ped-barra" style="display:none">
+<div class="ped-barra vr-barra" id="ped-barra" hidden>
   <button type="button" class="ped-barra-info" onclick="verPanel()">
     <div class="ped-barra-n"><span id="barra-n">0 productos</span>
       <span class="ped-barra-ver" id="barra-ver">ver detalle</span></div>
     <div class="ped-barra-t num" id="barra-t">$0</div>
   </button>
-  <div class="ped-barra-acciones">
-    <button class="btn btn-ghost btn-lg" id="btn-sin-cobrar" onclick="enviarSinCobrar()">
-      {{ icono('flecha', 20) }} Enviar sin cobrar
-    </button>
-    <button class="btn btn-green btn-lg" id="btn-cobrar" onclick="enviarCobrando()">
-      {{ icono('cobrar', 20) }} Cobrar y enviar
-    </button>
-  </div>
+  <button type="button" class="btn btn-primary btn-lg vr-btn-cobrar" onclick="abrirEntrega()">
+    Continuar {{ icono('flecha', 20) }}
+  </button>
 </div>
 <div class="ped-espacio"></div>
+
+{# ── PASO 2: ENTREGA ───────────────────────────────────────────── #}
+{# Va ANTES de la hoja de cobro en el documento: "Cobrar y enviar" abre el
+   cobro encima, y si se cancela se vuelve aqui con todo lo elegido.
+
+   Cobrar o no sigue siendo una decision EXPLICITA con dos botones del mismo
+   tamaño, ninguno escondido. #}
+{% set ns = namespace(elegida=none) %}
+{% for f in franjas %}{% if ns.elegida is none and cupos.get(f, 0) < MAX_PEDIDOS_POR_FRANJA %}{% set ns.elegida = f %}{% endif %}{% endfor %}
+<div class="overlay" id="hoja-entrega" onclick="if(event.target===this)cerrarEntrega()">
+  <div class="sheet ent-sheet">
+    <div class="ent-cab">
+      <div>
+        <div class="sheet-titulo" id="ent-titulo">Entrega</div>
+        <div class="text-sm c-gray2" id="ent-resumen"></div>
+      </div>
+      <button type="button" class="ped-panel-x" onclick="cerrarEntrega()" aria-label="Volver al pedido">
+        {{ icono('cerrar', 20) }}</button>
+    </div>
+
+    {# Cada hora dice cuantos pedidos lleva. Las llenas se ven pero no se
+       pueden elegir, y arranca en la primera que tenga cupo. #}
+    <div class="form-label">Hora de entrega</div>
+    <div class="hora-grid" id="hora-grid">
+      {% for f in franjas %}{% set n = cupos.get(f, 0) %}{% set lleno = n >= MAX_PEDIDOS_POR_FRANJA %}
+      <button type="button" class="hora-btn{% if f == ns.elegida %} activo{% endif %}"
+              data-f="{{ f }}" onclick="elegirFranja(this)" {% if lleno %}disabled{% endif %}
+              aria-label="{{ f }} · {% if lleno %}LLENO{% else %}{{ n }}/{{ MAX_PEDIDOS_POR_FRANJA }}{% endif %}">
+        <span class="hora-f">{{ f }}</span>
+        <span class="hora-c num">{% if lleno %}LLENO{% else %}{{ n }}/{{ MAX_PEDIDOS_POR_FRANJA }}{% endif %}</span>
+      </button>
+      {% endfor %}
+    </div>
+
+    {# Localizador: el aparato que vibra. Botones y no un campo de texto: un
+       toque, y no se puede escribir un 17. Los que tiene otro cliente salen
+       apagados con su codigo debajo. Tocar el elegido otra vez lo quita. #}
+    <div class="form-label mt-12">{{ icono('campana', 16) }} Localizador
+      <span class="ped-ayuda" id="loc-ayuda">toca el que le entregas</span></div>
+    <div class="loc-grid" id="loc-grid">
+      {% for n in LOCALIZADORES %}
+      <button type="button" class="loc-btn{% if n in ocupados %} ocupado{% endif %}"
+              data-n="{{ n }}" onclick="tocarLoc(this)">
+        <span class="loc-n num">{{ n }}</span>
+        <span class="loc-quien">{{ ocupados.get(n, '') }}</span>
+      </button>
+      {% endfor %}
+    </div>
+
+    <textarea class="form-input mt-12" id="notas" rows="2"
+              placeholder="Notas para cocina: sin cebolla, bien cocida…"></textarea>
+
+    <div class="ped-barra-acciones mt-12">
+      <button class="btn btn-ghost btn-lg" id="btn-sin-cobrar" onclick="enviarSinCobrar()">
+        {{ icono('flecha', 20) }} Enviar sin cobrar
+      </button>
+      <button class="btn btn-green btn-lg" id="btn-cobrar" onclick="enviarCobrando()">
+        {{ icono('cobrar', 20) }} Cobrar y enviar
+      </button>
+    </div>
+  </div>
+</div>
 
 {% include "_hoja_cobro.html" %}
 
@@ -298,12 +316,18 @@ function filtrar(chip) {
     c.classList.toggle('activo', c === chip);
   });
   document.querySelectorAll('.cat-bloque').forEach(function (b) {
-    b.style.display = (!cat || b.dataset.c === cat) ? '' : 'none';
+    b.hidden = b.dataset.c !== cat;
   });
-  // Con una sola categoria a la vista, su titulo sobra
-  document.querySelectorAll('.cat-titulo').forEach(function (h) {
-    h.style.display = cat ? 'none' : '';
+}
+
+/* ── Pestañas Pizzas / Bebidas ────────────────────────────────── */
+function verTab(t) {
+  document.querySelectorAll('.ped-tab').forEach(function (b) {
+    b.classList.toggle('activo', b.dataset.t === t);
+    b.setAttribute('aria-selected', b.dataset.t === t);
   });
+  document.getElementById('tab-pizzas').hidden = t !== 'pizzas';
+  document.getElementById('tab-bebidas').hidden = t !== 'bebidas';
 }
 
 /* ── Cantidad desde la propia bebida ──────────────────────────── */
@@ -375,12 +399,22 @@ function pinta() {
           + '</div></div>';
   });
   var vacio = '<div class="ped-vacio">Todavía no has agregado nada</div>';
-  document.getElementById('carrito').innerHTML = html || vacio;
   document.getElementById('panel-lista').innerHTML = html || vacio;
-  if (!carrito.length) verPanel(false);
+  if (!carrito.length) { verPanel(false); cerrarEntrega(); }
   document.getElementById('barra-n').textContent = uds + (uds === 1 ? ' producto' : ' productos');
-  document.getElementById('barra-t').textContent = fmt(total);
-  document.getElementById('ped-barra').style.display = carrito.length ? '' : 'none';
+  var t = document.getElementById('barra-t');
+  if (t.textContent !== fmt(total)) {
+    t.textContent = fmt(total);
+    t.classList.remove('vr-salta'); void t.offsetWidth; t.classList.add('vr-salta');
+  }
+  document.getElementById('ped-barra').hidden = !carrito.length;
+  // Cuantas cosas lleva cada pestaña: se sabe sin tener que abrirla
+  ['Pizza', 'Bebida'].forEach(function (tipo) {
+    var n = carrito.reduce(function (s, x) { return s + (x.tipo === tipo ? x.cantidad : 0); }, 0);
+    var el = document.getElementById(tipo === 'Pizza' ? 'tab-n-pizzas' : 'tab-n-bebidas');
+    el.textContent = n; el.hidden = !n;
+  });
+  pintarResumen();
   pintarContadores();
 }
 
@@ -393,9 +427,45 @@ function limpiar() {
 function verPanel(abrir) {
   var p = document.getElementById('ped-panel');
   var on = (abrir === undefined) ? !p.classList.contains('abierto') : abrir;
+  if (on) {
+    var barra = document.getElementById('ped-barra');
+    p.style.bottom = (window.innerHeight - barra.getBoundingClientRect().top) + 'px';
+  }
   p.classList.toggle('abierto', on);
   document.getElementById('barra-ver').textContent = on ? 'ocultar' : 'ver detalle';
 }
+
+/* ── Paso 2: hoja de Entrega ──────────────────────────────────── */
+function pintarResumen() {
+  var cod = document.getElementById('codigo').value.trim();
+  document.getElementById('ent-titulo').textContent = 'Entrega' + (cod ? ' — ' + cod : '');
+  var uds = carrito.reduce(function (s, x) { return s + x.cantidad; }, 0);
+  document.getElementById('ent-resumen').textContent =
+    uds + (uds === 1 ? ' producto' : ' productos') + ' · ' + fmt(totalCarrito());
+}
+
+function abrirEntrega() {
+  if (!carrito.length) return;
+  var cod = document.getElementById('codigo');
+  if (!cod.value.trim()) {
+    // Sin alert: se marca el campo, que esta arriba y a la vista
+    verPanel(false);
+    var av = document.getElementById('aviso-codigo');
+    av.className = 'vr-aviso vr-aviso-nuevo';
+    av.textContent = 'Escribe el código de reserva para continuar';
+    av.style.display = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    cod.focus();
+    return;
+  }
+  verPanel(false);
+  pintarResumen();
+  // Lo que otros meseros tomaron mientras se armaba este pedido
+  refrescarLocs(); refrescarCupos();
+  document.getElementById('hoja-entrega').classList.add('open');
+}
+
+function cerrarEntrega() { document.getElementById('hoja-entrega').classList.remove('open'); }
 
 /* ── Código de reserva: avisa si ya existe ────────────────────── */
 function revisarCodigo() {
@@ -423,7 +493,7 @@ function totalCarrito() {
 
 function listoParaEnviar() {
   var cod = document.getElementById('codigo').value.trim();
-  if (!cod) { alert('Falta el código de reserva'); document.getElementById('codigo').focus(); return null; }
+  if (!cod) { cerrarEntrega(); abrirEntrega(); return null; }   // marca el campo
   if (!carrito.length) return null;
   return cod;
 }
@@ -456,7 +526,7 @@ async function mandar(cobro, destino, locForzar) {
     var res = await postPedido('/mesero/nuevo', {
       codigo: cod, localizador: LOC, loc_forzar: !!locForzar || (LOC > 0 && locForzado === LOC),
       items: carrito, notas: document.getElementById('notas').value.trim(),
-      franja: document.getElementById('franja').value, destino: destino
+      franja: FRANJA, destino: destino
     }, cobro);
     var d = res.d;
     if (res.status === 409 && d.existe) { ocupado(false); preguntarDup(d, cobro); return; }
@@ -503,7 +573,7 @@ function elegirLoc(n) {
   document.querySelectorAll('.loc-btn').forEach(function (b) {
     b.classList.toggle('activo', parseInt(b.dataset.n, 10) === n);
   });
-  document.getElementById('loc-ayuda').textContent = n ? 'el ' + n : 'toca el que le entregas';
+  document.getElementById('loc-ayuda').textContent = n ? 'el ' + n + ' · tócalo otra vez para quitarlo' : 'toca el que le entregas';
 }
 
 // Otro mesero puede estar entregando localizadores al mismo tiempo
@@ -521,17 +591,33 @@ setInterval(refrescarLocs, 20000);
 
 /* ── Cupos por hora de entrega ────────────────────────────────── */
 var MAX_FRANJA = {{ MAX_PEDIDOS_POR_FRANJA }};
+// La que la plantilla dejo marcada: la primera con cupo
+var FRANJA = (document.querySelector('.hora-btn.activo') || { dataset: {} }).dataset.f || '';
+
+function elegirFranja(b) {
+  if (b.disabled) return;
+  FRANJA = b.dataset.f;
+  document.querySelectorAll('.hora-btn').forEach(function (x) {
+    x.classList.toggle('activo', x === b);
+  });
+}
 
 function pintarCupos(cupos) {
-  var sel = document.getElementById('franja'), libre = null;
-  Array.prototype.forEach.call(sel.options, function (o) {
-    var n = cupos[o.dataset.f] || 0, lleno = n >= MAX_FRANJA;
-    o.disabled = lleno;
-    o.textContent = o.dataset.f + ' · ' + (lleno ? 'LLENO' : n + '/' + MAX_FRANJA);
-    if (!lleno && libre === null) libre = o.value;
+  var libre = null, actualLlena = false;
+  document.querySelectorAll('.hora-btn').forEach(function (b) {
+    var f = b.dataset.f, n = cupos[f] || 0, lleno = n >= MAX_FRANJA;
+    var txt = lleno ? 'LLENO' : n + '/' + MAX_FRANJA;
+    b.disabled = lleno;
+    b.querySelector('.hora-c').textContent = txt;
+    b.setAttribute('aria-label', f + ' · ' + txt);
+    if (!lleno && libre === null) libre = b;
+    if (lleno && f === FRANJA) actualLlena = true;
   });
   // La que estaba elegida se lleno mientras se armaba el pedido
-  if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled && libre) sel.value = libre;
+  if (actualLlena && libre) {
+    elegirFranja(libre);
+    showToast('Esa hora se llenó: quedó ' + FRANJA, 3000);
+  }
 }
 
 async function refrescarCupos() {
