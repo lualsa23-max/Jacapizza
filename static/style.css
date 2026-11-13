@@ -79,17 +79,30 @@ body {
 .nav-brand {
   /* El logo oficial (static/marca/), no texto: asi se ve identico en todo
      aparato. Es un PNG servido por la propia app, de modo que tampoco
-     depende de internet. flex:1 empuja el resto de la barra a la derecha. */
-  flex: 1;
+     depende de internet. No se encoge nunca: si la barra se queda corta,
+  cede el nombre de la persona (se corta con "…"), no el logo. */
+  flex: none;
   display: flex; align-items: center;
-  min-width: 0;
 }
-.nav-brand img { height: 22px; width: auto; display: block; }
-.nav-info { display: flex; align-items: center; gap: 7px; }
-.nav-user { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.nav-brand img { height: 20px; width: auto; display: block; }
+/* En el celular nombre y rol van apilados a la derecha: en una sola linea
+   "Luis Sarmiento" + "Administrador" no caben junto al logo en 390px. */
+.nav-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+}
+.nav-user {
+  font-size: 0.82rem; font-weight: 600; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
 .role-badge {
-  font-size: 0.68rem; font-weight: 700; padding: 2px 8px;
+  font-size: 0.62rem; font-weight: 700; padding: 1px 7px; line-height: 1.5;
   border-radius: 999px; white-space: nowrap;
+}
+@media (min-width: 700px) {
+  .nav-brand img { height: 24px; }
+  .nav-info { flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; }
+  .role-badge { font-size: 0.68rem; padding: 2px 8px; }
 }
 /* Dos roles. Los viejos (.role-mesero/.role-cajero/.role-cocina) se
    conservan un tiempo por si alguna sesion abierta todavia los usa. */
