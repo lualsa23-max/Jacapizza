@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response, send_from_directory, g, has_app_context
-import sqlite3, os, csv, io, json, sys, traceback, uuid
+import sqlite3, os, csv, io, json, sys, traceback, uuid, unicodedata
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from werkzeug.utils import secure_filename
@@ -937,6 +937,33 @@ def get_inv_estandar():
         if result: return result
     except: pass
     return dict(INV_DEFAULT)
+
+
+def get_inv_por_categoria():
+    """Lo mismo que get_inv_estandar, pero agrupado para la pantalla de
+    Inventario: {categoria: [(nombre, tipo, alerta_def), ...]}.
+
+    La masa va primero, en "Pizzas"; las bebidas siguen el orden de
+    CATEGORIAS_BEBIDA (el de Nuevo pedido) y lo que no tenga categoria se
+    adivina por el nombre, como en el resto de pantallas."""
+    cats = {}
+    try:
+        with _conn() as c:
+            cats = {r["nombre"]: r["cat"] for r in c.execute(
+                "SELECT nombre, COALESCE(categoria,'') cat FROM catalogo "
+                "WHERE en_inventario=1 AND activo=1").fetchall()}
+    except Exception:
+        pass
+    grupos = {}
+    for nombre, (tipo, alerta) in get_inv_estandar().items():
+        cat = "Pizzas" if tipo == "pizza" else (cats.get(nombre) or categoria_sugerida(nombre))
+        grupos.setdefault(cat, []).append((nombre, tipo, alerta))
+    orden = ["Pizzas"] + CATEGORIAS_BEBIDA
+    orden = [c for c in orden if c in grupos] + sorted(c for c in grupos if c not in orden)
+    # Sin tildes para ordenar: si no, "Águila" queda despues de "Poker".
+    def clave(x):
+        return unicodedata.normalize("NFD", x[0]).encode("ascii", "ignore").decode().lower()
+    return {c: sorted(grupos[c], key=clave) for c in orden}
 
 # ── PEDIDOS ───────────────────────────────────────────
 def _pagos_de_filas(rows):
@@ -2207,11 +2234,14 @@ def admin_inventario():
             tipo_cat = item.get('tipo_cat','bebida')
             stock    = int(item.get('stock',0) or 0)
             alerta   = int(item.get('alerta',5) or 5)
+            categoria = item.get('categoria', '')
+            if categoria not in CATEGORIAS_BEBIDA:
+                categoria = categoria_sugerida(nombre)
             if nombre:
                 try:
                     with _conn() as c:
-                        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo) VALUES (?,?,0,1,?,1)",
-                                  (nombre, tipo_cat, alerta))
+                        c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo,categoria) VALUES (?,?,0,1,?,1,?)",
+                                  (nombre, tipo_cat, alerta, categoria))
                         c.execute("UPDATE catalogo SET en_inventario=1,activo=1,alerta_min=? WHERE nombre=?",
                                   (alerta, nombre))
                 except: pass
@@ -2219,8 +2249,8 @@ def admin_inventario():
         return jsonify({'ok': True})
     inv_dict = {i["nombre"]: i for i in get_inventario_hoy()}
     pulpas   = get_pulpas_hoy()
-    inv_std  = get_inv_estandar()
-    return render_template('admin_inventario.html', inv_estandar=inv_std, inv_dict=inv_dict, pulpas=pulpas)
+    return render_template('admin_inventario.html', grupos=get_inv_por_categoria(),
+                           inv_dict=inv_dict, pulpas=pulpas, categorias=CATEGORIAS_BEBIDA)
 
 @app.route('/admin/cierre', methods=['GET','POST'])
 @login_required   # trabajo diario: conteo fisico al cerrar

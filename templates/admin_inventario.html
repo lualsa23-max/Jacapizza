@@ -5,37 +5,63 @@
 
 <div id="status" class="flash flash-success mb-12" style="display:none">{{ icono('check', 18) }} Inventario guardado correctamente</div>
 
-<h3 style="font-size:.9rem;color:var(--gray2);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Ítems en inventario</h3>
+{# Una categoria a la vez, con las mismas pastillas de Nuevo pedido. El chip
+   dice cuantos productos tiene y cuantos estan en alerta, para saber donde
+   mirar. El buscador atraviesa todas las categorias. Los que no se ven
+   igual se guardan: guardar() recorre todos los [data-key]. #}
+<input id="inv-buscar" class="form-input mb-12" type="search" placeholder="Buscar producto…"
+       autocomplete="off" oninput="buscar(this.value)" style="min-height:44px">
+
+<div class="cat-filtros" id="inv-chips">
+  {% for cat, lista in grupos.items() %}
+  {% set ns = namespace(alertas=0) %}
+  {% for nombre, tipo, alerta_def in lista %}{% set ex = inv_dict.get(nombre) %}
+    {% if ex and ex.stock <= ex.alerta_min %}{% set ns.alertas = ns.alertas + 1 %}{% endif %}
+  {% endfor %}
+  <button type="button" class="cat-chip{% if loop.first %} activo{% endif %}" data-c="{{ cat }}"
+          onclick="filtrar(this.dataset.c)">
+    {{ cat }} <span class="cat-n">{{ lista|length }}</span>
+    {% if ns.alertas %}<span class="cat-n inv-chip-alerta" title="En alerta o agotados">{{ icono('alerta', 12) }} {{ ns.alertas }}</span>{% endif %}
+  </button>
+  {% endfor %}
+</div>
+
 <div id="inv-estandar">
-{% for nombre, vals in inv_estandar.items() %}{% set tipo = vals[0] %}{% set alerta_def = vals[1] %}
-{% set ex = inv_dict.get(nombre) %}
-{% set cur_stock  = ex.stock       if ex else 0 %}
-{% set cur_alerta = ex.alerta_min  if ex else alerta_def %}
-<div class="inv-row" style="flex-wrap:wrap;gap:8px">
-  <span class="inv-name" style="min-width:150px">
-    {{ icono('pizza', 16) if tipo == 'pizza' else icono('bebidas', 16) }} {{ nombre }}
-  </span>
-  <div class="inv-spin">
-    <span>Stock</span>
-    <input class="inv-input" type="number" min="0" max="500"
-           name="stock_{{ nombre }}" value="{{ cur_stock }}" data-key="stock_{{ nombre }}">
+{% for cat, lista in grupos.items() %}
+<div class="cat-bloque" data-c="{{ cat }}"{% if not loop.first %} hidden{% endif %}>
+  <div class="cat-titulo">
+    {{ icono('pizza' if cat == 'Pizzas' else ICONOS_CATEGORIA.get(cat, 'bebidas'), 16) }} {{ cat }}
   </div>
-  <div class="inv-spin">
-    <span>Alerta</span>
-    <input class="inv-input" type="number" min="1" max="99"
-           name="alerta_{{ nombre }}" value="{{ cur_alerta }}" data-key="alerta_{{ nombre }}" style="width:50px">
-  </div>
-  {% if ex %}
-    {% if ex.stock == 0 %}
-      <span class="inv-badge c-red">{{ icono('alerta', 18) }} Agotado</span>
-    {% elif ex.stock <= ex.alerta_min %}
-      <span class="inv-badge c-orange">{{ icono('alerta', 18) }} {{ ex.stock }}</span>
-    {% else %}
-      <span class="inv-badge c-green">{{ icono('check', 18) }} {{ ex.stock }}</span>
+  {% for nombre, tipo, alerta_def in lista %}
+  {% set ex = inv_dict.get(nombre) %}
+  {% set cur_stock  = ex.stock       if ex else 0 %}
+  {% set cur_alerta = ex.alerta_min  if ex else alerta_def %}
+  <div class="inv-row" data-n="{{ nombre|lower }}" style="flex-wrap:wrap;gap:8px">
+    <span class="inv-name" style="min-width:150px">{{ nombre }}</span>
+    <div class="inv-spin">
+      <span>Stock</span>
+      <input class="inv-input" type="number" min="0" max="500"
+             name="stock_{{ nombre }}" value="{{ cur_stock }}" data-key="stock_{{ nombre }}">
+    </div>
+    <div class="inv-spin">
+      <span>Alerta</span>
+      <input class="inv-input" type="number" min="1" max="99"
+             name="alerta_{{ nombre }}" value="{{ cur_alerta }}" data-key="alerta_{{ nombre }}" style="width:50px">
+    </div>
+    {% if ex %}
+      {% if ex.stock == 0 %}
+        <span class="inv-badge c-red">{{ icono('alerta', 18) }} Agotado</span>
+      {% elif ex.stock <= ex.alerta_min %}
+        <span class="inv-badge c-orange">{{ icono('alerta', 18) }} {{ ex.stock }}</span>
+      {% else %}
+        <span class="inv-badge c-green">{{ icono('check', 18) }} {{ ex.stock }}</span>
+      {% endif %}
     {% endif %}
-  {% endif %}
+  </div>
+  {% endfor %}
 </div>
 {% endfor %}
+<p id="inv-sin-resultados" class="text-sm c-gray" hidden>Ningún producto con ese nombre.</p>
 </div>
 
 <hr class="divider mt-16">
@@ -72,6 +98,50 @@
 
 {% block scripts %}
 <script>
+/* ── Categorias y buscador ────────────────────────────────────── */
+// La categoria elegida sobrevive a la recarga que hace guardar(): si estabas
+// en Jugos, vuelves a Jugos.
+var CAT_KEY = 'inv-cat';
+
+function filtrar(cat) {
+  if (!document.querySelector('.cat-bloque[data-c="' + CSS.escape(cat) + '"]')) return;
+  document.getElementById('inv-buscar').value = '';
+  document.querySelectorAll('#inv-chips .cat-chip').forEach(function (c) {
+    c.classList.toggle('activo', c.dataset.c === cat);
+  });
+  document.querySelectorAll('.cat-bloque').forEach(function (b) {
+    b.hidden = b.dataset.c !== cat;
+    b.querySelectorAll('.inv-row').forEach(function (r) { r.hidden = false; });
+  });
+  document.getElementById('inv-sin-resultados').hidden = true;
+  try { sessionStorage.setItem(CAT_KEY, cat); } catch (e) {}
+}
+
+function buscar(q) {
+  q = q.trim().toLowerCase();
+  if (!q) {
+    var act = document.querySelector('#inv-chips .cat-chip.activo');
+    filtrar(act ? act.dataset.c : document.querySelector('#inv-chips .cat-chip').dataset.c);
+    return;
+  }
+  var hay = 0;
+  document.querySelectorAll('.cat-bloque').forEach(function (b) {
+    var n = 0;
+    b.querySelectorAll('.inv-row').forEach(function (r) {
+      var ok = r.dataset.n.indexOf(q) !== -1;
+      r.hidden = !ok; if (ok) n++;
+    });
+    b.hidden = n === 0; hay += n;
+  });
+  document.getElementById('inv-sin-resultados').hidden = hay > 0;
+}
+
+(function () {
+  var cat = null;
+  try { cat = sessionStorage.getItem(CAT_KEY); } catch (e) {}
+  if (cat) filtrar(cat);
+})();
+
 function addPulpa(nombre='', stock=0){
   const c = document.getElementById('pulpas-container');
   const row = document.createElement('div');
@@ -110,9 +180,17 @@ function addNuevo(){
       </div>
       <div style="min-width:60px">
         <label class="form-label">Tipo</label>
-        <select class="form-select nuevo-tipo" style="min-height:40px;font-size:.88rem">
-          <option value="bebida">{{ icono('bebidas', 18) }} Bebida</option>
-          <option value="pizza">{{ icono('pizza', 18) }} Pizza</option>
+        <select class="form-select nuevo-tipo" style="min-height:40px;font-size:.88rem"
+                onchange="this.closest('.nuevo-row').querySelector('.nuevo-cat-wrap').hidden = this.value !== 'bebida'">
+          <option value="bebida">Bebida</option>
+          <option value="pizza">Pizza</option>
+        </select>
+      </div>
+      <div class="nuevo-cat-wrap" style="flex:1;min-width:120px">
+        <label class="form-label">Categoría</label>
+        <select class="form-select nuevo-cat" style="min-height:40px;font-size:.88rem">
+          <option value="">Según el nombre</option>
+          {% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
         </select>
       </div>
       <button type="button" class="btn btn-danger btn-sm" style="min-height:40px" onclick="this.closest('.nuevo-row').remove()">✕</button>
@@ -123,6 +201,10 @@ function addNuevo(){
     </div>
   `;
   c.appendChild(row);
+  // Si estas mirando una categoria de bebidas, el nuevo cae ahi por defecto.
+  var act = document.querySelector('#inv-chips .cat-chip.activo');
+  var sel = row.querySelector('.nuevo-cat');
+  if (act && [].some.call(sel.options, function (o) { return o.value === act.dataset.c; })) sel.value = act.dataset.c;
   row.querySelector('.nuevo-nombre').focus();
 }
 
@@ -151,7 +233,8 @@ async function guardar(){
     const stock  = parseInt(row.querySelector('.nuevo-stock').value)||0;
     const alerta = parseInt(row.querySelector('.nuevo-alerta').value)||5;
     const tipo_cat = row.querySelector('.nuevo-tipo').value;
-    if(nombre) nuevos.push({nombre, stock, alerta, tipo_cat});
+    const categoria = tipo_cat === 'bebida' ? row.querySelector('.nuevo-cat').value : '';
+    if(nombre) nuevos.push({nombre, stock, alerta, tipo_cat, categoria});
   });
   payload.nuevos = nuevos;
 
