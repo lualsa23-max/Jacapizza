@@ -211,7 +211,7 @@ MAX_PEDIDOS_POR_FRANJA = 6
 # estos numeros sino la tabla `catalogo` (se edita desde Menu); ver
 # _MENU_2026_11 mas abajo, que es lo que llevo la base real a este menu.
 BEBIDAS_DEFAULT = {
-    "Gaseosa":4000,"Agua 600ml":4000,
+    "Gaseosa":4000,"Agua 1000ml":4000,
     "Cerveza Águila":5000,"Cerveza Águila Light":5000,"Cerveza Coronita":5000,
     "Cerveza Poker":5000,"Limonada de Coco":9000,"Cerezada":9000,
     "Jugo Natural — Guanábana":9000,"Jugo Natural — Mora":9000,
@@ -255,7 +255,7 @@ JUGOS_SABORES = [
     "Maracumango","Maracuyá","Piña","Piña-Hierbabuena",
 ]
 INV_DEFAULT = {
-    "Pizza (masa)":("pizza",3),"Agua 600ml":("bebida",5),"Gaseosa":("bebida",5),
+    "Pizza (masa)":("pizza",3),"Agua 1000ml":("bebida",5),"Gaseosa":("bebida",5),
     "Cerveza Águila":("bebida",5),"Cerveza Águila Light":("bebida",5),
     "Cerveza Coronita":("bebida",5),"Cerveza Poker":("bebida",5),
     "Soda Italiana - Frutos Rojos":("bebida",5),"Soda Italiana - Frutos Amarillos":("bebida",5),
@@ -584,7 +584,7 @@ def _seed_catalogo():
                     c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min) VALUES (?,?,?,0,0)",
                              (nombre,"pizza",precio))
                 beb_inv = [
-                    ("Gaseosa",4000,5),("Agua 600ml",4000,5),
+                    ("Gaseosa",4000,5),("Agua 1000ml",4000,5),
                     ("Cerveza Águila",4000,5),("Cerveza Águila Light",4000,5),
                     ("Cerveza Coronita",5000,5),("Cerveza Poker",4000,5),
                     ("Soda Italiana - Frutos Rojos",5000,5),
@@ -753,6 +753,51 @@ def _ajustar_menu_2026_11():
 
 
 try: _ajustar_menu_2026_11()
+except: pass
+
+
+# Una sola agua: la de 1000 ml a $4.000 (pedido del dueño, 15-nov-2026).
+# Corre UNA vez por base, como los ajustes de arriba. "Agua 600ml" y "Agua"
+# (la pequeña) quedan con activo=0: salen del Menu, de Nuevo pedido y del
+# Inventario, y desde el dia siguiente su fila de inventario ya no se arrastra
+# (ver get_inventario_hoy). Se revierte con activo=1; los pedidos viejos no
+# se tocan. La 1000 ml arranca sin fila de inventario: no bloquea ventas
+# hasta que alguien cargue su stock.
+AGUA = "Agua 1000ml"
+
+
+def _ajustar_agua_2026_11():
+    clave = "agua_1000ml_2026_11"
+    try:
+        with _conn() as c:
+            c.execute("BEGIN IMMEDIATE")     # los 2 workers arrancan a la vez
+            if c.execute("SELECT 1 FROM meta WHERE clave=?", (clave,)).fetchone():
+                c.execute("ROLLBACK")
+                return
+            cambios = []
+            if c.execute("SELECT 1 FROM catalogo WHERE nombre=?", (AGUA,)).fetchone():
+                c.execute("UPDATE catalogo SET precio=4000, activo=1, en_inventario=1 WHERE nombre=?",
+                          (AGUA,))
+                cambios.append(f"{AGUA} a $4000 y activa")
+            else:
+                c.execute("INSERT INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,"
+                          "activo,categoria) VALUES (?,?,4000,1,5,1,'Gaseosas y aguas')",
+                          (AGUA, "bebida"))
+                cambios.append(f"{AGUA} nueva a $4000")
+            # Cualquier otra agua en botella: "Agua", "Agua 600ml", "agua 600 ml"...
+            for r in c.execute("SELECT id, nombre FROM catalogo WHERE activo=1 AND nombre<>? "
+                               "AND (nombre LIKE 'agua' OR nombre LIKE 'agua %' OR nombre LIKE 'agua%ml')",
+                               (AGUA,)).fetchall():
+                c.execute("UPDATE catalogo SET activo=0 WHERE id=?", (r["id"],))
+                cambios.append(f"{r['nombre']} de baja")
+            c.execute("INSERT INTO meta (clave,valor) VALUES (?,?)", (clave, ahora().isoformat()))
+        for linea in cambios:
+            print(f"[BOOT] agua: {linea}", flush=True)
+    except Exception as e:
+        print(f"[BOOT] _ajustar_agua_2026_11 fallo: {e}", flush=True)
+
+
+try: _ajustar_agua_2026_11()
 except: pass
 
 
@@ -1753,8 +1798,11 @@ def get_inventario_hoy():
         if not ultimo_dia:
             return []
         fecha_ant = ultimo_dia["fecha"]
+        # Lo dado de baja en el Menu (activo=0) no se arrastra: si no, se
+        # quedaba para siempre en el cierre y en los avisos de "por acabarse".
         rows_ant = c.execute(
-            "SELECT nombre, tipo, stock, alerta_min FROM inventario WHERE fecha=? AND tipo!='pulpa'",
+            "SELECT nombre, tipo, stock, alerta_min FROM inventario WHERE fecha=? AND tipo!='pulpa' "
+            "AND nombre NOT IN (SELECT nombre FROM catalogo WHERE activo=0)",
             (fecha_ant,)).fetchall()
         # Crear registros de hoy con el stock final de ayer.
         # OR IGNORE + indice unico: si el otro worker se adelanto, este no
@@ -1797,6 +1845,7 @@ def get_productos_stock_bajo():
         rows = c.execute(
             "SELECT nombre, tipo, stock, alerta_min FROM inventario "
             "WHERE fecha=? AND alerta_min > 0 AND stock <= alerta_min "
+            "AND nombre NOT IN (SELECT nombre FROM catalogo WHERE activo=0) "
             "ORDER BY stock ASC, nombre ASC", (hoy,)).fetchall()
         return [{"nombre": r["nombre"], "tipo": r["tipo"], "stock": r["stock"],
                  "alerta_min": r["alerta_min"]} for r in rows]
@@ -1849,7 +1898,7 @@ def _item_a_stock_key(nombre, tipo):
     if nombre.startswith("Soda Italiana"):
         if "Frutos Rojos" in nombre:     return "Soda Italiana - Frutos Rojos"
         if "Frutos Amarillos" in nombre: return "Soda Italiana - Frutos Amarillos"
-    for key in ["Gaseosa","Agua 600ml","Cerveza Águila Light","Cerveza Águila","Cerveza Coronita",
+    for key in ["Gaseosa","Agua 1000ml","Cerveza Águila Light","Cerveza Águila","Cerveza Coronita",
                 "Limonada de Coco","Cerezada","Cerveza Poker"]:
         if nombre.startswith(key): return key
     # Productos del catalogo. Lo vendido puede traer variantes pegadas al

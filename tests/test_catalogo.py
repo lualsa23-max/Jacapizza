@@ -7,6 +7,7 @@ Revision del catalogo de nov-2026.
 2. Lo vendido con variante ("— en agua", "— Michelada") descuenta el
    inventario del producto. Antes los jugos casi nunca lo hacian.
 3. Una pizza de dos sabores tiene un solo nombre, se toquen en el orden que sea.
+4. Una sola agua: la de 1000 ml a $4.000.
 
     python tests/test_catalogo.py
 """
@@ -117,6 +118,43 @@ def test_pizza_dos_sabores_un_nombre():
     nombres = [i["nombre"] for i in A.get_pedido(d["id"])["productos"]]
     check(r.status_code == 200 and nombres == ["Mexicana / Pepperoni"],
           f"desde Editar también (quedó {nombres})")
+
+
+def test_una_sola_agua():
+    print("\n  Solo queda el Agua 1000ml a $4.000")
+    with A._conn() as c:
+        # Como esta en produccion: las dos aguas activas, con inventario de ayer
+        for nombre, precio in [("Agua 600ml", 4000), ("Agua", 1500)]:
+            c.execute("INSERT OR IGNORE INTO catalogo (nombre,tipo,precio,en_inventario,alerta_min,activo,categoria) "
+                      "VALUES (?,'bebida',?,1,5,1,'Gaseosas y aguas')", (nombre, precio))
+            c.execute("UPDATE catalogo SET activo=1 WHERE nombre=?", (nombre,))
+        c.execute("DELETE FROM catalogo WHERE nombre=?", (A.AGUA,))
+        c.execute("DELETE FROM meta WHERE clave='agua_1000ml_2026_11'")
+        ayer = (A.ahora() - A.timedelta(days=1)).strftime("%d/%m/%Y")
+        hoy = A.ahora().strftime("%d/%m/%Y")
+        c.execute("DELETE FROM inventario WHERE fecha IN (?,?)", (ayer, hoy))
+        for nombre in ("Agua 600ml", "Gaseosa"):
+            c.execute("INSERT INTO inventario (nombre,tipo,stock,stock_inicial,alerta_min,fecha) "
+                      "VALUES (?,'bebida',2,2,5,?)", (nombre, ayer))
+    A._ajustar_agua_2026_11()
+    aguas = [n for n in A.get_bebidas_por_categoria().get("Gaseosas y aguas", {}) if n.lower().startswith("agua")]
+    check(aguas == [A.AGUA], f"en Nuevo pedido solo sale {A.AGUA} (salen {aguas})")
+    check(A.get_bebidas_por_categoria()["Gaseosas y aguas"][A.AGUA] == 4000, "a $4.000")
+    inv = [n for n in A.get_inv_estandar() if n.lower().startswith("agua")]
+    check(inv == [A.AGUA], f"en Inventario solo sale {A.AGUA} (salen {inv})")
+    menu = [r["nombre"] for r in A.get_catalogo_admin("bebidas") if r["nombre"].lower().startswith("agua")]
+    check(menu == [A.AGUA], f"en Menú solo sale {A.AGUA} (salen {menu})")
+    hoy_inv = {i["nombre"] for i in A.get_inventario_hoy()}
+    check("Agua 600ml" not in hoy_inv and "Gaseosa" in hoy_inv,
+          "la de 600 ya no se arrastra al inventario de hoy; lo demás sí")
+    check(A._item_a_stock_key(A.AGUA, "Bebida") == A.AGUA, "vender la de 1000 descuenta su propio stock")
+    ok, _ = A.validar_stock_pedido([{"nombre": A.AGUA, "tipo": "Bebida", "cantidad": 3}])
+    check(ok, "sin stock cargado todavía, no bloquea la venta")
+
+    with A._conn() as c:
+        c.execute("UPDATE catalogo SET activo=1 WHERE nombre='Agua'")
+    A._ajustar_agua_2026_11()
+    check(fila("Agua")["activo"] == 1, "corre una sola vez: si se reactiva desde Menú, no se pisa")
 
 
 if __name__ == "__main__":

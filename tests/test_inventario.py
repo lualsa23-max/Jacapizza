@@ -73,7 +73,7 @@ def test_ajuste_manual_no_diverge():
     print("\n  Corregir el stock a mano debe verse reflejado")
     sembrar_ayer()
     A.get_inventario_hoy()
-    nombre = "Agua 600ml"
+    nombre = "Agua 1000ml"
     A.upsert_inventario(nombre, "bebida", 50)
     check(A.get_stock_dict().get(nombre) == 50, "tras corregir a 50, el sistema dice 50")
     A.ajustar_stock(nombre, -3)
