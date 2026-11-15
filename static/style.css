@@ -1356,6 +1356,21 @@ a.nav-brand:active { opacity: .7; }
   padding: var(--s5) 0 var(--s4);
 }
 
+/* Login: todo en una pantalla, sin scroll. Antes .login-wrap ocupaba el 100vh
+   y la firma quedaba debajo, siempre fuera de vista; en el celular, ademas,
+   100vh cuenta la barra del navegador. Ahora la pagina es una columna del
+   alto visible (dvh): el formulario se centra en lo que sobra y la firma
+   queda abajo, a la vista, respetando la zona del gesto en iPhone. */
+.login-body {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
+  background: radial-gradient(ellipse at 60% 30%, rgba(199,24,126,.12) 0%, transparent 60%), var(--bg);
+}
+.login-body .login-wrap { flex: 1; min-height: 0; background: none; }
+.login-body .pivota-pie {
+  padding: var(--s3) 0 calc(var(--s5) + env(safe-area-inset-bottom));
+}
+
 /* Vista previa del comprobante antes de cobrar */
 .comp-vista { margin-bottom: 10px; text-align: center; }
 /* Editar pedido: lo que debera y las dos salidas */
