@@ -227,18 +227,7 @@
   </div>
 </div>
 
-{# ── Hoja de variantes ─────────────────────────────────────────── #}
-<div class="overlay" id="hoja-var" onclick="if(event.target===this)cerrarVar()">
-  <div class="sheet">
-    <div class="sheet-titulo" id="var-titulo"></div>
-    <div id="var-opciones"></div>
-    <div id="var-texto" style="display:none">
-      <input class="form-input" type="text" id="var-input" placeholder="¿Cuál?">
-      <button class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarTexto()">Agregar</button>
-    </div>
-    <button class="btn btn-ghost btn-full mt-8" onclick="cerrarVar()">Cancelar</button>
-  </div>
-</div>
+{% include "_hoja_variante.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -277,67 +266,15 @@ function agregarPizza() {
   document.getElementById('btn-pizza').disabled = true;
 }
 
-/* ── Bebidas: algunas piden variante ──────────────────────────── */
-var VARIANTES = {
-  'Gaseosa':        { tipo: 'texto',  pide: '¿De qué sabor?' },
-  'Soda Italiana':  { tipo: 'lista',  ops: ['Frutos Rojos', 'Frutos Amarillos'] },
-  'Cerezada':       { tipo: 'lista',  ops: ['en agua', 'en leche'] },
-  'Limonada de Coco': { tipo: 'lista', ops: ['en agua', 'en leche'] }
-};
-var pendiente = null;
-
+/* ── Bebidas: algunas piden variante (ver _hoja_variante.html) ──── */
 function tocarBebida(b) {
   var n = b.dataset.n, p = parseInt(b.dataset.p, 10), s = parseInt(b.dataset.s, 10);
-  pendienteTile = b;
   if (b.classList.contains('ped-comida')) { meter(n, 'Pizza', p); return; }   // va a cocina
   if (s === 0 && !avisados[n]) {
     avisados[n] = true;
     if (!confirm('El inventario dice que no queda ' + n + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
   }
-  var v = VARIANTES[n];
-  if (!v && n.indexOf('Jugo Natural') === 0) v = { tipo: 'lista', ops: ['en agua', 'en leche'] };
-  if (!v && n.indexOf('Cerveza') === 0) v = { tipo: 'lista', ops: ['Normal', 'Michelada (+$2.500)'] };
-  if (!v) { meter(n, 'Bebida', p); return; }
-  pendiente = { nombre: n, precio: p };
-  abrirVariante(n, v);
-}
-
-function abrirVariante(nombre, v) {
-  document.getElementById('var-titulo').textContent = nombre;
-  var cont = document.getElementById('var-opciones');
-  var txt = document.getElementById('var-texto');
-  if (v.tipo === 'texto') {
-    cont.innerHTML = '';
-    txt.style.display = '';
-    document.getElementById('var-input').value = '';
-    document.getElementById('var-input').placeholder = v.pide;
-  } else {
-    txt.style.display = 'none';
-    cont.innerHTML = v.ops.map(function (o) {
-      return '<button type="button" class="sheet-opt" onclick="elegirVariante(\'' +
-             o.replace(/'/g, "\\'") + '\')">' + o + '</button>';
-    }).join('');
-  }
-  document.getElementById('hoja-var').classList.add('open');
-}
-
-function elegirVariante(op) {
-  var extra = 0, etiqueta = op;
-  if (op.indexOf('Michelada') === 0) { extra = 2500; etiqueta = 'Michelada'; }
-  if (op === 'Normal') etiqueta = null;
-  meter(pendiente.nombre + (etiqueta ? ' — ' + etiqueta : ''), 'Bebida', pendiente.precio + extra);
-  cerrarVar();
-}
-
-function confirmarTexto() {
-  var v = document.getElementById('var-input').value.trim();
-  meter(pendiente.nombre + (v ? ' — ' + v : ''), 'Bebida', pendiente.precio);
-  cerrarVar();
-}
-
-function cerrarVar() {
-  document.getElementById('hoja-var').classList.remove('open');
-  pendiente = null;
+  conVariante(n, p, function (nombre, precio) { meter(nombre, 'Bebida', precio); });
 }
 
 /* ── Filtro por categoria ─────────────────────────────────────── */
@@ -363,18 +300,18 @@ function verTab(t) {
 }
 
 /* ── Cantidad desde la propia bebida ──────────────────────────── */
-var pendienteTile = null;
-
 function pasoBebida(tile, d) {
   var base = tile.dataset.n;
-  // Una bebida con variante puede estar varias veces (en agua / en leche).
-  // El +/- de la tarjeta toca la ULTIMA que se agrego de ese producto.
+  // Una bebida con variante puede estar varias veces (normal / michelada).
+  // El + de la tarjeta vuelve a preguntar: antes sumaba otra igual a la
+  // ultima, y despues de una cerveza normal ya no habia como pedir michelada.
+  // El − quita de la ULTIMA que se agrego de ese producto.
   var idx = -1;
   for (var i = carrito.length - 1; i >= 0; i--) {
-    if (carrito[i].nombre === base || carrito[i].nombre.indexOf(base + ' — ') === 0) { idx = i; break; }
+    if (esDe(carrito[i].nombre, base)) { idx = i; break; }
   }
   if (d > 0) {
-    if (idx < 0) { tocarBebida(tile); return; }   // la primera pide variante
+    if (idx < 0 || varianteDe(base)) { tocarBebida(tile); return; }
     carrito[idx].cantidad++;
   } else {
     if (idx < 0) return;
@@ -386,7 +323,7 @@ function pasoBebida(tile, d) {
 
 function cuantasHay(base) {
   return carrito.reduce(function (s, x) {
-    return s + ((x.nombre === base || x.nombre.indexOf(base + ' — ') === 0) ? x.cantidad : 0);
+    return s + (esDe(x.nombre, base) ? x.cantidad : 0);
   }, 0);
 }
 

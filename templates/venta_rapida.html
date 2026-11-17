@@ -117,6 +117,7 @@
     <button class="btn btn-ghost btn-full mt-8" onclick="cerrarPago()">Seguir agregando</button>
   </div>
 </div>
+{% include "_hoja_variante.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -167,15 +168,27 @@ function tocar(tile) {
     avisados[n] = true;
     if (!confirm('El inventario dice que no queda ' + n + '.\n\n¿Hay en la nevera? Si sí, se vende igual y luego corriges el conteo.')) return;
   }
-  var e = carrito.find(function (x) { return x.nombre === n; });
-  if (e) e.cantidad++;
-  else carrito.push({ nombre: n, tipo: 'Bebida', cantidad: 1, precio_unit: p });
-  pinta();
+  // Cerveza: normal o michelada; jugo: en agua o en leche (_hoja_variante.html)
+  conVariante(n, p, function (nombre, precio) {
+    var e = carrito.find(function (x) { return x.nombre === nombre && x.precio_unit === precio; });
+    if (e) e.cantidad++;
+    else carrito.push({ nombre: nombre, tipo: 'Bebida', cantidad: 1, precio_unit: precio });
+    pinta();
+  });
+}
+
+// Cuantas lleva de ese producto, con todas sus variantes
+function cuantasDe(base) {
+  return carrito.reduce(function (s, x) { return s + (esDe(x.nombre, base) ? x.cantidad : 0); }, 0);
 }
 
 function paso(tile, d) {
-  var i = carrito.findIndex(function (x) { return x.nombre === tile.dataset.n; });
   if (d > 0) { tocar(tile); return; }
+  // El − quita de la ULTIMA que se agrego de ese producto
+  var i = -1;
+  for (var k = carrito.length - 1; k >= 0; k--) {
+    if (esDe(carrito[k].nombre, tile.dataset.n)) { i = k; break; }
+  }
   if (i < 0) return;
   carrito[i].cantidad--;
   if (carrito[i].cantidad <= 0) carrito.splice(i, 1);
@@ -184,8 +197,7 @@ function paso(tile, d) {
 
 function pintarContadores() {
   document.querySelectorAll('.ped-bebida').forEach(function (tile) {
-    var e = carrito.find(function (x) { return x.nombre === tile.dataset.n; });
-    var q = e ? e.cantidad : 0;
+    var q = cuantasDe(tile.dataset.n);
     var paso = tile.querySelector('.ped-paso');
     var mas = tile.querySelector('.ped-mas');
     paso.style.display = q > 0 ? '' : 'none';
@@ -197,8 +209,7 @@ function pintarContadores() {
   document.querySelectorAll('.vr-cat').forEach(function (sec) {
     var n = 0;
     sec.querySelectorAll('.ped-bebida').forEach(function (tile) {
-      var e = carrito.find(function (x) { return x.nombre === tile.dataset.n; });
-      if (e) n += e.cantidad;
+      n += cuantasDe(tile.dataset.n);
     });
     var b = sec.querySelector('.vr-cat-cuenta');
     b.hidden = !n;

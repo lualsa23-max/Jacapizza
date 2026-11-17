@@ -74,7 +74,7 @@
     <div class="beb-row">
       <span class="beb-name" style="flex:1">{{ nombre }}</span>
       <span class="beb-price">{{ precio | cop }}</span>
-      <button class="btn btn-primary btn-sm" onclick="addItem('{{ nombre }}', 'Bebida', {{ precio }})">+</button>
+      <button class="btn btn-primary btn-sm" onclick="pedirBebida('{{ nombre }}', {{ precio | int }})">+</button>
     </div>
     {% endfor %}
     {% endfor %}
@@ -140,6 +140,7 @@
   <a href="{{ url_for('mesero_pedidos') }}" class="btn btn-ghost btn-full mt-8">Cancelar</a>
 </div>
 {% include "_hoja_cobro.html" %}
+{% include "_hoja_variante.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -202,6 +203,11 @@ function addItem(nombre, tipo, precio){
   const ex = carrito.find(i=>i.nombre===nombre);
   if(ex){ ex.cantidad+=qty; } else { carrito.push({nombre,tipo,cantidad:qty,precio_unit:precio}); }
   renderCart();
+}
+
+// Cerveza: normal o michelada; jugo: en agua o en leche (_hoja_variante.html)
+function pedirBebida(nombre, precio){
+  conVariante(nombre, precio, function(n, p){ addItem(n, 'Bebida', p); });
 }
 
 function removeItem(nombre){

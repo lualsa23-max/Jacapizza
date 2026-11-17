@@ -1,0 +1,91 @@
+{# Hoja de variantes de bebida: Michelada en las cervezas, en agua / en leche
+   en los jugos, sabor de la gaseosa. La usan Nuevo pedido, Venta rápida y
+   Editar pedido; antes solo la tenia Nuevo pedido, y en las otras dos la
+   cerveza salia siempre normal y el jugo sin decir si era en agua o en leche.
+
+   Desde JS:  conVariante('Cerveza Poker', 5000, function (nombre, precio) {...})
+   Si el producto no tiene variantes, llama de una con el nombre y el precio
+   tal cual. Si las tiene, abre la hoja y llama al elegir, con el nombre ya
+   armado ('Cerveza Poker — Michelada') y el precio con el recargo. #}
+<div class="overlay" id="hoja-var" onclick="if(event.target===this)cerrarVar()">
+  <div class="sheet">
+    <div class="sheet-titulo" id="var-titulo"></div>
+    <div id="var-opciones"></div>
+    <div id="var-texto" style="display:none">
+      <input class="form-input" type="text" id="var-input" placeholder="¿Cuál?">
+      <button type="button" class="btn btn-primary btn-full btn-lg mt-12" onclick="confirmarTexto()">Agregar</button>
+    </div>
+    <button type="button" class="btn btn-ghost btn-full mt-8" onclick="cerrarVar()">Cancelar</button>
+  </div>
+</div>
+<script>
+var RECARGO_MICHELADA = 2500;
+var VARIANTES = {
+  'Gaseosa':          { tipo: 'texto', pide: '¿De qué sabor?' },
+  'Soda Italiana':    { tipo: 'lista', ops: ['Frutos Rojos', 'Frutos Amarillos'] },
+  'Cerezada':         { tipo: 'lista', ops: ['en agua', 'en leche'] },
+  'Limonada de Coco': { tipo: 'lista', ops: ['en agua', 'en leche'] }
+};
+
+function varianteDe(n) {
+  if (VARIANTES[n]) return VARIANTES[n];
+  if (n.indexOf('Jugo Natural') === 0) return { tipo: 'lista', ops: ['en agua', 'en leche'] };
+  if (n.indexOf('Cerveza') === 0) return { tipo: 'lista', ops: ['Normal', 'Michelada (+$2.500)'] };
+  return null;
+}
+
+var _var = null;   // { nombre, precio, alElegir } mientras la hoja esta abierta
+
+function conVariante(nombre, precio, alElegir) {
+  var v = varianteDe(nombre);
+  if (!v) { alElegir(nombre, precio); return; }
+  _var = { nombre: nombre, precio: precio, alElegir: alElegir };
+  document.getElementById('var-titulo').textContent = nombre;
+  var cont = document.getElementById('var-opciones');
+  var txt = document.getElementById('var-texto');
+  if (v.tipo === 'texto') {
+    cont.innerHTML = '';
+    txt.style.display = '';
+    document.getElementById('var-input').value = '';
+    document.getElementById('var-input').placeholder = v.pide;
+  } else {
+    txt.style.display = 'none';
+    cont.innerHTML = v.ops.map(function (o) {
+      return '<button type="button" class="sheet-opt" onclick="elegirVariante(\'' +
+             o.replace(/'/g, "\\'") + '\')">' + o + '</button>';
+    }).join('');
+  }
+  document.getElementById('hoja-var').classList.add('open');
+}
+
+function _cerrarYAgregar(nombre, precio) {
+  var cb = _var.alElegir;
+  cerrarVar();
+  cb(nombre, precio);
+}
+
+function elegirVariante(op) {
+  if (!_var) return;
+  if (op === 'Normal') return _cerrarYAgregar(_var.nombre, _var.precio);
+  if (op.indexOf('Michelada') === 0)
+    return _cerrarYAgregar(_var.nombre + ' — Michelada', _var.precio + RECARGO_MICHELADA);
+  _cerrarYAgregar(_var.nombre + ' — ' + op, _var.precio);
+}
+
+function confirmarTexto() {
+  if (!_var) return;
+  var v = document.getElementById('var-input').value.trim();
+  _cerrarYAgregar(_var.nombre + (v ? ' — ' + v : ''), _var.precio);
+}
+
+function cerrarVar() {
+  document.getElementById('hoja-var').classList.remove('open');
+  _var = null;
+}
+
+/* La linea del carrito es de este producto? ('Cerveza Poker — Michelada'
+   es de 'Cerveza Poker'). Para los contadores de las tarjetas. */
+function esDe(nombreItem, base) {
+  return nombreItem === base || nombreItem.indexOf(base + ' — ') === 0;
+}
+</script>
